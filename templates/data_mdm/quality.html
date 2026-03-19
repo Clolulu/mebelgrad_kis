@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Контроль качества данных | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Управление данными / Контроль качества</div>
+            <h1 class="h3 mb-2">Панель качества мастер-данных</h1>
+            <p class="mb-0">
+                Экран предназначен для контроля полноты карточек, критических остатков,
+                резерва и неактивных записей по основным справочникам предприятия.
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('mdm.index') }}" class="btn btn-outline-dark">Вернуться к модулю</a>
+            <a href="{{ url_for('mdm.stock_list') }}" class="btn btn-primary">Открыть остатки</a>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Полнота карточек</div><div class="display-6">{{ "%.1f"|format(completeness_pct) }}%</div><div class="small text-secondary">{{ filled_fields }} из {{ total_fields }} обязательных контактных полей</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Критические позиции</div><div class="display-6">{{ critical_count }}</div><div class="small text-secondary">Требуют проверки остатка и пополнения</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Позиции с резервом</div><div class="display-6">{{ reserved_count }}</div><div class="small text-secondary">Резерв влияет на доступность продаж</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Товаров на руках</div><div class="display-6">{{ total_on_hand }}</div><div class="small text-secondary">В резерве: {{ total_reserved }}</div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Критические остатки</div>
+            <h2 class="h4 mb-3">Номенклатура под контролем</h2>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Артикул</th>
+                            <th>Наименование</th>
+                            <th>На складе</th>
+                            <th>Резерв</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in critical_products %}
+                            <tr>
+                                <td><code>{{ product.sku }}</code></td>
+                                <td>{{ product.name }}</td>
+                                <td>{{ product.qty_on_hand }}</td>
+                                <td>{{ product.qty_reserved }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="4" class="text-center py-4 text-secondary">Критических позиций не обнаружено.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Профиль данных</div>
+            <h2 class="h4 mb-3">Разрез по единицам хранения</h2>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Единица</th>
+                            <th>Позиций</th>
+                            <th>Остаток</th>
+                            <th>Резерв</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in unit_rows %}
+                            <tr>
+                                <td>{{ row.unit }}</td>
+                                <td>{{ row.count }}</td>
+                                <td>{{ row.on_hand }}</td>
+                                <td>{{ row.reserved }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-4">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Клиенты</div>
+            <h2 class="h5 mb-3">Карточки с неполными контактами</h2>
+            {% for customer in customers_without_contacts %}
+                <div class="surface p-3 mb-2">
+                    <div class="fw-semibold">{{ customer.name }}</div>
+                    <div class="small text-secondary">Телефон: {{ customer.phone or "не заполнен" }}</div>
+                    <div class="small text-secondary">Почта: {{ customer.email or "не заполнена" }}</div>
+                </div>
+            {% else %}
+                <div class="text-secondary">Проблемных карточек не найдено.</div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Поставщики</div>
+            <h2 class="h5 mb-3">Карточки с неполным профилем</h2>
+            {% for supplier in suppliers_without_profile %}
+                <div class="surface p-3 mb-2">
+                    <div class="fw-semibold">{{ supplier.name }}</div>
+                    <div class="small text-secondary">Телефон: {{ supplier.phone or "не заполнен" }}</div>
+                    <div class="small text-secondary">Почта: {{ supplier.email or "не заполнена" }}</div>
+                    <div class="small text-secondary">ИНН: {{ supplier.inn or "не указан" }}</div>
+                </div>
+            {% else %}
+                <div class="text-secondary">Проблемных карточек не найдено.</div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Сотрудники</div>
+            <h2 class="h5 mb-3">Карточки с незаполненными контактами</h2>
+            {% for employee in employees_without_contacts %}
+                <div class="surface p-3 mb-2">
+                    <div class="fw-semibold">{{ employee.name }}</div>
+                    <div class="small text-secondary">{{ employee.position }}</div>
+                    <div class="small text-secondary">Телефон: {{ employee.phone or "не заполнен" }}</div>
+                    <div class="small text-secondary">Почта: {{ employee.email or "не заполнена" }}</div>
+                </div>
+            {% else %}
+                <div class="text-secondary">Проблемных карточек не найдено.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="surface p-4">
+    <div class="text-uppercase text-secondary small mb-2">Неактивные записи</div>
+    <div class="row g-3">
+        <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Товары</div><div class="h4 mb-0">{{ inactive_records.products }}</div></div></div>
+        <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Клиенты</div><div class="h4 mb-0">{{ inactive_records.customers }}</div></div></div>
+        <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Поставщики</div><div class="h4 mb-0">{{ inactive_records.suppliers }}</div></div></div>
+        <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Сотрудники</div><div class="h4 mb-0">{{ inactive_records.employees }}</div></div></div>
+    </div>
+</div>
+{% endblock %}

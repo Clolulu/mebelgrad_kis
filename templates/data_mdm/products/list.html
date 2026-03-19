@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Номенклатура | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Управление данными / Номенклатура</div>
+            <h1 class="h3 mb-2">Единый каталог товаров</h1>
+            <p class="mb-0">Карточки номенклатуры, статусы активности, остатки и фильтры для оперативной работы со справочником.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('mdm.create_product') }}" class="btn btn-primary">Создать карточку товара</a>
+            <a href="{{ url_for('mdm.stock_list') }}" class="btn btn-outline-dark">Открыть остатки</a>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Всего позиций</div><div class="h4 mb-0">{{ total_products }}</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Активные позиции</div><div class="h4 mb-0">{{ active_products }}</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Критический остаток</div><div class="h4 mb-0">{{ low_stock_products }}</div></div></div>
+</div>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-5">
+            <label class="form-label" for="q">Поиск</label>
+            <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Артикул или наименование">
+        </div>
+        <div class="col-lg-3">
+            <label class="form-label" for="active">Статус</label>
+            <select class="form-select" id="active" name="active">
+                <option value="">Все</option>
+                <option value="active" {% if active == 'active' %}selected{% endif %}>Только активные</option>
+                <option value="inactive" {% if active == 'inactive' %}selected{% endif %}>Только неактивные</option>
+            </select>
+        </div>
+        <div class="col-lg-2">
+            <label class="form-label" for="unit">Ед. изм.</label>
+            <select class="form-select" id="unit" name="unit">
+                <option value="">Все</option>
+                <option value="шт" {% if unit == 'шт' %}selected{% endif %}>шт</option>
+                <option value="компл" {% if unit == 'компл' %}selected{% endif %}>компл</option>
+            </select>
+        </div>
+        <div class="col-lg-2 d-flex align-items-end gap-2">
+            <button class="btn btn-primary w-100" type="submit">Применить</button>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Артикул</th>
+                    <th>Наименование</th>
+                    <th>Единица</th>
+                    <th>Розничная цена</th>
+                    <th>На складе</th>
+                    <th>Резерв</th>
+                    <th>Доступно</th>
+                    <th>Статус</th>
+                    <th class="text-end">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products.items %}
+                    {% set available = product.qty_on_hand - product.qty_reserved %}
+                    <tr>
+                        <td><code>{{ product.sku }}</code></td>
+                        <td>
+                            <div class="fw-semibold">{{ product.name }}</div>
+                            <div class="small text-secondary">Карточка справочника</div>
+                        </td>
+                        <td>{{ product.unit }}</td>
+                        <td>{{ "%.2f"|format(product.retail_price) }} ₽</td>
+                        <td>{{ product.qty_on_hand }}</td>
+                        <td>{{ product.qty_reserved }}</td>
+                        <td>
+                            <span class="badge {% if available <= 0 %}text-bg-danger{% elif available <= 5 %}text-bg-warning{% else %}text-bg-success{% endif %}">
+                                {{ available }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge {% if product.is_active %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                                {{ "Активен" if product.is_active else "Неактивен" }}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <div class="d-flex gap-2 justify-content-end">
+                                <a href="{{ url_for('mdm.edit_product', product_id=product.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
+                                <form method="post" action="{{ url_for('mdm.delete_product', product_id=product.id) }}" onsubmit="return confirm('Удалить товар из справочника?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-secondary">По заданным условиям товары не найдены.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<nav class="mt-4">
+    <ul class="pagination">
+        <li class="page-item {% if not products.has_prev %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('mdm.products_list', page=products.prev_num, q=q, active=active, unit=unit) }}">Назад</a>
+        </li>
+        {% for page_num in products.iter_pages() %}
+            <li class="page-item {% if page_num == products.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('mdm.products_list', page=page_num, q=q, active=active, unit=unit) }}">{{ page_num }}</a>
+            </li>
+        {% endfor %}
+        <li class="page-item {% if not products.has_next %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('mdm.products_list', page=products.next_num, q=q, active=active, unit=unit) }}">Далее</a>
+        </li>
+    </ul>
+</nav>
+{% endblock %}

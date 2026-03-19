@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}КИС "МебельГрад"{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --mg-bg: #f4f1ea;
+            --mg-ink: #1e2a2f;
+            --mg-accent: #8b5e3c;
+            --mg-accent-dark: #5c3d28;
+            --mg-panel: #fffdf8;
+        }
+        body {
+            background:
+                radial-gradient(circle at top right, rgba(139, 94, 60, 0.18), transparent 28%),
+                linear-gradient(180deg, #f8f4ed 0%, var(--mg-bg) 100%);
+            color: var(--mg-ink);
+            min-height: 100vh;
+        }
+        .navbar {
+            background: rgba(30, 42, 47, 0.96);
+            backdrop-filter: blur(8px);
+        }
+        .brand-mark {
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 0.7rem;
+            background: linear-gradient(135deg, #d8b68a, var(--mg-accent));
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 700;
+        }
+        .surface {
+            background: var(--mg-panel);
+            border: 1px solid rgba(30, 42, 47, 0.08);
+            border-radius: 1.25rem;
+            box-shadow: 0 18px 50px rgba(30, 42, 47, 0.08);
+        }
+        .page-shell {
+            padding-top: 2rem;
+            padding-bottom: 3rem;
+        }
+        .hero-strip {
+            background: linear-gradient(135deg, rgba(139, 94, 60, 0.12), rgba(30, 42, 47, 0.06));
+            border: 1px solid rgba(139, 94, 60, 0.12);
+            border-radius: 1.25rem;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .module-card {
+            height: 100%;
+            border-radius: 1rem;
+        }
+        .module-card .badge {
+            letter-spacing: 0.04em;
+        }
+        .table thead th {
+            white-space: nowrap;
+        }
+        .btn-primary {
+            background-color: var(--mg-accent);
+            border-color: var(--mg-accent);
+        }
+        .btn-primary:hover,
+        .btn-primary:focus {
+            background-color: var(--mg-accent-dark);
+            border-color: var(--mg-accent-dark);
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('index') }}">
+                <span class="brand-mark">МГ</span>
+                <span>КИС "МебельГрад"</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Главная</a></li>
+                    {% if current_user.is_authenticated and current_user.is_admin %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('mdm.index') }}">Управление данными</a></li>
+                    {% endif %}
+                    {% if current_user.is_authenticated and (current_user.is_finance or current_user.is_admin) %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.index') }}">Планирование и финансы</a></li>
+                    {% endif %}
+                    {% if current_user.is_authenticated %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('warehouse_demo.demo') }}">Склад и закупки</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('sales_demo.demo') }}">Продажи и доставка</a></li>
+                    {% endif %}
+                </ul>
+                <div class="d-flex align-items-center gap-2">
+                    {% if current_user.is_authenticated %}
+                        <span class="text-white-50 small">{{ current_user.username }}</span>
+                        <a class="btn btn-outline-light btn-sm" href="{{ url_for('auth.logout') }}">Выйти</a>
+                    {% else %}
+                        <a class="btn btn-outline-light btn-sm" href="{{ url_for('auth.login') }}">Войти</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container page-shell">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-3">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

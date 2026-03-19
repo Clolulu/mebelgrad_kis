@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Клиенты | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Управление данными / Клиенты</div>
+            <h1 class="h3 mb-2">Единый клиентский реестр</h1>
+            <p class="mb-0">Физические и юридические лица, используемые в продажах, договорах, платежах и аналитике.</p>
+        </div>
+        <a href="{{ url_for('mdm.create_customer') }}" class="btn btn-primary">Создать карточку клиента</a>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Всего клиентов</div><div class="h4 mb-0">{{ total_customers }}</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Юридические лица</div><div class="h4 mb-0">{{ legal_customers }}</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Физические лица</div><div class="h4 mb-0">{{ individual_customers }}</div></div></div>
+</div>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-8">
+            <label class="form-label" for="q">Поиск</label>
+            <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Наименование, телефон, электронная почта">
+        </div>
+        <div class="col-lg-2">
+            <label class="form-label" for="customer_type">Тип клиента</label>
+            <select class="form-select" id="customer_type" name="customer_type">
+                <option value="">Все</option>
+                <option value="individual" {% if customer_type == 'individual' %}selected{% endif %}>Физическое лицо</option>
+                <option value="legal_entity" {% if customer_type == 'legal_entity' %}selected{% endif %}>Юридическое лицо</option>
+            </select>
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Применить</button>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Клиент</th>
+                    <th>Телефон</th>
+                    <th>Электронная почта</th>
+                    <th>Тип</th>
+                    <th>Статус</th>
+                    <th class="text-end">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customers.items %}
+                    <tr>
+                        <td class="fw-semibold">{{ customer.name }}</td>
+                        <td>{{ customer.phone or "Не указан" }}</td>
+                        <td>{{ customer.email or "Не указана" }}</td>
+                        <td>{{ "Физическое лицо" if customer.type == 'individual' else "Юридическое лицо" }}</td>
+                        <td><span class="badge {% if customer.is_active %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ "Активен" if customer.is_active else "Неактивен" }}</span></td>
+                        <td class="text-end">
+                            <div class="d-flex gap-2 justify-content-end">
+                                <a href="{{ url_for('mdm.edit_customer', customer_id=customer.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
+                                <form method="post" action="{{ url_for('mdm.delete_customer', customer_id=customer.id) }}" onsubmit="return confirm('Удалить клиента из справочника?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-secondary">Записи не найдены.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<nav class="mt-4">
+    <ul class="pagination">
+        <li class="page-item {% if not customers.has_prev %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('mdm.customers_list', page=customers.prev_num, q=q, customer_type=customer_type) }}">Назад</a>
+        </li>
+        {% for page_num in customers.iter_pages() %}
+            <li class="page-item {% if page_num == customers.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('mdm.customers_list', page=page_num, q=q, customer_type=customer_type) }}">{{ page_num }}</a>
+            </li>
+        {% endfor %}
+        <li class="page-item {% if not customers.has_next %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('mdm.customers_list', page=customers.next_num, q=q, customer_type=customer_type) }}">Далее</a>
+        </li>
+    </ul>
+</nav>
+{% endblock %}

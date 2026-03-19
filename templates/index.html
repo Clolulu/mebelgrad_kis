@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Главная | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+            <div class="text-uppercase text-secondary small mb-2">Корпоративная информационная система ИП "МебельГрад"</div>
+            <h1 class="h2 mb-3">Единая цифровая среда для управления мастер-данными и финансами</h1>
+            <p class="mb-3">
+                Система объединяет справочники, финансовое планирование, контроль платежей, управленческую аналитику
+                и подготовку данных для обмена между внутренними контурами предприятия.
+                Рабочими в текущей версии являются два контура: управление данными и планирование с финансами.
+            </p>
+            <div class="d-flex gap-2 flex-wrap">
+                {% if current_user.is_authenticated and current_user.is_admin %}
+                    <a href="{{ url_for('mdm.index') }}" class="btn btn-primary">Открыть управление данными</a>
+                {% endif %}
+                {% if current_user.is_authenticated and (current_user.is_finance or current_user.is_admin) %}
+                    <a href="{{ url_for('finance.index') }}" class="btn btn-outline-dark">Открыть финансовый центр</a>
+                {% endif %}
+                {% if not current_user.is_authenticated %}
+                    <a href="{{ url_for('auth.login') }}" class="btn btn-primary">Перейти ко входу</a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="surface p-4 h-100">
+                {% if current_user.is_authenticated %}
+                    <div class="text-secondary small">Текущий пользователь</div>
+                    <div class="h5 mb-2">{{ current_user.username }}</div>
+                    <p class="small text-secondary mb-0">
+                        Состав доступных функций зависит от роли. Администратор работает с мастер-данными,
+                        бухгалтерия и администратор получают доступ к финансовому контуру.
+                    </p>
+                {% else %}
+                    <div class="text-secondary small">Демонстрационный доступ</div>
+                    <div class="small mb-1">Администратор: <code>admin / admin123</code></div>
+                    <div class="small mb-3">Бухгалтер: <code>finance / finance123</code></div>
+                    <p class="small text-secondary mb-0">
+                        После входа становятся доступны рабочие модули с тестовыми данными за январь, февраль
+                        и период до 19 марта 2026 года.
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Номенклатурных позиций</div><div class="display-6">{{ products_count }}</div><div class="small text-secondary">Активных: {{ active_products_count }}, критических остатков: {{ low_stock_count }}</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Контрагентов</div><div class="display-6">{{ customers_count + suppliers_count }}</div><div class="small text-secondary">Клиентов: {{ customers_count }}, поставщиков: {{ suppliers_count }}</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Документов движения</div><div class="display-6">{{ sales_orders_count + purchase_orders_count }}</div><div class="small text-secondary">Продажи: {{ sales_orders_count }}, закупки: {{ purchase_orders_count }}</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Платежный и бюджетный контур</div><div class="display-6">{{ payments_count + budget_items_count }}</div><div class="small text-secondary">Платежи: {{ payments_count }}, бюджетные статьи: {{ budget_items_count }}</div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                    <div class="text-uppercase text-secondary small">Рабочий модуль</div>
+                    <h2 class="h4 mb-1">Управление данными</h2>
+                </div>
+                <span class="badge text-bg-dark">Ключевой контур</span>
+            </div>
+            <p class="text-secondary">
+                Централизованное ведение номенклатуры, клиентов, поставщиков и сотрудников.
+                Контур поддерживает единое информационное пространство, контроль полноты карточек,
+                отслеживание складских остатков и подготовку опорных данных для остальных модулей КИС.
+            </p>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Номенклатура</div><div class="small text-secondary">Товары, единицы измерения, цены, активность, остатки и резерв.</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Контрагенты и сотрудники</div><div class="small text-secondary">Единые карточки клиентов, поставщиков и кадрового справочника.</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Контроль качества данных</div><div class="small text-secondary">Полнота контактов, критические остатки, неактивные записи и разрез по единицам хранения.</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Операционный срез</div><div class="small text-secondary">Обзор доступного товарного остатка для согласованной работы с другими контурами.</div></div></div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                {% if current_user.is_authenticated and current_user.is_admin %}
+                    <a href="{{ url_for('mdm.index') }}" class="btn btn-primary btn-sm">Панель модуля</a>
+                    <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-dark btn-sm">Номенклатура</a>
+                    <a href="{{ url_for('mdm.customers_list') }}" class="btn btn-outline-dark btn-sm">Клиенты</a>
+                    <a href="{{ url_for('mdm.suppliers_list') }}" class="btn btn-outline-dark btn-sm">Поставщики</a>
+                    <a href="{{ url_for('mdm.employees_list') }}" class="btn btn-outline-dark btn-sm">Сотрудники</a>
+                    <a href="{{ url_for('mdm.stock_list') }}" class="btn btn-outline-dark btn-sm">Остатки</a>
+                    <a href="{{ url_for('mdm.quality_dashboard') }}" class="btn btn-outline-dark btn-sm">Качество данных</a>
+                {% else %}
+                    <span class="badge text-bg-secondary">Доступ по роли администратора</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                    <div class="text-uppercase text-secondary small">Рабочий модуль</div>
+                    <h2 class="h4 mb-1">Планирование и управление финансами</h2>
+                </div>
+                <span class="badge text-bg-success">Финансовый центр</span>
+            </div>
+            <p class="text-secondary">
+                Модуль охватывает казначейство, бюджетирование, план-фактный анализ, отчет о прибыли,
+                реестр взаиморасчетов и выгрузку проведенных документов в учетный контур.
+                Демонстрационные данные охватывают первый квартал 2026 года до 19 марта.
+            </p>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Платежный контроль</div><div class="small text-secondary">Входящие оплаты, исходящие заявки, статусы и задолженность.</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Бюджет и ликвидность</div><div class="small text-secondary">Бюджетные статьи, отклонения, кассовые разрывы и динамика по периодам.</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Управленческая отчетность</div><div class="small text-secondary">Отчет о прибыли, план-факт и аналитика по расчетам с контрагентами.</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Обмен с учетной системой</div><div class="small text-secondary">Формирование файла обмена по проведенным продажам и поступлениям.</div></div></div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                {% if current_user.is_authenticated and (current_user.is_finance or current_user.is_admin) %}
+                    <a href="{{ url_for('finance.index') }}" class="btn btn-primary btn-sm">Панель модуля</a>
+                    <a href="{{ url_for('finance.incoming_payments') }}" class="btn btn-outline-dark btn-sm">Входящие платежи</a>
+                    <a href="{{ url_for('finance.outgoing_payments') }}" class="btn btn-outline-dark btn-sm">Исходящие заявки</a>
+                    <a href="{{ url_for('finance.budget') }}" class="btn btn-outline-dark btn-sm">Бюджет</a>
+                    <a href="{{ url_for('finance.plan_fact_analysis') }}" class="btn btn-outline-dark btn-sm">План-факт</a>
+                    <a href="{{ url_for('finance.profitability_report') }}" class="btn btn-outline-dark btn-sm">Отчет о прибыли</a>
+                    <a href="{{ url_for('finance.cash_flow') }}" class="btn btn-outline-dark btn-sm">Календарь ДДС</a>
+                    <a href="{{ url_for('finance.settlements') }}" class="btn btn-outline-dark btn-sm">Взаиморасчеты</a>
+                {% else %}
+                    <span class="badge text-bg-secondary">Доступ бухгалтерии и администратору</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Профиль предприятия</div>
+            <h2 class="h4 mb-3">Контекст ИП "МебельГрад"</h2>
+            <p class="text-secondary">
+                Предприятие специализируется на продаже мебели для дома и офиса, работает на УСН 6% "Доходы"
+                и сочетает розничные продажи с корпоративными проектами, доставкой, сборкой и индивидуальными заказами.
+            </p>
+            <div class="row g-3">
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Корпоративные клиенты</div><div class="h4 mb-0">{{ legal_customers_count }}</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Активных сотрудников</div><div class="h4 mb-0">{{ active_employees_count }}</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Товаров на складе</div><div class="h4 mb-0">{{ total_on_hand }}</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Неоплаченных закупок</div><div class="h4 mb-0">{{ unpaid_purchase_orders }}</div></div></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Дорожная карта</div>
+            <h2 class="h4 mb-3">Остальные контуры сохранены как демо</h2>
+            <p class="text-secondary">
+                Модули склада, закупок, продаж и доставки оставлены отдельными демонстрационными контурами.
+                Они присутствуют в навигации, но рабочая нагрузка текущей версии сосредоточена на качестве данных
+                и финансово-управленческой аналитике.
+            </p>
+            <div class="d-flex gap-2 flex-wrap">
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('warehouse_demo.demo') }}" class="btn btn-outline-dark btn-sm">Склад и закупки</a>
+                    <a href="{{ url_for('sales_demo.demo') }}" class="btn btn-outline-dark btn-sm">Продажи и доставка</a>
+                {% else %}
+                    <span class="badge text-bg-secondary">Демо-контуры доступны после входа</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

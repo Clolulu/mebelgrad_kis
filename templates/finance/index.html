@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Финансовый центр | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+            <div class="text-uppercase text-secondary small mb-2">Планирование и управление финансами</div>
+            <h1 class="h3 mb-2">Финансовый центр предприятия</h1>
+            <p class="mb-0">
+                Контур объединяет казначейство, бюджетирование, план-фактный анализ,
+                отчет о прибыли, взаиморасчеты с контрагентами и подготовку обменных данных
+                по продажам и поступлениям за выбранный период.
+            </p>
+        </div>
+        <div class="col-lg-4">
+            <div class="surface p-3 h-100">
+                <div class="text-secondary small">Текущий период</div>
+                <div class="h4 mb-2">{{ current_period }}</div>
+                <div class="small text-secondary">Неоплаченных заказов поставщикам: {{ unpaid_purchase_orders }}</div>
+                <div class="small text-secondary">Сумма ожидаемых выплат: {{ "%.2f"|format(unpaid_purchase_amount) }} ₽</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Доходы периода</div><div class="display-6">{{ "%.0f"|format(total_income) }}</div><div class="small text-secondary">По проведенным входящим платежам</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Расходы периода</div><div class="display-6">{{ "%.0f"|format(total_expenses) }}</div><div class="small text-secondary">По заказам поставщикам за период</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Операционная ликвидность</div><div class="display-6">{{ "%.0f"|format(current_liquidity) }}</div><div class="small text-secondary">Доходы минус расходы</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Платежные документы</div><div class="display-6">{{ payments_count + purchase_orders_count }}</div><div class="small text-secondary">Входящие оплаты и заявки на оплату</div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-8">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Рабочие разделы</div>
+            <h2 class="h4 mb-3">Казначейство, бюджет и управленческая аналитика</h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Входящие платежи</div>
+                        <div class="small text-secondary mb-3">Реестр оплат от клиентов с фильтрами по периоду, заказу и фискальному номеру.</div>
+                        <a href="{{ url_for('finance.incoming_payments') }}" class="btn btn-outline-dark btn-sm">Открыть реестр</a>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Исходящие заявки на оплату</div>
+                        <div class="small text-secondary mb-3">Контроль заказов поставщикам, статусов оплаты и ожидаемых кассовых выплат.</div>
+                        <a href="{{ url_for('finance.outgoing_payments') }}" class="btn btn-outline-dark btn-sm">Открыть реестр</a>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Бюджетирование</div>
+                        <div class="small text-secondary mb-3">Плановые доходы и расходы по статьям, периодам и управленческим категориям.</div>
+                        <a href="{{ url_for('finance.budget') }}" class="btn btn-outline-dark btn-sm">Открыть бюджет</a>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">План-фактный анализ</div>
+                        <div class="small text-secondary mb-3">Сравнение факта по продажам и закупкам с бюджетными ориентирами периода.</div>
+                        <a href="{{ url_for('finance.plan_fact_analysis') }}" class="btn btn-outline-dark btn-sm">Открыть анализ</a>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Календарь денежных средств</div>
+                        <div class="small text-secondary mb-3">Дневной разрез поступлений, фактических выплат и ожидаемых кассовых разрывов.</div>
+                        <a href="{{ url_for('finance.cash_flow') }}" class="btn btn-outline-dark btn-sm">Открыть календарь</a>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Взаиморасчеты</div>
+                        <div class="small text-secondary mb-3">Аналитика по заказам клиентов, задолженности и кредиторской нагрузке по поставщикам.</div>
+                        <a href="{{ url_for('finance.settlements') }}" class="btn btn-outline-dark btn-sm">Открыть расчеты</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Управленческие действия</div>
+            <h2 class="h4 mb-3">Быстрые операции</h2>
+            <div class="d-grid gap-2 mb-3">
+                <a href="{{ url_for('finance.profitability_report') }}" class="btn btn-primary">Отчет о прибыли</a>
+                <a href="{{ url_for('finance.plan_fact_analysis') }}" class="btn btn-outline-dark">План-фактный анализ</a>
+                <a href="{{ url_for('finance.budget') }}" class="btn btn-outline-dark">Бюджетные статьи</a>
+            </div>
+            <form method="post" action="{{ url_for('finance.export_1c') }}" class="surface p-3">
+                <label class="form-label" for="period">Выгрузка обменных данных</label>
+                <div class="input-group">
+                    <input class="form-control" id="period" name="period" value="{{ current_period }}">
+                    <button class="btn btn-primary" type="submit">Сформировать файл</button>
+                </div>
+                <div class="small text-secondary mt-2">
+                    Формируется файл обмена по продажам и поступлениям за выбранный период.
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-7">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Динамика периода</div>
+            <h2 class="h4 mb-3">Сравнение по месяцам 2026 года</h2>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Период</th>
+                            <th>Доходы</th>
+                            <th>Расходы</th>
+                            <th>Баланс</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in period_rows %}
+                            <tr>
+                                <td>{{ row.period }}</td>
+                                <td>{{ "%.2f"|format(row.income) }} ₽</td>
+                                <td>{{ "%.2f"|format(row.expenses) }} ₽</td>
+                                <td>
+                                    <span class="badge {% if row.balance >= 0 %}text-bg-success{% else %}text-bg-danger{% endif %}">
+                                        {{ "%.2f"|format(row.balance) }} ₽
+                                    </span>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-5">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Контроль риска</div>
+            <h2 class="h4 mb-3">Платежная дисциплина и нагрузка</h2>
+            <div class="surface p-3 mb-3">
+                <div class="text-secondary small">Неоплаченные закупочные документы</div>
+                <div class="h3 mb-0">{{ unpaid_purchase_orders }}</div>
+            </div>
+            <div class="surface p-3 mb-3">
+                <div class="text-secondary small">Сумма ожидаемых выплат</div>
+                <div class="h3 mb-0">{{ "%.2f"|format(unpaid_purchase_amount) }} ₽</div>
+            </div>
+            <div class="surface p-3">
+                <div class="text-secondary small">Заказы клиентов в системе</div>
+                <div class="h3 mb-0">{{ sales_orders_count }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

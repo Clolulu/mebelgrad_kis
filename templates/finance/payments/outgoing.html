@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Исходящие платежи | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="text-uppercase text-secondary small">Финансы / Казначейство</div>
+    <h1 class="h3 mb-2">Исходящие платежи и заявки на оплату</h1>
+    <p class="mb-0">Контроль оплаты поставщикам на основе заказов закупки и незавершенных обязательств.</p>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Неоплаченные заявки</div><div class="h4 mb-0">{{ pending_count }}</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Сумма к оплате</div><div class="h4 mb-0">{{ "%.2f"|format(pending_amount) }} ₽</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Оплаченный объем</div><div class="h4 mb-0">{{ "%.2f"|format(paid_amount) }} ₽</div></div></div>
+</div>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-8">
+            <label class="form-label" for="q">Поиск</label>
+            <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Номер заказа или поставщик">
+        </div>
+        <div class="col-lg-2">
+            <label class="form-label" for="status">Оплата</label>
+            <select class="form-select" id="status" name="status">
+                <option value="">Все</option>
+                <option value="unpaid" {% if status == 'unpaid' %}selected{% endif %}>Не оплачены</option>
+                <option value="paid" {% if status == 'paid' %}selected{% endif %}>Оплачены</option>
+            </select>
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Применить</button>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Номер заявки</th>
+                    <th>Поставщик</th>
+                    <th>Дата</th>
+                    <th>Сумма</th>
+                    <th>Статус документа</th>
+                    <th>Оплата</th>
+                    <th class="text-end">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for po in purchase_orders.items %}
+                    <tr>
+                        <td>{{ po.order_number }}</td>
+                        <td>{{ po.supplier.name }}</td>
+                        <td>{{ po.order_date.strftime('%d.%m.%Y') }}</td>
+                        <td class="fw-semibold">{{ "%.2f"|format(po.total_amount) }} ₽</td>
+                        <td>{{ po.status }}</td>
+                        <td><span class="badge {% if po.is_paid %}text-bg-success{% else %}text-bg-warning{% endif %}">{{ "Оплачено" if po.is_paid else "К оплате" }}</span></td>
+                        <td class="text-end">
+                            {% if not po.is_paid %}
+                                <form method="post" action="{{ url_for('finance.mark_purchase_order_paid', po_id=po.id) }}">
+                                    <button class="btn btn-sm btn-outline-dark" type="submit" onclick="return confirm('Подтвердить оплату заявки?');">Отметить как оплачено</button>
+                                </form>
+                            {% else %}
+                                <span class="text-secondary small">Действий нет</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-secondary">Заявки по заданным условиям не найдены.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Создание поставщика | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="text-uppercase text-secondary small">Управление данными / Поставщики</div>
+    <h1 class="h3 mb-2">Новая карточка поставщика</h1>
+    <p class="mb-0">Регистрация поставщика для закупок, договоров, тендеров и взаиморасчетов.</p>
+</section>
+
+<div class="row">
+    <div class="col-xl-8">
+        <div class="surface p-4">
+            <form method="post" class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label" for="name">Наименование</label>
+                    <input class="form-control" id="name" name="name" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="inn">ИНН</label>
+                    <input class="form-control" id="inn" name="inn">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="phone">Телефон</label>
+                    <input class="form-control" id="phone" name="phone">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="email">Электронная почта</label>
+                    <input class="form-control" id="email" name="email" type="email">
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" id="is_active" name="is_active" type="checkbox" checked>
+                        <label class="form-check-label" for="is_active">Карточка активна</label>
+                    </div>
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">Сохранить поставщика</button>
+                    <a href="{{ url_for('mdm.suppliers_list') }}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

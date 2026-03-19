@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование сотрудника | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="text-uppercase text-secondary small">Управление данными / Сотрудники</div>
+    <h1 class="h3 mb-2">Редактирование кадровой записи</h1>
+    <p class="mb-0">Обновление оргструктуры, контактных данных и статуса сотрудника.</p>
+</section>
+
+<div class="row">
+    <div class="col-xl-8">
+        <div class="surface p-4">
+            <form method="post" class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="name">ФИО</label>
+                    <input class="form-control" id="name" name="name" value="{{ employee.name }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="role">Должность</label>
+                    <input class="form-control" id="role" name="role" value="{{ employee.position or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="phone">Телефон</label>
+                    <input class="form-control" id="phone" name="phone" value="{{ employee.phone or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="email">Электронная почта</label>
+                    <input class="form-control" id="email" name="email" type="email" value="{{ employee.email or '' }}">
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" id="is_active" name="is_active" type="checkbox" {% if employee.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Карточка активна</label>
+                    </div>
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">Сохранить изменения</button>
+                    <a href="{{ url_for('mdm.employees_list') }}" class="btn btn-outline-secondary">Назад к реестру</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Создание товара | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="text-uppercase text-secondary small">Управление данными / Номенклатура</div>
+    <h1 class="h3 mb-2">Новая карточка товара</h1>
+    <p class="mb-0">Создание позиции мастер-данных с обязательной фиксацией артикула, единицы измерения и цены.</p>
+</section>
+
+<div class="row">
+    <div class="col-xl-8">
+        <div class="surface p-4">
+            <form method="post" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="sku">Артикул</label>
+                    <input class="form-control" id="sku" name="sku" required>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label" for="name">Наименование</label>
+                    <input class="form-control" id="name" name="name" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="unit">Единица измерения</label>
+                    <select class="form-select" id="unit" name="unit">
+                        <option value="шт">шт</option>
+                        <option value="компл">компл</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="retail_price">Розничная цена, ₽</label>
+                    <input class="form-control" id="retail_price" name="retail_price" type="number" step="0.01" required>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check">
+                        <input class="form-check-input" id="is_active" name="is_active" type="checkbox" checked>
+                        <label class="form-check-label" for="is_active">Карточка активна</label>
+                    </div>
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">Сохранить товар</button>
+                    <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="surface p-4">
+            <h2 class="h6">Что фиксируется в контуре управления данными</h2>
+            <ul class="mb-0">
+                <li>уникальный артикул</li>
+                <li>нормализованное наименование</li>
+                <li>единица учета</li>
+                <li>актуальная розничная цена</li>
+                <li>статус использования в КИС</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

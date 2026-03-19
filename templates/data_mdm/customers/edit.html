@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование клиента | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="text-uppercase text-secondary small">Управление данными / Клиенты</div>
+    <h1 class="h3 mb-2">Редактирование клиентской карточки</h1>
+    <p class="mb-0">Актуализация контактных данных и типа клиента без потери связей с заказами и платежами.</p>
+</section>
+
+<div class="row">
+    <div class="col-xl-8">
+        <div class="surface p-4">
+            <form method="post" class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label" for="name">ФИО или наименование</label>
+                    <input class="form-control" id="name" name="name" value="{{ customer.name }}" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="type">Тип клиента</label>
+                    <select class="form-select" id="type" name="type">
+                        <option value="individual" {% if customer.type == 'individual' %}selected{% endif %}>Физическое лицо</option>
+                        <option value="legal_entity" {% if customer.type == 'legal_entity' %}selected{% endif %}>Юридическое лицо</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="phone">Телефон</label>
+                    <input class="form-control" id="phone" name="phone" value="{{ customer.phone or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="email">Электронная почта</label>
+                    <input class="form-control" id="email" name="email" type="email" value="{{ customer.email or '' }}">
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" id="is_active" name="is_active" type="checkbox" {% if customer.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Карточка активна</label>
+                    </div>
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">Сохранить изменения</button>
+                    <a href="{{ url_for('mdm.customers_list') }}" class="btn btn-outline-secondary">Назад к реестру</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Создание сотрудника | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="text-uppercase text-secondary small">Управление данными / Сотрудники</div>
+    <h1 class="h3 mb-2">Новая запись сотрудника</h1>
+    <p class="mb-0">Кадровая карточка используется для оргструктуры и отчетности, без автоматического создания учетной записи.</p>
+</section>
+
+<div class="row">
+    <div class="col-xl-8">
+        <div class="surface p-4">
+            <form method="post" class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="name">ФИО</label>
+                    <input class="form-control" id="name" name="name" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="role">Должность</label>
+                    <input class="form-control" id="role" name="role">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="phone">Телефон</label>
+                    <input class="form-control" id="phone" name="phone">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="email">Электронная почта</label>
+                    <input class="form-control" id="email" name="email" type="email">
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" id="is_active" name="is_active" type="checkbox" checked>
+                        <label class="form-check-label" for="is_active">Карточка активна</label>
+                    </div>
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">Сохранить сотрудника</button>
+                    <a href="{{ url_for('mdm.employees_list') }}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

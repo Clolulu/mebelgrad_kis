@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Входящие платежи | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="text-uppercase text-secondary small">Финансы / Казначейство</div>
+    <h1 class="h3 mb-2">Входящие платежи от клиентов</h1>
+    <p class="mb-0">Контроль поступлений, фискальных документов и платежной дисциплины по заказам.</p>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6"><div class="surface p-3"><div class="text-secondary small">Сумма поступлений по выборке</div><div class="h4 mb-0">{{ "%.2f"|format(total_amount) }} ₽</div></div></div>
+    <div class="col-md-6"><div class="surface p-3"><div class="text-secondary small">Проведенные платежи</div><div class="h4 mb-0">{{ completed_count }}</div></div></div>
+</div>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-4">
+            <label class="form-label" for="q">Поиск</label>
+            <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Номер заказа, клиент, чек">
+        </div>
+        <div class="col-lg-3">
+            <label class="form-label" for="date_from">Дата с</label>
+            <input class="form-control" id="date_from" name="date_from" type="date" value="{{ date_from }}">
+        </div>
+        <div class="col-lg-3">
+            <label class="form-label" for="date_to">Дата по</label>
+            <input class="form-control" id="date_to" name="date_to" type="date" value="{{ date_to }}">
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Применить</button>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Заказ</th>
+                    <th>Клиент</th>
+                    <th>Сумма</th>
+                    <th>Дата платежа</th>
+                    <th>Фискальный чек</th>
+                    <th>Статус</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for payment in payments.items %}
+                    <tr>
+                        <td>{{ payment.sales_order.order_number }}</td>
+                        <td>{{ payment.sales_order.customer.name }}</td>
+                        <td class="fw-semibold">{{ "%.2f"|format(payment.amount) }} ₽</td>
+                        <td>{{ payment.payment_date.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td>{{ payment.fiscal_receipt_number or "Не указан" }}</td>
+                        <td><span class="badge {% if payment.status == 'completed' %}text-bg-success{% else %}text-bg-warning{% endif %}">{{ "Проведен" if payment.status == 'completed' else "Ожидает проведения" }}</span></td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-secondary">Платежи по заданным условиям не найдены.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

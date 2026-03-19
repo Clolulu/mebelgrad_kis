@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Остатки | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Управление данными / Остатки</div>
+            <h1 class="h3 mb-2">Срез складских остатков</h1>
+            <p class="mb-0">Витрина по остаткам и резерву для контроля доступности товаров и управленческого мониторинга.</p>
+        </div>
+        <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-dark">Вернуться к номенклатуре</a>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Всего на складе</div><div class="h4 mb-0">{{ total_on_hand }}</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Критические позиции</div><div class="h4 mb-0">{{ critical_count }}</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Позиции с резервом</div><div class="h4 mb-0">{{ reserved_count }}</div></div></div>
+</div>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-8">
+            <label class="form-label" for="q">Поиск</label>
+            <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Артикул или наименование">
+        </div>
+        <div class="col-lg-2">
+            <label class="form-label" for="stock_state">Состояние</label>
+            <select class="form-select" id="stock_state" name="stock_state">
+                <option value="">Все</option>
+                <option value="critical" {% if stock_state == 'critical' %}selected{% endif %}>Критический остаток</option>
+                <option value="reserved" {% if stock_state == 'reserved' %}selected{% endif %}>Есть резерв</option>
+                <option value="available" {% if stock_state == 'available' %}selected{% endif %}>Положительный остаток</option>
+            </select>
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Применить</button>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Артикул</th>
+                    <th>Наименование</th>
+                    <th>Единица</th>
+                    <th>На складе</th>
+                    <th>В резерве</th>
+                    <th>Доступно</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products.items %}
+                    {% set available = product.qty_on_hand - product.qty_reserved %}
+                    <tr>
+                        <td><code>{{ product.sku }}</code></td>
+                        <td class="fw-semibold">{{ product.name }}</td>
+                        <td>{{ product.unit }}</td>
+                        <td>{{ product.qty_on_hand }}</td>
+                        <td>{{ product.qty_reserved }}</td>
+                        <td><span class="badge {% if available <= 0 %}text-bg-danger{% elif available <= 5 %}text-bg-warning{% else %}text-bg-success{% endif %}">{{ available }}</span></td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-secondary">Записи не найдены.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

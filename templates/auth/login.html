@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Вход | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-5">
+        <div class="surface p-4">
+            <div class="mb-4">
+                <div class="text-uppercase text-secondary small">Аутентификация</div>
+                <h1 class="h3 mb-1">Вход в систему</h1>
+                <p class="text-secondary mb-0">Доступ к модулям зависит от роли пользователя.</p>
+            </div>
+            <form method="post" class="vstack gap-3">
+                <div>
+                    <label class="form-label" for="username">Логин</label>
+                    <input class="form-control" id="username" name="username" required autofocus>
+                </div>
+                <div>
+                    <label class="form-label" for="password">Пароль</label>
+                    <input class="form-control" id="password" name="password" type="password" required>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" id="remember" name="remember" type="checkbox">
+                    <label class="form-check-label" for="remember">Запомнить меня</label>
+                </div>
+                <button class="btn btn-primary" type="submit">Войти</button>
+            </form>
+        </div>
+
+        <div class="surface p-4 mt-3">
+            <h2 class="h6">Демо-учетные записи</h2>
+            <div class="small">Администратор: <code>admin / admin123</code></div>
+            <div class="small">Бухгалтер: <code>finance / finance123</code></div>
+            {% if first_admin_available %}
+                <a href="{{ url_for('auth.register') }}" class="btn btn-link px-0 mt-2">Создать первого администратора</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

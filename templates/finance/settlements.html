@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Взаиморасчеты | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Планирование и управление финансами / Взаиморасчеты</div>
+            <h1 class="h3 mb-2">Реестр взаиморасчетов с контрагентами</h1>
+            <p class="mb-0">
+                Управленческий экран по заказам клиентов и закупочным обязательствам,
+                предназначенный для контроля дебиторской и кредиторской нагрузки.
+            </p>
+        </div>
+        <form method="get" class="d-flex gap-2">
+            <input class="form-control" name="period" value="{{ period }}" style="max-width: 10rem;">
+            <button class="btn btn-primary" type="submit">Показать</button>
+        </form>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Начислено клиентам</div><div class="display-6">{{ "%.0f"|format(total_customer_billed) }}</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Оплачено клиентами</div><div class="display-6">{{ "%.0f"|format(total_customer_paid) }}</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Начислено поставщикам</div><div class="display-6">{{ "%.0f"|format(total_supplier_accrued) }}</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Оплачено поставщикам</div><div class="display-6">{{ "%.0f"|format(total_supplier_paid) }}</div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Клиенты</div>
+            <h2 class="h4 mb-3">Дебиторская нагрузка</h2>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Контрагент</th>
+                            <th>Тип</th>
+                            <th>Заказов</th>
+                            <th>Начислено</th>
+                            <th>Оплачено</th>
+                            <th>Остаток</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in customer_rows %}
+                            <tr>
+                                <td>{{ row.name }}</td>
+                                <td>{{ "Юридическое лицо" if row.type == "legal_entity" else "Физическое лицо" }}</td>
+                                <td>{{ row.orders_count }}</td>
+                                <td>{{ "%.2f"|format(row.billed) }} ₽</td>
+                                <td>{{ "%.2f"|format(row.paid) }} ₽</td>
+                                <td>
+                                    <span class="badge {% if row.debt > 0 %}text-bg-warning{% else %}text-bg-success{% endif %}">
+                                        {{ "%.2f"|format(row.debt) }} ₽
+                                    </span>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="6" class="text-center py-4 text-secondary">Нет данных по клиентским расчетам.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Поставщики</div>
+            <h2 class="h4 mb-3">Кредиторская нагрузка</h2>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Поставщик</th>
+                            <th>Заказов</th>
+                            <th>Начислено</th>
+                            <th>Оплачено</th>
+                            <th>К оплате</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in supplier_rows %}
+                            <tr>
+                                <td>{{ row.name }}</td>
+                                <td>{{ row.orders_count }}</td>
+                                <td>{{ "%.2f"|format(row.accrued) }} ₽</td>
+                                <td>{{ "%.2f"|format(row.paid) }} ₽</td>
+                                <td>
+                                    <span class="badge {% if row.payable > 0 %}text-bg-warning{% else %}text-bg-success{% endif %}">
+                                        {{ "%.2f"|format(row.payable) }} ₽
+                                    </span>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="5" class="text-center py-4 text-secondary">Нет данных по расчетам с поставщиками.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Лидеры по поступлениям</div>
+            <h2 class="h5 mb-3">Топ клиентов периода</h2>
+            {% for name, amount in top_customer_income %}
+                <div class="surface p-3 mb-2 d-flex justify-content-between align-items-center">
+                    <span>{{ name }}</span>
+                    <strong>{{ "%.2f"|format(amount) }} ₽</strong>
+                </div>
+            {% else %}
+                <div class="text-secondary">Нет данных.</div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Лидеры по обязательствам</div>
+            <h2 class="h5 mb-3">Топ поставщиков периода</h2>
+            {% for name, amount in top_supplier_payables %}
+                <div class="surface p-3 mb-2 d-flex justify-content-between align-items-center">
+                    <span>{{ name }}</span>
+                    <strong>{{ "%.2f"|format(amount) }} ₽</strong>
+                </div>
+            {% else %}
+                <div class="text-secondary">Нет данных.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

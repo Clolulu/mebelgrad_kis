@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Поставщики | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Управление данными / Поставщики</div>
+            <h1 class="h3 mb-2">Реестр поставщиков</h1>
+            <p class="mb-0">База контрагентов по закупкам, договорам и операционному обеспечению бизнеса.</p>
+        </div>
+        <a href="{{ url_for('mdm.create_supplier') }}" class="btn btn-primary">Добавить поставщика</a>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6"><div class="surface p-3"><div class="text-secondary small">Всего поставщиков</div><div class="h4 mb-0">{{ total_suppliers }}</div></div></div>
+    <div class="col-md-6"><div class="surface p-3"><div class="text-secondary small">Активные поставщики</div><div class="h4 mb-0">{{ active_suppliers }}</div></div></div>
+</div>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-10">
+            <label class="form-label" for="q">Поиск</label>
+            <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Наименование, ИНН, телефон, электронная почта">
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Применить</button>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Поставщик</th>
+                    <th>Телефон</th>
+                    <th>Электронная почта</th>
+                    <th>ИНН</th>
+                    <th>Статус</th>
+                    <th class="text-end">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for supplier in suppliers.items %}
+                    <tr>
+                        <td class="fw-semibold">{{ supplier.name }}</td>
+                        <td>{{ supplier.phone or "Не указан" }}</td>
+                        <td>{{ supplier.email or "Не указана" }}</td>
+                        <td>{{ supplier.inn or "Не указан" }}</td>
+                        <td><span class="badge {% if supplier.is_active %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ "Активен" if supplier.is_active else "Неактивен" }}</span></td>
+                        <td class="text-end">
+                            <div class="d-flex gap-2 justify-content-end">
+                                <a href="{{ url_for('mdm.edit_supplier', supplier_id=supplier.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
+                                <form method="post" action="{{ url_for('mdm.delete_supplier', supplier_id=supplier.id) }}" onsubmit="return confirm('Удалить поставщика из справочника?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-secondary">Записи не найдены.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

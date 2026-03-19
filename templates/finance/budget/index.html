@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Бюджетирование | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Финансы / Бюджетирование</div>
+            <h1 class="h3 mb-2">Бюджет движения денежных средств</h1>
+            <p class="mb-0">Плановые показатели по доходам и расходам для анализа ликвидности и управленческого контроля.</p>
+        </div>
+        <a href="{{ url_for('finance.add_budget_item', period=period) }}" class="btn btn-primary">Добавить статью</a>
+    </div>
+</section>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-10">
+            <label class="form-label" for="period">Период</label>
+            <input class="form-control" id="period" name="period" type="month" value="{{ period }}">
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Показать</button>
+        </div>
+    </form>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">План доходов</div><div class="h4 mb-0">{{ "%.2f"|format(total_income_plan) }} ₽</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">План расходов</div><div class="h4 mb-0">{{ "%.2f"|format(total_expense_plan) }} ₽</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Плановый баланс</div><div class="h4 mb-0">{{ "%.2f"|format(planned_balance) }} ₽</div></div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="surface p-0 overflow-hidden">
+            <div class="p-3 border-bottom fw-semibold">Доходная часть</div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light"><tr><th>Категория</th><th class="text-end">План</th></tr></thead>
+                    <tbody>
+                        {% for item in income_items %}
+                            <tr><td>{{ item.category }}</td><td class="text-end">{{ "%.2f"|format(item.planned_amount) }} ₽</td></tr>
+                        {% else %}
+                            <tr><td colspan="2" class="text-center py-4 text-secondary">Доходные статьи отсутствуют.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="surface p-0 overflow-hidden">
+            <div class="p-3 border-bottom fw-semibold">Расходная часть</div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light"><tr><th>Категория</th><th class="text-end">План</th></tr></thead>
+                    <tbody>
+                        {% for item in expense_items %}
+                            <tr><td>{{ item.category }}</td><td class="text-end">{{ "%.2f"|format(item.planned_amount) }} ₽</td></tr>
+                        {% else %}
+                            <tr><td colspan="2" class="text-center py-4 text-secondary">Расходные статьи отсутствуют.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

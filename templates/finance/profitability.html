@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Отчет о прибылях и убытках | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="text-uppercase text-secondary small">Финансы / Управленческая отчетность</div>
+    <h1 class="h3 mb-2">Отчет о прибылях и убытках</h1>
+    <p class="mb-0">Управленческий расчет выручки, себестоимости, операционного результата и налога УСН 6%.</p>
+</section>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-10">
+            <label class="form-label" for="period">Период</label>
+            <input class="form-control" id="period" name="period" type="month" value="{{ period }}">
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Обновить</button>
+        </div>
+    </form>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Период отчета</div><div class="h5 mb-0">{{ start_date.strftime('%d.%m.%Y') }} - {{ end_date.strftime('%d.%m.%Y') }}</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Валовая маржа</div><div class="h4 mb-0">{{ "%.1f"|format(gross_margin_pct) }} %</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Чистая рентабельность</div><div class="h4 mb-0">{{ "%.1f"|format(net_margin_pct) }} %</div></div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="surface p-0 overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Показатель</th>
+                            <th class="text-end">Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Выручка</td><td class="text-end fw-semibold">{{ "%.2f"|format(revenue) }} ₽</td></tr>
+                        <tr><td>Себестоимость реализованных товаров</td><td class="text-end">{{ "%.2f"|format(cogs) }} ₽</td></tr>
+                        <tr><td>Валовая прибыль</td><td class="text-end fw-semibold">{{ "%.2f"|format(gross_profit) }} ₽</td></tr>
+                        <tr><td>Операционные расходы</td><td class="text-end">{{ "%.2f"|format(operating_expenses) }} ₽</td></tr>
+                        <tr><td>Операционная прибыль</td><td class="text-end fw-semibold">{{ "%.2f"|format(operating_profit) }} ₽</td></tr>
+                        <tr><td>Налог УСН 6% с доходов</td><td class="text-end">{{ "%.2f"|format(usn_tax) }} ₽</td></tr>
+                        <tr class="table-light"><td class="fw-semibold">Чистая прибыль</td><td class="text-end fw-semibold">{{ "%.2f"|format(net_profit) }} ₽</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="surface p-4 mt-4">
+            <div class="fw-semibold mb-2">Методика MVP</div>
+            <p class="mb-0">{{ cogs_note }}</p>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="surface p-4">
+            <div class="fw-semibold mb-3">Сервисные действия</div>
+            <form method="post" action="{{ url_for('finance.export_1c') }}">
+                <input type="hidden" name="period" value="{{ period }}">
+                <button class="btn btn-outline-dark w-100" type="submit">Выгрузить документы в формат обмена</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

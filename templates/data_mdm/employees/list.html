@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Сотрудники | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Управление данными / Сотрудники</div>
+            <h1 class="h3 mb-2">Кадровый справочник</h1>
+            <p class="mb-0">Организационная структура, должности и контактные данные без привязки к учетным записям входа.</p>
+        </div>
+        <a href="{{ url_for('mdm.create_employee') }}" class="btn btn-primary">Добавить сотрудника</a>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6"><div class="surface p-3"><div class="text-secondary small">Всего сотрудников</div><div class="h4 mb-0">{{ total_employees }}</div></div></div>
+    <div class="col-md-6"><div class="surface p-3"><div class="text-secondary small">Активные сотрудники</div><div class="h4 mb-0">{{ active_employees }}</div></div></div>
+</div>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-8">
+            <label class="form-label" for="q">Поиск</label>
+            <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="ФИО, должность, телефон, электронная почта">
+        </div>
+        <div class="col-lg-2">
+            <label class="form-label" for="role">Роль / должность</label>
+            <input class="form-control" id="role" name="role" value="{{ role }}">
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Применить</button>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Сотрудник</th>
+                    <th>Должность</th>
+                    <th>Телефон</th>
+                    <th>Электронная почта</th>
+                    <th>Статус</th>
+                    <th class="text-end">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for employee in employees.items %}
+                    <tr>
+                        <td class="fw-semibold">{{ employee.name }}</td>
+                        <td>{{ employee.position or "Не указана" }}</td>
+                        <td>{{ employee.phone or "Не указан" }}</td>
+                        <td>{{ employee.email or "Не указана" }}</td>
+                        <td><span class="badge {% if employee.is_active %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ "Активен" if employee.is_active else "Неактивен" }}</span></td>
+                        <td class="text-end">
+                            <div class="d-flex gap-2 justify-content-end">
+                                <a href="{{ url_for('mdm.edit_employee', employee_id=employee.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
+                                <form method="post" action="{{ url_for('mdm.delete_employee', employee_id=employee.id) }}" onsubmit="return confirm('Удалить сотрудника из справочника?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-secondary">Записи не найдены.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

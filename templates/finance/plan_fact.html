@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}План-фактный анализ | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="text-uppercase text-secondary small">Финансы / Аналитика</div>
+    <h1 class="h3 mb-2">План-фактный анализ</h1>
+    <p class="mb-0">Сопоставление бюджета и фактических движений денежных средств по ключевым категориям.</p>
+</section>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-10">
+            <label class="form-label" for="period">Период</label>
+            <input class="form-control" id="period" name="period" type="month" value="{{ period }}">
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Показать</button>
+        </div>
+    </form>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">План</div><div class="h4 mb-0">{{ "%.2f"|format(total_planned) }} ₽</div></div></div>
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Факт</div><div class="h4 mb-0">{{ "%.2f"|format(total_actual) }} ₽</div></div></div>
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Отклонение</div><div class="h4 mb-0">{{ "%.2f"|format(total_variance) }} ₽</div></div></div>
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Денежный разрыв</div><div class="h4 mb-0">{{ "%.2f"|format(cash_gap) }} ₽</div></div></div>
+</div>
+
+<div class="surface p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Категория</th>
+                    <th>Тип</th>
+                    <th class="text-end">План</th>
+                    <th class="text-end">Факт</th>
+                    <th class="text-end">Отклонение</th>
+                    <th class="text-end">Отклонение, %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in analysis %}
+                    <tr>
+                        <td class="fw-semibold">{{ item.category }}</td>
+                        <td>{{ "Доход" if item.type == 'income' else "Расход" }}</td>
+                        <td class="text-end">{{ "%.2f"|format(item.planned) }} ₽</td>
+                        <td class="text-end">{{ "%.2f"|format(item.actual) }} ₽</td>
+                        <td class="text-end {% if item.variance > 0 %}text-danger{% elif item.variance < 0 %}text-success{% endif %}">{{ "%.2f"|format(item.variance) }} ₽</td>
+                        <td class="text-end">
+                            {% if item.planned %}
+                                {{ "%.1f"|format((item.variance / item.planned) * 100) }} %
+                            {% else %}
+                                0.0 %
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

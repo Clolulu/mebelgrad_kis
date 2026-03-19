@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Управление данными | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Модуль управления данными</div>
+            <h1 class="h3 mb-2">Центральный контур мастер-данных</h1>
+            <p class="mb-0">
+                Модуль обеспечивает единое хранение номенклатуры, клиентских и кадровых справочников,
+                поддерживает целостность карточек и формирует операционную основу для финансового и складского контуров.
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('mdm.quality_dashboard') }}" class="btn btn-primary">Открыть контроль качества</a>
+            <a href="{{ url_for('mdm.stock_list') }}" class="btn btn-outline-dark">Остатки и резерв</a>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Номенклатура</div><div class="display-6">{{ products_count }}</div><div class="small text-secondary">Активных позиций: {{ active_products_count }}</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Клиенты</div><div class="display-6">{{ customers_count }}</div><div class="small text-secondary">Юридических лиц: {{ legal_customers_count }}</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Поставщики</div><div class="display-6">{{ suppliers_count }}</div><div class="small text-secondary">Профилей с доработкой: {{ incomplete_supplier_profiles }}</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Сотрудники</div><div class="display-6">{{ employees_count }}</div><div class="small text-secondary">Активных: {{ active_employees_count }}</div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-8">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Рабочие разделы</div>
+            <h2 class="h4 mb-3">Справочники и операционные реестры</h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Номенклатура</div>
+                        <div class="small text-secondary mb-3">Товары, единицы измерения, цены, активность и связь с остатками.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-dark btn-sm">Реестр товаров</a>
+                            <a href="{{ url_for('mdm.create_product') }}" class="btn btn-primary btn-sm">Новая карточка</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Клиенты</div>
+                        <div class="small text-secondary mb-3">Физические и юридические лица, контактные данные и сегментация базы.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{{ url_for('mdm.customers_list') }}" class="btn btn-outline-dark btn-sm">Реестр клиентов</a>
+                            <a href="{{ url_for('mdm.create_customer') }}" class="btn btn-primary btn-sm">Добавить клиента</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Поставщики</div>
+                        <div class="small text-secondary mb-3">Контрагенты закупочного контура, ИНН, каналы связи и актуальность карточек.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{{ url_for('mdm.suppliers_list') }}" class="btn btn-outline-dark btn-sm">Реестр поставщиков</a>
+                            <a href="{{ url_for('mdm.create_supplier') }}" class="btn btn-primary btn-sm">Добавить поставщика</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Сотрудники</div>
+                        <div class="small text-secondary mb-3">Кадровый справочник для организационной структуры без автоматического создания учетных записей.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{{ url_for('mdm.employees_list') }}" class="btn btn-outline-dark btn-sm">Кадровый реестр</a>
+                            <a href="{{ url_for('mdm.create_employee') }}" class="btn btn-primary btn-sm">Добавить сотрудника</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Контроль и качество</div>
+            <h2 class="h4 mb-3">Зоны внимания администратора</h2>
+            <div class="surface p-3 mb-3">
+                <div class="text-secondary small">Критический остаток</div>
+                <div class="h3 mb-0">{{ low_stock_count }}</div>
+            </div>
+            <div class="surface p-3 mb-3">
+                <div class="text-secondary small">Контактов клиентов требуют проверки</div>
+                <div class="h3 mb-0">{{ incomplete_customer_contacts }}</div>
+            </div>
+            <div class="surface p-3 mb-3">
+                <div class="text-secondary small">Контактов сотрудников требуют проверки</div>
+                <div class="h3 mb-0">{{ incomplete_employee_contacts }}</div>
+            </div>
+            <div class="surface p-3 mb-3">
+                <div class="text-secondary small">Остаток в резерве</div>
+                <div class="h3 mb-0">{{ total_reserved }}</div>
+            </div>
+            <div class="d-grid gap-2">
+                <a href="{{ url_for('mdm.quality_dashboard') }}" class="btn btn-primary">Панель качества данных</a>
+                <a href="{{ url_for('mdm.stock_list') }}" class="btn btn-outline-dark">Срез складских остатков</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Быстрые сценарии</div>
+            <h2 class="h4 mb-3">Повседневная работа администратора данных</h2>
+            <div class="surface p-3 mb-3">Создание новой товарной карточки с единицей измерения, ценой и признаком активности.</div>
+            <div class="surface p-3 mb-3">Проверка полноты контактной информации клиентов и поставщиков перед запуском документов.</div>
+            <div class="surface p-3 mb-3">Контроль резервов и критических остатков для передачи данных в складской контур.</div>
+            <div class="surface p-3">Ведение кадрового справочника и организационной структуры компании.</div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Операционный итог</div>
+            <h2 class="h4 mb-3">Согласованность мастер-данных</h2>
+            <p class="text-secondary">
+                Качество мастер-данных влияет на корректность взаиморасчетов, бюджетирования,
+                управленческой отчетности и последующей интеграции с учетными системами.
+                Поэтому модуль вынесен в отдельный управленческий контур с собственными контрольными экранами.
+            </p>
+            <div class="row g-3">
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Остаток на руках</div><div class="h4 mb-0">{{ total_on_hand }}</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Резерв по товарам</div><div class="h4 mb-0">{{ total_reserved }}</div></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

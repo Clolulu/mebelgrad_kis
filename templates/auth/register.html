@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Первый администратор | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="surface p-4">
+            <div class="mb-4">
+                <div class="text-uppercase text-secondary small">Инициализация системы</div>
+                <h1 class="h3 mb-1">Создание первого администратора</h1>
+                <p class="text-secondary mb-0">
+                    Саморегистрация разрешена только на первом запуске системы.
+                </p>
+            </div>
+            <form method="post" class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="username">Логин</label>
+                    <input class="form-control" id="username" name="username" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="email">Электронная почта</label>
+                    <input class="form-control" id="email" name="email" type="email" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="password">Пароль</label>
+                    <input class="form-control" id="password" name="password" type="password" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="password_repeat">Повтор пароля</label>
+                    <input class="form-control" id="password_repeat" name="password_repeat" type="password" required>
+                </div>
+                <div class="col-12">
+                    <button class="btn btn-primary" type="submit">Создать администратора</button>
+                    <a class="btn btn-outline-secondary" href="{{ url_for('auth.login') }}">Назад</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

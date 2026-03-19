@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование товара | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="text-uppercase text-secondary small">Управление данными / Номенклатура</div>
+    <h1 class="h3 mb-2">Редактирование карточки товара</h1>
+    <p class="mb-0">Изменение параметров мастер-данных без потери связей с остатками, продажами и закупками.</p>
+</section>
+
+<div class="row">
+    <div class="col-xl-8">
+        <div class="surface p-4">
+            <form method="post" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="sku">Артикул</label>
+                    <input class="form-control" id="sku" value="{{ product.sku }}" disabled>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label" for="name">Наименование</label>
+                    <input class="form-control" id="name" name="name" value="{{ product.name }}" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="unit">Единица измерения</label>
+                    <select class="form-select" id="unit" name="unit">
+                        <option value="шт" {% if product.unit == 'шт' %}selected{% endif %}>шт</option>
+                        <option value="компл" {% if product.unit == 'компл' %}selected{% endif %}>компл</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="retail_price">Розничная цена, ₽</label>
+                    <input class="form-control" id="retail_price" name="retail_price" type="number" step="0.01" value="{{ product.retail_price }}" required>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check">
+                        <input class="form-check-input" id="is_active" name="is_active" type="checkbox" {% if product.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Карточка активна</label>
+                    </div>
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">Сохранить изменения</button>
+                    <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-secondary">Назад к реестру</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="surface p-4">
+            <h2 class="h6">Операционная информация</h2>
+            <div class="small text-secondary mb-2">На складе</div>
+            <div class="h4">{{ product.qty_on_hand }}</div>
+            <div class="small text-secondary mb-2 mt-3">В резерве</div>
+            <div class="h4">{{ product.qty_reserved }}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
