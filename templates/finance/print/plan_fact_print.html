@@ -1,0 +1,118 @@
+{% extends "finance/print/_print_base.html" %}
+
+{% block print_title %}План-факт анализ{% endblock %}
+
+{% block print_content %}
+    {% include "finance/print/_print_header.html" %}
+    
+    <div class="report-title">АНАЛИЗ ПЛАНА И ФАКТА</div>
+    <div class="report-period">Период: {{ period }} ({{ start_date.strftime('%d.%m.%Y') }} - {{ end_date.strftime('%d.%m.%Y') }})</div>
+    
+    {% if deviations_alpha %}
+    <div class="alert alert-warning">
+        <strong>⚠ ВНИМАНИЕ:</strong> Обнаружены отклонения плана от факта более 20% по {{ deviations_alpha|length }} статьям
+    </div>
+    {% endif %}
+    
+    <div class="section-title">Сводная таблица плана и факта</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 25%;">Статья</td>
+            <td style="width: 15%;">План (₽)</td>
+            <td style="width: 15%;">Факт (₽)</td>
+            <td style="width: 15%;">Отклонение (₽)</td>
+            <td style="width: 15%;">Отклонение (%)</td>
+            <td style="width: 15%;">Статус</td>
+        </tr>
+        {% for item in analysis %}
+        <tr>
+            <td>{{ item.category }}</td>
+            <td class="currency">{{ "%.2f"|format(item.planned) }}</td>
+            <td class="currency">{{ "%.2f"|format(item.actual) }}</td>
+            <td class="currency" style="{% if item.variance > 0 %}color: green;{% elif item.variance < 0 %}color: red;{% endif %}">
+                {{ "%.2f"|format(item.variance) }}
+            </td>
+            <td class="number" style="{% if (item.variance / item.planned * 100 if item.planned else 0) > 0 %}color: green;{% elif (item.variance / item.planned * 100 if item.planned else 0) < 0 %}color: red;{% endif %}">
+                {{ "%.1f"|format((item.variance / item.planned * 100) if item.planned else 0) }}%
+            </td>
+            <td style="text-align: center; {% if abs((item.variance / item.planned * 100) if item.planned else 0) >= 20 %}color: red; font-weight: bold;{% endif %}">
+                {% if abs((item.variance / item.planned * 100) if item.planned else 0) >= 20 %}⚠ ОТКЛОНЕНИЕ{% else %}OK{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td>ИТОГО</td>
+            <td class="currency">{{ "%.2f"|format(total_planned) }}</td>
+            <td class="currency">{{ "%.2f"|format(total_actual) }}</td>
+            <td class="currency" style="{% if total_variance > 0 %}color: green;{% elif total_variance < 0 %}color: red;{% endif %}">
+                {{ "%.2f"|format(total_variance) }}
+            </td>
+            <td class="number" style="{% if ((total_variance / total_planned * 100) if total_planned else 0) > 0 %}color: green;{% elif ((total_variance / total_planned * 100) if total_planned else 0) < 0 %}color: red;{% endif %}">
+                {{ "%.1f"|format(((total_variance / total_planned * 100) if total_planned else 0)) }}%
+            </td>
+            <td></td>
+        </tr>
+    </table>
+    
+    {% if deviations_alpha %}
+    <div class="section-title">Критические отклонения (≥20%)</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 60%;">Статья</td>
+            <td style="width: 40%;">Отклонение (%)</td>
+        </tr>
+        {% for item in deviations_alpha %}
+        <tr>
+            <td>{{ item.category }}</td>
+            <td class="number" style="color: red; font-weight: bold;">{{ "%.1f"|format(item.variance_pct) }}%</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+    
+    {% if deviations %}
+    <div class="section-title">Причины отклонений (из журнала отклонений)</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 25%;">Статья</td>
+            <td style="width: 25%;">Причина</td>
+            <td style="width: 30%;">Описание</td>
+            <td style="width: 20%;">Дата</td>
+        </tr>
+        {% for dev in deviations[:10] %}
+        <tr>
+            <td>{{ dev.item_name }}</td>
+            <td style="font-size: 11px;">{{ dev.reason }}</td>
+            <td style="font-size: 11px;">Плановой: {{ "%.2f"|format(dev.planned_value) }} | Факт: {{ "%.2f"|format(dev.actual_value) }}</td>
+            <td style="font-size: 11px;">{{ dev.created_at.strftime('%d.%m.%Y') }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+    
+    <div class="section-title">Ключевые показатели</div>
+    
+    <table>
+        <tr>
+            <td style="width: 40%;">Показатель</td>
+            <td style="width: 60%;">Значение</td>
+        </tr>
+        <tr>
+            <td>Разрыв между доходами и расходами (кассовый разрыв)</td>
+            <td class="currency">{{ "%.2f ₽"|format(cash_gap) }}</td>
+        </tr>
+        <tr>
+            <td>Общее отклонение плана от факта</td>
+            <td class="number" style="{% if total_variance > 0 %}color: green;{% else %}color: red;{% endif %}">
+                {{ "%.2f ₽"|format(total_variance) }} ({{ "%.1f"|format(((total_variance / total_planned * 100) if total_planned else 0)) }}%)
+            </td>
+        </tr>
+    </table>
+    
+    <br>
+    {% include "finance/print/_print_signatures.html" %}
+    {% include "finance/print/_print_footer.html" %}
+{% endblock %}

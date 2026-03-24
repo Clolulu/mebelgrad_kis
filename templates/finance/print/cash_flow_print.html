@@ -1,0 +1,122 @@
+{% extends "finance/print/_print_base.html" %}
+
+{% block print_title %}Отчёт о кассовых потоках{% endblock %}
+
+{% block print_content %}
+    {% include "finance/print/_print_header.html" %}
+    
+    <div class="report-title">ОТЧЁТ О КАССОВЫХ ПОТОКАХ (КАССОВ ФЛОУ)</div>
+    <div class="report-period">Период: {{ period }} ({{ (start_date.strftime('%d.%m.%Y') if start_date else '-') }} - {{ (end_date.strftime('%d.%m.%Y') if end_date else '-') }})</div>
+    
+    <div class="section-title">Ежедневное движение денежных средств</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 12%;">Дата</td>
+            <td style="width: 14%;">Приходы (₽)</td>
+            <td style="width: 14%;">Расходы оплачено (₽)</td>
+            <td style="width: 14%;">Плановые расходы (₽)</td>
+            <td style="width: 14%;">Чистый поток (₽)</td>
+            <td style="width: 16%;">Прогнозный остаток (₽)</td>
+            <td style="width: 16%;">Статус</td>
+        </tr>
+        {% set active_count = active_rows|length %}
+        {% if active_count > 60 %}
+            {% for row in rows %}
+                {% if loop.index % 3 == 1 or row.net != 0 %}
+                <tr>
+                    <td>{{ row.date.strftime('%d.%m') }}</td>
+                    <td class="currency">{{ "%.2f"|format(row.incoming) }}</td>
+                    <td class="currency">{{ "%.2f"|format(row.outgoing_paid) }}</td>
+                    <td class="currency">{{ "%.2f"|format(row.outgoing_scheduled) }}</td>
+                    <td class="currency" style="{% if row.net_actual > 0 %}color: green;{% elif row.net_actual < 0 %}color: red;{% endif %}">{{ "%.2f"|format(row.net_actual) }}</td>
+                    <td class="currency" style="{% if row.running_balance < 100000 %}color: orange;{% else %}color: green;{% endif %}">{{ "%.2f"|format(row.running_balance) }}</td>
+                    <td style="text-align: center;">{% if row.net_actual > 0 %}✓{% else %}✗{% endif %}</td>
+                </tr>
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.date.strftime('%d.%m') }}</td>
+                <td class="currency">{{ "%.2f"|format(row.incoming) }}</td>
+                <td class="currency">{{ "%.2f"|format(row.outgoing_paid) }}</td>
+                <td class="currency">{{ "%.2f"|format(row.outgoing_scheduled) }}</td>
+                <td class="currency" style="{% if row.net_actual > 0 %}color: green;{% elif row.net_actual < 0 %}color: red;{% endif %}">{{ "%.2f"|format(row.net_actual) }}</td>
+                <td class="currency" style="{% if row.running_balance < 100000 %}color: orange;{% else %}color: green;{% endif %}">{{ "%.2f"|format(row.running_balance) }}</td>
+                <td style="text-align: center;">{% if row.net_actual > 0 %}✓{% else %}✗{% endif %}</td>
+            </tr>
+            {% endfor %}
+        {% endif %}
+        <tr class="total-row">
+            <td>ИТОГО</td>
+            <td class="currency">{{ "%.2f"|format(total_incoming) }}</td>
+            <td class="currency">{{ "%.2f"|format(total_outgoing_paid) }}</td>
+            <td class="currency">{{ "%.2f"|format(total_outgoing_scheduled) }}</td>
+            <td class="currency" style="{% if (total_incoming - total_outgoing_paid) > 0 %}color: green;{% else %}color: red;{% endif %}">
+                {{ "%.2f"|format(total_incoming - total_outgoing_paid) }}
+            </td>
+            <td class="currency" style="{% if closing_balance > 0 %}color: green; font-weight: bold;{% else %}color: red; font-weight: bold;{% endif %}">
+                {{ "%.2f"|format(closing_balance) }}
+            </td>
+            <td></td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Итоговые показатели</div>
+    
+    <table>
+        <tr>
+            <td style="width: 50%;">Показатель</td>
+            <td style="width: 50%;">Сумма (₽)</td>
+        </tr>
+        <tr>
+            <td>Всего приходов за период</td>
+            <td class="currency" style="color: green; font-weight: bold;">{{ "%.2f"|format(total_incoming) }}</td>
+        </tr>
+        <tr>
+            <td>Исходящие платежи (факт, оплачено)</td>
+            <td class="currency" style="color: red;">{{ "%.2f"|format(total_outgoing_paid) }}</td>
+        </tr>
+        <tr>
+            <td>Запланированные платежи (не оплачено)</td>
+            <td class="currency" style="color: red;">{{ "%.2f"|format(total_outgoing_scheduled) }}</td>
+        </tr>
+        <tr class="total-row">
+            <td style="font-weight: bold;">Чистый кассовый поток (факт)</td>
+            <td class="currency" style="{% if (total_incoming - total_outgoing_paid) > 0 %}color: green;{% else %}color: red;{% endif %}; font-weight: bold;">
+                {{ "%.2f"|format(total_incoming - total_outgoing_paid) }}
+            </td>
+        </tr>
+        <tr class="total-row">
+            <td style="font-weight: bold;">Закрывающий остаток денежных средств</td>
+            <td class="currency" style="{% if closing_balance > 0 %}color: green;{% else %}color: red;{% endif %}; font-weight: bold;">
+                {{ "%.2f"|format(closing_balance) }}
+            </td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Анализ денежных потоков</div>
+    
+    <table>
+        <tr>
+            <td>
+                <strong>Фактические платежи:</strong> Отражают реально произведённые приходы и расходы за период<br>
+                <strong>Запланированные платежи:</strong> Включают ещё не оплаченные обязательства перед поставщиками<br>
+                <strong>Закрывающий остаток:</strong> Ожидаемый остаток денежных средств на конец периода<br>
+                <br>
+                {% if closing_balance > 0 %}
+                    ✓ <strong>Положительный кассовый поток</strong> - компания генерирует денежные средства<br>
+                    ✓ Ликвидность находится в норме
+                {% else %}
+                    ✗ <strong>Отрицательный кассовый поток</strong> - расходы превышают доходы<br>
+                    ✗ Требуется анализ причин и корректировка бизнес-процессов
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+    
+    <br>
+    {% include "finance/print/_print_signatures.html" %}
+    {% include "finance/print/_print_footer.html" %}
+{% endblock %}

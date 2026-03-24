@@ -318,3 +318,56 @@ class PlanFactDeviation(db.Model):
 
     def __repr__(self):
         return f'<PlanFactDeviation {self.period} {self.item_name}: {self.deviation}>'
+
+
+class CompanyProfile(db.Model):
+    """Реквизиты организации для печати отчётов"""
+    __tablename__ = 'company_profile'
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(255), nullable=False)
+    short_name = db.Column(db.String(50), nullable=False)
+    legal_form = db.Column(db.String(20), default='ООО')  # ООО, АО, ИП
+    inn = db.Column(db.String(12), nullable=False, unique=True)
+    kpp = db.Column(db.String(9))
+    ogrn = db.Column(db.String(13))
+    okved = db.Column(db.String(20))  # Основной код ОКВЭД
+    tax_system = db.Column(db.String(50))  # Система налогообложения
+    employees_count = db.Column(db.Integer, default=0)  # Количество сотрудников
+    
+    # Адреса
+    legal_address = db.Column(db.String(255), nullable=False)
+    actual_address = db.Column(db.String(255))
+    
+    # Контакты
+    phone = db.Column(db.String(20))
+    email = db.Column(db.String(120))
+    website = db.Column(db.String(255))
+    
+    # Банковские реквизиты
+    bank_name = db.Column(db.String(255))
+    bank_bik = db.Column(db.String(9))
+    correspondent_account = db.Column(db.String(20))
+    settlement_account = db.Column(db.String(20))
+    
+    # Руководство
+    ceo = db.Column(db.String(255))  # Для ИП - ФИО ИП, для юр.лиц - ФИО руководителя
+    ceo_position = db.Column(db.String(100))  # Должность руководителя (для юр.лиц)
+    ceo_signature_url = db.Column(db.String(500))  # URL подписи руководителя
+    signature_url = db.Column(db.String(500))  # URL подписи ИП
+    chief_accountant_name = db.Column(db.String(255))
+    chief_accountant_signature_url = db.Column(db.String(500))
+    
+    # Печать
+    seal_url = db.Column(db.String(500))  # URL печати
+    
+    # Логотип
+    logo_url = db.Column(db.String(500))
+    
+    # Параметры печати
+    print_footer = db.Column(db.Text)  # Текст подвала
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<CompanyProfile {self.short_name}>'

@@ -1,0 +1,138 @@
+{% extends "finance/print/_print_base.html" %}
+
+{% block print_title %}Расчеты с контрагентами{% endblock %}
+
+{% block print_content %}
+    {% include "finance/print/_print_header.html" %}
+    
+    <div class="report-title">ОТЧЁТ О РАСЧЁТАХ С КОНТРАГЕНТАМИ</div>
+    <div class="report-period">Период: {{ period }} ({{ (start_date.strftime('%d.%m.%Y') if start_date else '-') }} - {{ (end_date.strftime('%d.%m.%Y') if end_date else '-') }})</div>
+    
+    <div class="section-title">Расчеты с покупателями (дебиторская задолженность)</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 30%;">Статья / Контрагент</td>
+            <td style="width: 10%;">Тип</td>
+            <td style="width: 10%;">Кол-во заказов</td>
+            <td style="width: 15%;">Выставлено счётов (₽)</td>
+            <td style="width: 15%;">Оплачено (₽)</td>
+            <td style="width: 20%;">Задолженность (₽)</td>
+        </tr>
+        {% for row in customer_rows %}
+        <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.type }}</td>
+            <td class="number">{{ row.orders_count }}</td>
+            <td class="currency">{{ "%.2f"|format(row.billed) }}</td>
+            <td class="currency" style="color: green;">{{ "%.2f"|format(row.paid) }}</td>
+            <td class="currency" style="color: {% if row.debt > 0 %}red{% else %}green{% endif %}; font-weight: {% if row.debt > 0 %}bold{% endif %};">
+                {{ "%.2f"|format(row.debt) }}
+            </td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td style="font-weight: bold;">ИТОГО ДЕБИТОРСКАЯ ЗАДОЛЖЕННОСТЬ</td>
+            <td></td>
+            <td class="number">{{ customer_rows|sum(attribute='orders_count') }}</td>
+            <td class="currency">{{ "%.2f"|format(total_customer_billed) }}</td>
+            <td class="currency" style="color: green; font-weight: bold;">{{ "%.2f"|format(total_customer_paid) }}</td>
+            <td class="currency" style="color: red; font-weight: bold;">
+                {{ "%.2f"|format(total_customer_billed - total_customer_paid) }}
+            </td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Расчеты с поставщиками (кредиторская задолженность)</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 30%;">Контрагент (Поставщик)</td>
+            <td style="width: 15%;">Кол-во заказов</td>
+            <td style="width: 20%;">Начислено к оплате (₽)</td>
+            <td style="width: 20%;">Оплачено (₽)</td>
+            <td style="width: 15%;">Задолженность (₽)</td>
+        </tr>
+        {% for row in supplier_rows %}
+        <tr>
+            <td>{{ row.name }}</td>
+            <td class="number">{{ row.orders_count }}</td>
+            <td class="currency">{{ "%.2f"|format(row.accrued) }}</td>
+            <td class="currency" style="color: green;">{{ "%.2f"|format(row.paid) }}</td>
+            <td class="currency" style="color: {% if row.payable > 0 %}orange{% else %}green{% endif %}; font-weight: {% if row.payable > 0 %}bold{% endif %};">
+                {{ "%.2f"|format(row.payable) }}
+            </td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td style="font-weight: bold;">ИТОГО КРЕДИТОРСКАЯ ЗАДОЛЖЕННОСТЬ</td>
+            <td class="number">{{ supplier_rows|sum(attribute='orders_count') }}</td>
+            <td class="currency">{{ "%.2f"|format(total_supplier_accrued) }}</td>
+            <td class="currency" style="color: green; font-weight: bold;">{{ "%.2f"|format(total_supplier_paid) }}</td>
+            <td class="currency" style="color: orange; font-weight: bold;">
+                {{ "%.2f"|format(total_supplier_accrued - total_supplier_paid) }}
+            </td>
+        </tr>
+    </table>
+    
+    {% if top_customer_income %}
+    <div class="section-title">ТОП-5 контрагентов по объему приходов</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 70%;">Контрагент</td>
+            <td style="width: 30%;">Сумма приходов (₽)</td>
+        </tr>
+        {% for name, amount in top_customer_income %}
+        <tr>
+            <td>{{ name }}</td>
+            <td class="currency" style="color: green; font-weight: bold;">{{ "%.2f"|format(amount) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+    
+    {% if top_supplier_payables %}
+    <div class="section-title">ТОП-5 поставщиков по объему задолженности</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 70%;">Поставщик</td>
+            <td style="width: 30%;">Задолженность (₽)</td>
+        </tr>
+        {% for name, amount in top_supplier_payables %}
+        <tr>
+            <td>{{ name }}</td>
+            <td class="currency" style="color: orange; font-weight: bold;">{{ "%.2f"|format(amount) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+    
+    <div class="section-title">Итоговая сводка по расчётам</div>
+    
+    <table>
+        <tr>
+            <td style="width: 50%;">Показатель</td>
+            <td style="width: 50%;">Сумма (₽)</td>
+        </tr>
+        <tr>
+            <td>Дебиторская задолженность (ДЗ)</td>
+            <td class="currency" style="color: red;">{{ "%.2f"|format(total_customer_billed - total_customer_paid) }}</td>
+        </tr>
+        <tr>
+            <td>Кредиторская задолженность (КЗ)</td>
+            <td class="currency" style="color: orange;">{{ "%.2f"|format(total_supplier_accrued - total_supplier_paid) }}</td>
+        </tr>
+        <tr class="total-row">
+            <td style="font-weight: bold;">Чистая позиция (ДЗ - КЗ)</td>
+            <td class="currency" style="{% if (total_customer_billed - total_customer_paid) > (total_supplier_accrued - total_supplier_paid) %}color: red;{% else %}color: green;{% endif %}; font-weight: bold;">
+                {{ "%.2f"|format((total_customer_billed - total_customer_paid) - (total_supplier_accrued - total_supplier_paid)) }}
+            </td>
+        </tr>
+    </table>
+    
+    <br>
+    {% include "finance/print/_print_signatures.html" %}
+    {% include "finance/print/_print_footer.html" %}
+{% endblock %}

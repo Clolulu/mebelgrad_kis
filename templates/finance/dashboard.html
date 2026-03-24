@@ -4,15 +4,60 @@
 
 {% block content %}
 {% include "finance/_role_badges.html" %}
+
+<!-- Критические предупреждения -->
+{% if net_profit < 0 and net_profit < -equity * 0.5 %}
+  <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <strong>⚠️ Критический убыток!</strong> Операционные убытки ({{ "%.0f"|format(net_profit) }} ₽) превышают половину собственного капитала. Без срочных мер компания исчерпает капитал.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+{% elif net_profit < 0 %}
+  <div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <strong>⚠️ Операционный убыток:</strong> Компания убыточна ({{ "%.0f"|format(net_profit) }} ₽). Требуется повышение выручки или сокращение расходов.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+{% endif %}
+
+{% if roe < -500 %}
+  <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <strong>⚠️ Экстремальный ROE!</strong> ROE {{ "%.2f"|format(roe) }}% означает, что убытки многократно превышают собственный капитал. Немедленное вмешательство необходимо.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+{% elif roe < 0 %}
+  <div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <strong>⚠️ Отрицательный ROE:</strong> Компания уничтожает капитал инвесторов (ROE {{ "%.2f"|format(roe) }}%).
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+{% endif %}
+
+{% if strength_buffer < 0 %}
+  <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <strong>⚠️ Зона убытков!</strong> Запас прочности {{ "%.2f"|format(strength_buffer) }}%. Выручка на {{ "%.0f"|format((breakeven - revenue) / revenue * 100) }}% ниже точки безубыточности. Любое падение продаж грозит расширением убытка.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+{% endif %}
+
+{% if liabilities > equity * 2 %}
+  <div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <strong>⚠️ Высокая долговая нагрузка:</strong> Кредиторка {{ "%.0f"|format(liabilities) }} ₽ в {{ "%.1f"|format(liabilities / equity) }} раз превышает собственный капитал. Требуется реструктуризация долгов.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+{% endif %}
+
 <div class="surface p-4 mb-4">
-  <h1 class="h4 mb-3">Executive Summary</h1>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">Executive Summary</h1>
+    <a href="{{ url_for('finance.dashboard_print', period=period) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+      <i class="bi bi-printer"></i> Печать
+    </a>
+  </div>
   <p class="text-secondary">Период: {{ period }}</p>
   <div class="row g-3">
-    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Чистая прибыль</div><div class="h3">{{ "%.2f"|format(net_profit) }} ₽</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Чистая прибыль</div><div class="h3 {% if net_profit < 0 %}text-danger{% endif %}">{{ "%.2f"|format(net_profit) }} ₽</div></div></div>
     <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Свободный денежный остаток</div><div class="h3">{{ "%.2f"|format(cash_balance) }} ₽</div></div></div>
-    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">ROE</div><div class="h3">{{ "%.2f"|format(roe) }} %</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">ROE</div><div class="h3 {% if roe < 0 %}text-danger{% endif %}">{{ "%.2f"|format(roe) }} %</div></div></div>
     <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Точка безубыточности</div><div class="h3">{{ "%.2f"|format(breakeven) }} ₽</div></div></div>
-    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Запас прочности</div><div class="h3">{{ "%.2f"|format(strength_buffer) }} %</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Запас прочности</div><div class="h3 {% if strength_buffer < 0 %}text-danger{% endif %}">{{ "%.2f"|format(strength_buffer) }} %</div></div></div>
   </div>
 </div>
 

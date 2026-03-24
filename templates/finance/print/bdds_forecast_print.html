@@ -1,0 +1,139 @@
+{% extends "finance/print/_print_base.html" %}
+
+{% block print_title %}БДДС (прогноз денежных потоков){% endblock %}
+
+{% block print_content %}
+    {% include "finance/print/_print_header.html" %}
+    
+    <div class="report-title">БЮДЖЕТ ДОХОДОВ И РАСХОДОВ И ДВИЖЕНИЯ ДЕНЕЖНЫХ СРЕДСТВ (БДДС)</div>
+    <div class="report-title" style="font-size: 14px;">Прогноз на 30 дней</div>
+    <div class="report-period">Период: 30 дней | Дата формирования: {{ now.strftime('%d.%m.%Y %H:%M') }}</div>
+    
+    {% if ending_balance <= 0 %}
+    <div class="alert alert-danger">
+        <strong>🚨 КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ!</strong><br>
+        Прогноз показывает, что денежные средства закончатся в течение 30 дней: {{ "%.2f ₽"|format(ending_balance) }}<br>
+        Требуется немедленное принятие мер по привлечению финансирования!
+    </div>
+    {% elif critical_dates %}
+    <div class="alert alert-warning">
+        <strong>⚠ ВНИМАНИЕ:</strong> Обнаружены дни с отрицательным прогнозным денежным остатком<br>
+        Критические даты: {% for date in critical_dates[:5] %}{{ date.strftime('%d.%m.%Y') }}{% if not loop.last %}, {% endif %}{% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-success">
+        <strong>✓ НОРМАЛЬНО:</strong> Прогноз показывает положительный денежный остаток на конец периода
+    </div>
+    {% endif %}
+    
+    <div class="section-title">Движение денежных средств по дням</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 12%;">Дата</td>
+            <td style="width: 12%;">Приходы (₽)</td>
+            <td style="width: 12%;">Расходы (₽)</td>
+            <td style="width: 12%;">Чистый поток (₽)</td>
+            <td style="width: 22%;">Остаток (₽)</td>
+            <td style="width: 30%;">Статус</td>
+        </tr>
+        {% set show_rows = rows[::3] if rows|length > 30 else rows %}
+        {% for row in show_rows %}
+        <tr style="{% if row.is_gap %}background-color: #ffebee; color: darkred;{% endif %}">
+            <td>{{ row.date.strftime('%d.%m') }}</td>
+            <td class="currency">{{ "%.2f"|format(row.incoming) }}</td>
+            <td class="currency">{{ "%.2f"|format(row.outgoing) }}</td>
+            <td class="currency" style="{% if row.net > 0 %}color: green;{% elif row.net < 0 %}color: red;{% endif %}">
+                {{ "%.2f"|format(row.net) }}
+            </td>
+            <td class="currency" style="{% if row.balance < 0 %}color: red; font-weight: bold;{% elif row.balance < 100000 %}color: orange;{% else %}color: green;{% endif %}">
+                {{ "%.2f"|format(row.balance) }}
+            </td>
+            <td style="text-align: center;">
+                {% if row.is_gap %}<span style="color: red; font-weight: bold;">⚠ МИНУС</span>{% elif row.balance < 100000 %}<span style="color: orange;">⚠ КРИТИЧЕСКИЙ</span>{% else %}<span style="color: green;">✓ ОК</span>{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td style="font-weight: bold;">ИТОГО</td>
+            <td class="currency">{{ "%.2f"|format(rows|sum(attribute='incoming')) }}</td>
+            <td class="currency">{{ "%.2f"|format(rows|sum(attribute='outgoing')) }}</td>
+            <td class="currency" style="{% if (rows|sum(attribute='incoming') - rows|sum(attribute='outgoing')) > 0 %}color: green;{% else %}color: red;{% endif %}">
+                {{ "%.2f"|format(rows|sum(attribute='incoming') - rows|sum(attribute='outgoing')) }}
+            </td>
+            <td class="currency" style="{% if ending_balance > 0 %}color: green; font-weight: bold;{% else %}color: red; font-weight: bold;{% endif %}">
+                {{ "%.2f"|format(ending_balance) }}
+            </td>
+            <td></td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Итоговые показатели прогноза</div>
+    
+    <table>
+        <tr>
+            <td style="width: 50%;">Показатель</td>
+            <td style="width: 50%;">Значение</td>
+        </tr>
+        <tr>
+            <td>Прогнозный период</td>
+            <td>30 дней</td>
+        </tr>
+        <tr>
+            <td>Общие прогнозные приходы</td>
+            <td class="currency" style="color: green;">{{ "%.2f ₽"|format(rows|sum(attribute='incoming')) }}</td>
+        </tr>
+        <tr>
+            <td>Общие прогнозные расходы</td>
+            <td class="currency" style="color: red;">{{ "%.2f ₽"|format(rows|sum(attribute='outgoing')) }}</td>
+        </tr>
+        <tr class="total-row">
+            <td style="font-weight: bold;">Остаток денежных средств на конец дня 30</td>
+            <td class="currency" style="{% if ending_balance > 0 %}color: green; font-weight: bold;{% else %}color: red; font-weight: bold;{% endif %}">{{ "%.2f ₽"|format(ending_balance) }}</td>
+        </tr>
+        {% if critical_dates %}
+        <tr>
+            <td>Дни с отрицательным остатком</td>
+            <td style="color: red;">{{ critical_dates|length }} дней ({{ critical_dates[0].strftime('%d.%m') }}{% if critical_dates|length > 1 %} - {{ critical_dates[-1].strftime('%d.%m') }}{% endif %})</td>
+        </tr>
+        {% endif %}
+    </table>
+    
+    <div class="section-title">Рекомендации</div>
+    
+    <table>
+        <tr>
+            <td>
+                {% if ending_balance <= 0 %}
+                    <strong style="color: red;">🚨 КРИТИЧЕСКАЯ СИТУАЦИЯ:</strong>
+                    <ol>
+                        <li>Незамедлительно привлечь краткосрочное финансирование</li>
+                        <li>Ускорить процесс взыскания дебиторской задолженности</li>
+                        <li>Рассмотреть откладывание необязательных расходов</li>
+                        <li>Провести переговоры с кредиторами об отсрочке платежей</li>
+                        <li>Утвердить план срочных мер по восстановлению ликвидности</li>
+                    </ol>
+                {% elif critical_dates %}
+                    <strong style="color: orange;">⚠ ВНИМАНИЕ НА КРИТИЧЕСКИЕ ДНИ:</strong>
+                    <ol>
+                        <li>Обеспечить дополнительный контроль за денежными потоками в даты {{ critical_dates|map(attribute='strftime', '%d.%m.%Y')|join(', ') }}</li>
+                        <li>Планировать поступление денежных средств на дни, предшествующие критическим датам</li>
+                        <li>Рассмотреть получение краткосрочного кредита или овердрафта</li>
+                        <li>Координировать платежи и авансовые расчеты</li>
+                    </ol>
+                {% else %}
+                    <strong style="color: green;">✓ ПОЛОЖИТЕЛЬНЫЙ ПРОГНОЗ:</strong>
+                    <ul>
+                        <li>Денежные потоки находятся в нормальном диапазоне</li>
+                        <li>Рекомендуется продолжать текущую политику управления оборотным капиталом</li>
+                        <li>Постоянно мониторить фактические потоки и корректировать прогноз</li>
+                    </ul>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+    
+    <br>
+    {% include "finance/print/_print_signatures.html" %}
+    {% include "finance/print/_print_footer.html" %}
+{% endblock %}

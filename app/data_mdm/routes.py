@@ -5,7 +5,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import or_
 
 from app.data_mdm import mdm_bp
-from app.models import Customer, Employee, Product, Supplier, db
+from app.models import Customer, Employee, Product, Supplier, CompanyProfile, db
 
 
 def admin_required(view):
@@ -612,4 +612,67 @@ def user_roles():
 
     users = User.query.order_by(User.username).all()
     return render_template("data_mdm/users/roles.html", users=users)
+
+
+@mdm_bp.route("/company-profile")
+@login_required
+@mdm_readonly_required
+def company_profile():
+    profile = CompanyProfile.query.first()
+    if not profile:
+        flash("Профиль компании не найден. Обратитесь к администратору.", "danger")
+        return redirect(url_for("mdm.index"))
+    return render_template("data_mdm/company_profile.html", profile=profile)
+
+
+@mdm_bp.route("/company-profile/edit", methods=["GET", "POST"])
+@login_required
+@mdm_editor_required
+def edit_company_profile():
+    profile = CompanyProfile.query.first()
+    if not profile:
+        flash("Профиль компании не найден. Обратитесь к администратору.", "danger")
+        return redirect(url_for("mdm.index"))
+
+    if request.method == "POST":
+        # Вспомогательная функция для безопасной обработки формы
+        def get_form_value(key, current_value=None, required=False):
+            value = request.form.get(key, "").strip()
+            if not value:
+                return None if not required else (current_value or "")
+            return value
+        
+        profile.company_name = get_form_value("company_name", profile.company_name, required=True)
+        profile.short_name = get_form_value("short_name", profile.short_name)
+        profile.legal_form = get_form_value("legal_form", profile.legal_form, required=True)
+        profile.inn = get_form_value("inn", profile.inn, required=True)
+        profile.kpp = get_form_value("kpp", profile.kpp)
+        profile.ogrn = get_form_value("ogrn", profile.ogrn, required=True)
+        profile.legal_address = get_form_value("legal_address", profile.legal_address, required=True)
+        profile.actual_address = get_form_value("actual_address", profile.actual_address)
+        profile.phone = get_form_value("phone", profile.phone)
+        profile.email = get_form_value("email", profile.email)
+        profile.website = get_form_value("website", profile.website)
+        profile.bank_name = get_form_value("bank_name", profile.bank_name)
+        profile.bank_bik = get_form_value("bank_bik", profile.bank_bik)
+        profile.correspondent_account = get_form_value("correspondent_account", profile.correspondent_account)
+        profile.settlement_account = get_form_value("settlement_account", profile.settlement_account)
+        profile.ceo = get_form_value("ceo", profile.ceo, required=True)
+        profile.ceo_position = get_form_value("ceo_position", profile.ceo_position)
+        profile.chief_accountant_name = get_form_value("chief_accountant_name", profile.chief_accountant_name)
+        profile.logo_url = get_form_value("logo_url", profile.logo_url)
+        profile.seal_url = get_form_value("seal_url", profile.seal_url)
+        profile.signature_url = get_form_value("signature_url", profile.signature_url)
+
+        # Для ИП не нужны отдельные поля руководителя и главбуха
+        if profile.legal_form == "ИП":
+            profile.ceo_position = None
+            profile.chief_accountant_name = None
+            profile.chief_accountant_signature_url = None
+
+        db.session.commit()
+        flash("Профиль компании обновлен.", "success")
+        return redirect(url_for("mdm.company_profile"))
+
+    return render_template("data_mdm/company_profile_edit.html", profile=profile)
 

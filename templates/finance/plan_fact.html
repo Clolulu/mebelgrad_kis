@@ -12,12 +12,17 @@
 
 <div class="surface p-4 mb-4">
     <form method="get" class="row g-3">
-        <div class="col-lg-10">
+        <div class="col-lg-9">
             <label class="form-label" for="period">Период</label>
             <input class="form-control" id="period" name="period" type="month" value="{{ period }}">
         </div>
         <div class="col-lg-2 d-flex align-items-end">
             <button class="btn btn-primary w-100" type="submit">Показать</button>
+        </div>
+        <div class="col-lg-1 d-flex align-items-end">
+            <a href="{{ url_for('finance.plan_fact_analysis_print', period=period) }}" class="btn btn-outline-primary w-100" target="_blank" title="Печать отчета">
+                <i class="bi bi-printer"></i>
+            </a>
         </div>
     </form>
 </div>

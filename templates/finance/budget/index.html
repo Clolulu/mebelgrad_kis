@@ -11,6 +11,9 @@
             <p class="mb-0">Плановые показатели по доходам и расходам для анализа ликвидности и управленческого контроля.</p>
         </div>
         <a href="{{ url_for('finance.add_budget_item', period=period) }}" class="btn btn-primary">Добавить статью</a>
+        <a href="{{ url_for('finance.budget_print', period=period) }}" class="btn btn-outline-primary" target="_blank" title="Печать бюджета">
+            <i class="bi bi-printer"></i> Печать
+        </a>
     </div>
 </section>
 

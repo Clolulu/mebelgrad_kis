@@ -1,0 +1,107 @@
+{% extends "finance/print/_print_base.html" %}
+
+{% block print_title %}Бюджет доходов и расходов{% endblock %}
+
+{% block print_content %}
+    {% include "finance/print/_print_header.html" %}
+    
+    <div class="report-title">БЮДЖЕТ ДОХОДОВ И РАСХОДОВ</div>
+    <div class="report-period">Период: {{ period }}</div>
+    
+    <div class="section-title">Планируемые доходы</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 60%;">Статья дохода</td>
+            <td style="width: 40%;">Плановая сумма (₽)</td>
+        </tr>
+        {% set total_income_plan = income_items|sum(attribute='planned_amount') %}
+        {% for item in income_items %}
+        <tr>
+            <td>{{ item.category }}</td>
+            <td class="currency">{{ "%.2f"|format(item.planned_amount) }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td style="font-weight: bold;">ИТОГО ПЛАНОВЫЕ ДОХОДЫ</td>
+            <td class="currency" style="color: green; font-weight: bold;">{{ "%.2f"|format(total_income_plan) }}</td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Планируемые расходы</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 60%;">Статья расхода</td>
+            <td style="width: 40%;">Плановая сумма (₽)</td>
+        </tr>
+        {% set total_expense_plan = expense_items|sum(attribute='planned_amount') %}
+        {% for item in expense_items %}
+        <tr>
+            <td>{{ item.category }}</td>
+            <td class="currency">{{ "%.2f"|format(item.planned_amount) }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td style="font-weight: bold;">ИТОГО ПЛАНОВЫЕ РАСХОДЫ</td>
+            <td class="currency" style="color: red; font-weight: bold;">{{ "%.2f"|format(total_expense_plan) }}</td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Прибыль / убыток</div>
+    
+    <table>
+        <tr>
+            <td style="width: 60%;">Показатель</td>
+            <td style="width: 40%;">Плановая сумма (₽)</td>
+        </tr>
+        <tr class="total-row">
+            <td style="font-weight: bold;">Плановый БАЛАНС (Доходы - Расходы)</td>
+            <td class="currency" style="{% if planned_balance > 0 %}color: green;{% else %}color: red;{% endif %}; font-weight: bold;">
+                {{ "%.2f"|format(planned_balance) }}
+            </td>
+        </tr>
+        <tr>
+            <td>Рентабельность</td>
+            <td class="number" style="{% if (planned_balance / total_income_plan * 100 if total_income_plan else 0) > 0 %}color: green;{% else %}color: red;{% endif %}; font-weight: bold;">
+                {{ "%.2f"|format((planned_balance / total_income_plan * 100) if total_income_plan else 0) }}%
+            </td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Рекомендации по использованию бюджета</div>
+    
+    <table>
+        <tr>
+            <td>
+                <strong>Назначение и область применения:</strong><br>
+                Данный бюджет является плановым документом, определяющим ожидаемые доходы и расходы на периодом {{ period }}.
+                Он используется для:<br>
+                • Планирования и контроля финансовых потоков<br>
+                • Сравнения плана с фактическими результатами (план-факт анализ)<br>
+                • Управления расходами и оптимизации затрат<br>
+                • Прогнозирования прибыльности на период<br>
+                <br>
+                <strong>Условия применения:</strong><br>
+                • Бюджет может быть скорректирован по согласованию с руководством<br>
+                • Перемещение средств между статьями требует одобрения<br>
+                • Превышение плановых расходов более чем на 10% требует объяснения<br>
+                <br>
+                {% if total_income_plan > 0 and total_expense_plan > 0 %}
+                    <strong>Прогноз результата:</strong><br>
+                    {% if planned_balance > 0 %}
+                        ✓ Ожидается положительный финансовый результат в размере {{ "%.2f"|format(planned_balance) }} ₽<br>
+                        ✓ Рентабельность запланирована на уровне {{ "%.2f"|format((planned_balance / total_income_plan * 100) if total_income_plan else 0) }}%
+                    {% else %}
+                        ✗ Прогнозируется убыток в размере {{ "%.2f"|format(abs(planned_balance)) }} ₽<br>
+                        ✗ Требуется переработка бюджета или увеличение доходов
+                    {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+    
+    <br>
+    {% include "finance/print/_print_signatures.html" %}
+    {% include "finance/print/_print_footer.html" %}
+{% endblock %}

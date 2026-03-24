@@ -4,14 +4,29 @@
 
 {% block content %}
 <div class="surface p-4 mb-4">
-    <h1 class="h4 mb-3">Прогноз движения денежных средств на 30 дней</h1>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0">Прогноз движения денежных средств на 30 дней</h1>
+        <a href="{{ url_for('finance.bdds_forecast_print') }}" class="btn btn-sm btn-outline-primary" target="_blank">
+            <i class="bi bi-printer"></i> Печать
+        </a>
+    </div>
     <p class="text-secondary">Период: от {{ rows[0].date if rows else '—' }} до {{ rows[-1].date if rows else '—' }}</p>
-    <p class="mb-2">Ожидаемый остаток: {{ "%.2f"|format(ending_balance) }} ₽</p>
+    <p class="mb-2">Ожидаемый остаток: <strong>{{ "%.2f"|format(ending_balance) }} ₽</strong></p>
 
-    {% if critical_dates %}
-        <div class="alert alert-danger">В прогнозе зафиксированы отрицательные остатки на {{ critical_dates|length }} днях, первая дата: {{ critical_dates[0] }}</div>
+    {% if ending_balance <= 0 %}
+        <div class="alert alert-danger">
+            <strong>🚨 КРИТИЧЕСКИЙ КАССОВЫЙ РАЗРЫВ!</strong><br>
+            Прогноз показывает, что денежные средства закончатся {% if ending_balance == 0 %}в конце периода{% else %}за период{% endif %}. 
+            Если прогноз точен, компания столкнется с невозможностью расплатиться с поставщиками и сотрудниками.
+        </div>
+    {% elif critical_dates %}
+        <div class="alert alert-danger">
+            <strong>⚠️ Зафиксированы кассовые разрывы!</strong><br>
+            Отрицательные остатки на {{ critical_dates|length }} днях. Первая критическая дата: {{ critical_dates[0] }}. 
+            Требуется немедленно скорректировать график платежей или привлечь дополнительное финансирование.
+        </div>
     {% else %}
-        <div class="alert alert-success">Кассовый риск в прогнозе отсутствует.</div>
+        <div class="alert alert-success">✓ Кассовый риск в прогнозе отсутствует.</div>
     {% endif %}
 
     <div class="table-responsive">

@@ -1,0 +1,126 @@
+{% extends "finance/print/_print_base.html" %}
+
+{% block print_title %}Финансовый дашборд{% endblock %}
+
+{% block print_content %}
+    {% include "finance/print/_print_header.html" %}
+    
+    <div class="report-title">ФИНАНСОВЫЙ ДАШБОРД</div>
+    <div class="report-period">{{ period }} | Дата формирования: {{ now.strftime('%d.%m.%Y') }}</div>
+    
+    {% if net_profit < 0 or roe < -500 or strength_buffer < 0 or liabilities > equity * 2 %}
+    <div class="alert alert-danger">
+        <strong>⚠ КРИТИЧЕСКОЕ ВНИМАНИЕ!</strong><br>
+        В подсистеме выявлены критические финансовые показатели, требующие немедленного анализа и улучшения.
+    </div>
+    {% endif %}
+    
+    <div class="section-title">Ключевые показатели эффективности (KPI)</div>
+    
+    <table style="margin-bottom: 20px;">
+        <tr class="total-row">
+            <td style="width: 40%;">Показатель</td>
+            <td style="width: 30%;">Значение</td>
+            <td style="width: 30%;">Статус</td>
+        </tr>
+        <tr>
+            <td>Чистая прибыль (убыток)</td>
+            <td class="currency">{{ "%.2f ₽"|format(net_profit) }}</td>
+            <td style="{% if net_profit < 0 %}color: red;{% else %}color: green;{% endif %}">
+                {% if net_profit < 0 %}УБЫТОК{% else %}ПРИБЫЛЬ{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td>ROE (Рентабельность собственного капитала), %</td>
+            <td class="number">{{ "%.2f"|format(roe) }}</td>
+            <td style="{% if roe < 0 %}color: red;{% else %}color: green;{% endif %}">
+                {% if roe < -500 %}Критический{% elif roe < 0 %}Отрицательный{% else %}Положительный{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td>Буфер прочности (расстояние до убытков), %</td>
+            <td class="number">{{ "%.2f"|format(strength_buffer) }}</td>
+            <td style="{% if strength_buffer < 0 %}color: red;{% else %}color: green;{% endif %}">
+                {% if strength_buffer < 0 %}В убытках{% elif strength_buffer < 20 %}Критический{% else %}Нормальный{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td>Выручка</td>
+            <td class="currency">{{ "%.2f ₽"|format(revenue) }}</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>Себестоимость продукции</td>
+            <td class="currency">{{ "%.2f ₽"|format(revenue - net_profit) }}</td>
+            <td>-</td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Состояние ликвидности</div>
+    
+    <table style="margin-bottom: 20px;">
+        <tr class="total-row">
+            <td style="width: 40%;">Показатель</td>
+            <td style="width: 30%;">Сумма (₽)</td>
+            <td style="width: 30%;">Статус</td>
+        </tr>
+        <tr>
+            <td>Активы (Текущие активы)</td>
+            <td class="currency">{{ "%.2f"|format(assets) }}</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>&nbsp;&nbsp;├ Производственные запасы</td>
+            <td class="currency">{{ "%.2f"|format(inventory_value) }}</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>&nbsp;&nbsp;├ Денежные средства</td>
+            <td class="currency">{{ "%.2f"|format(cash_balance) }}</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>&nbsp;&nbsp;└ Дебиторская задолженность</td>
+            <td class="currency">{{ "%.2f"|format(assets - inventory_value - cash_balance) }}</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>Обязательства (Текущие обязательства)</td>
+            <td class="currency">{{ "%.2f"|format(liabilities) }}</td>
+            <td style="{% if liabilities > assets * 0.5 %}color: red;{% elif liabilities > assets * 0.3 %}color: orange;{% else %}color: green;{% endif %}">
+                {% if liabilities > equity * 2 %}Критический{% elif liabilities > equity %}Высокий{% else %}Нормальный{% endif %}
+            </td>
+        </tr>
+        <tr class="total-row">
+            <td>Собственный капитал</td>
+            <td class="currency">{{ "%.2f"|format(equity) }}</td>
+            <td style="{% if equity < 0 %}color: red;{% else %}color: green;{% endif %}">
+                {% if equity < 0 %}ОТРИЦАТЕЛЬНЫЙ{% else %}ПОЛОЖИТЕЛЬНЫЙ{% endif %}
+            </td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Анализ рентабельности</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 40%;">Показатель</td>
+            <td style="width: 30%;">Значение</td>
+            <td style="width: 30%;">Интерпретация</td>
+        </tr>
+        <tr>
+            <td>Точка безубыточности</td>
+            <td class="currency">{{ "%.2f ₽"|format(breakeven) }}</td>
+            <td style="font-size: 11px;">Требуемая выручка для покрытия затрат</td>
+        </tr>
+        <tr>
+            <td>Буфер финансовой безопасности</td>
+            <td class="number">{{ "%.2f%"|format(strength_buffer) }}</td>
+            <td style="font-size: 11px;">Запас выручки над критическим уровнем</td>
+        </tr>
+    </table>
+    
+    <br>
+    {% include "finance/print/_print_signatures.html" %}
+    {% include "finance/print/_print_footer.html" %}
+{% endblock %}

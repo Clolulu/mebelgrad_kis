@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль компании{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Главная</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('mdm.index') }}">Управление данными</a></li>
+                    <li class="breadcrumb-item active">Профиль компании</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Профиль компании</h5>
+                    {% if current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
+                    <a href="{{ url_for('mdm.edit_company_profile') }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-edit"></i> Редактировать
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Основная информация</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Полное наименование:</strong></td>
+                                    <td>{{ profile.company_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Краткое наименование:</strong></td>
+                                    <td>{{ profile.short_name or "-" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Организационно-правовая форма:</strong></td>
+                                    <td>{{ profile.legal_form }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ИНН:</strong></td>
+                                    <td>{{ profile.inn }}</td>
+                                </tr>
+                                {% if profile.legal_form != "ИП" %}
+                                <tr>
+                                    <td><strong>КПП:</strong></td>
+                                    <td>{{ profile.kpp or "Не указан" }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <td><strong>ОГРН{% if profile.legal_form == "ИП" %}ИП{% endif %}:</strong></td>
+                                    <td>{{ profile.ogrn }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Юридический адрес:</strong></td>
+                                    <td>{{ profile.legal_address }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Фактический адрес:</strong></td>
+                                    <td>{{ profile.actual_address or "Не указан" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Телефон:</strong></td>
+                                    <td>{{ profile.phone }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Email:</strong></td>
+                                    <td>{{ profile.email }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>{% if profile.legal_form == "ИП" %}Индивидуальный предприниматель{% else %}Руководитель{% endif %}:</strong></td>
+                                    <td>{{ profile.ceo }}</td>
+                                </tr>
+                                {% if profile.legal_form != "ИП" %}
+                                {% if profile.ceo_position %}
+                                <tr>
+                                    <td><strong>Должность руководителя:</strong></td>
+                                    <td>{{ profile.ceo_position }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if profile.chief_accountant_name %}
+                                <tr>
+                                    <td><strong>Главный бухгалтер:</strong></td>
+                                    <td>{{ profile.chief_accountant_name }}</td>
+                                </tr>
+                                {% endif %}
+                                {% endif %}
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Визуальные элементы</h6>
+                            {% if profile.logo_url %}
+                            <div class="mb-3">
+                                <strong>Логотип:</strong><br>
+                                <img src="{{ profile.logo_url }}" alt="Логотип" class="img-fluid" style="max-height: 100px;">
+                            </div>
+                            {% endif %}
+                            {% if profile.seal_url %}
+                            <div class="mb-3">
+                                <strong>Печать:</strong><br>
+                                <img src="{{ profile.seal_url }}" alt="Печать" class="img-fluid" style="max-height: 100px;">
+                            </div>
+                            {% endif %}
+                            {% if profile.signature_url %}
+                            <div class="mb-3">
+                                <strong>Подпись:</strong><br>
+                                <img src="{{ profile.signature_url }}" alt="Подпись" class="img-fluid" style="max-height: 100px;">
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

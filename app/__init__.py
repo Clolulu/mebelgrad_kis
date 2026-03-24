@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 from flask import Flask, render_template
@@ -10,9 +10,12 @@ from sqlalchemy.exc import OperationalError
 
 from app.models import (
     BudgetItem,
+    CashCalendarItem,
+    CompanyProfile,
     Customer,
     Employee,
     IndirectExpense,
+    InventoryBatch,
     Payment,
     Product,
     PurchaseOrder,
@@ -699,5 +702,39 @@ def seed_database():
         exists = IndirectExpense.query.filter_by(period=period_val, category=category_val).first()
         if exists is None:
             db.session.add(IndirectExpense(period=period_val, category=category_val, amount=amount_val))
+
+    # Initialize company profile
+    company = CompanyProfile.query.first()
+    if company is None:
+        company = CompanyProfile(
+            company_name="ИП \"МебельГрад\"",
+            short_name="МебельГрад",
+            legal_form="ИП",
+            inn="250000000000",
+            kpp=None,
+            ogrn="304250000000000",
+            okved="47.59",
+            tax_system="УСН 6% Доходы",
+            employees_count=34,
+            legal_address="690000, Владивосток, ул. Ленина, 1",
+            actual_address="690000, Владивосток, ул. Ленина, 1",
+            phone="+7 (423) 200-00-00",
+            email="info@mebelgrad.local",
+            website="www.mebelgrad.local",
+            bank_name="ПАО \"Сбербанк России\"",
+            bank_bik="040813608",
+            correspondent_account="30101810200000000608",
+            settlement_account="40802810000000000001",
+            ceo="Кузьмин Андрей Сергеевич",
+            ceo_position=None,
+            ceo_signature_url=None,
+            signature_url="https://i.imgur.com/signature.png",
+            chief_accountant_name=None,
+            chief_accountant_signature_url=None,
+            seal_url="https://i.imgur.com/seal.png",
+            logo_url="https://i.imgur.com/logo.png",
+            print_footer="Документ изготовлен автоматически и действителен без подписи и печати в соответствии с законодательством РФ об индивидуальных предпринимателях.",
+        )
+        db.session.add(company)
 
     db.session.commit()

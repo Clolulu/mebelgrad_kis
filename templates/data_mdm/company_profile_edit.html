@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование профиля компании{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Главная</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('mdm.index') }}">Управление данными</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('mdm.company_profile') }}">Профиль компании</a></li>
+                    <li class="breadcrumb-item active">Редактирование</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Редактирование профиля компании</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Основная информация</h6>
+                                <div class="mb-3">
+                                    <label for="company_name" class="form-label">Полное наименование *</label>
+                                    <input type="text" class="form-control" id="company_name" name="company_name" value="{{ profile.company_name }}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="short_name" class="form-label">Краткое наименование</label>
+                                    <input type="text" class="form-control" id="short_name" name="short_name" value="{{ profile.short_name }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="legal_form" class="form-label">Организационно-правовая форма *</label>
+                                    <select class="form-control" id="legal_form" name="legal_form" required>
+                                        <option value="ИП" {% if profile.legal_form == "ИП" %}selected{% endif %}>ИП</option>
+                                        <option value="ООО" {% if profile.legal_form == "ООО" %}selected{% endif %}>ООО</option>
+                                        <option value="АО" {% if profile.legal_form == "АО" %}selected{% endif %}>АО</option>
+                                        <option value="ПАО" {% if profile.legal_form == "ПАО" %}selected{% endif %}>ПАО</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="inn" class="form-label">ИНН *</label>
+                                    <input type="text" class="form-control" id="inn" name="inn" value="{{ profile.inn }}" required pattern="\d{10,12}">
+                                    <div class="form-text">10 цифр для юр.лиц, 12 для ИП</div>
+                                </div>
+                                <div class="mb-3" id="kpp_field" {% if profile.legal_form == "ИП" %}style="display: none;"{% endif %}>
+                                    <label for="kpp" class="form-label">КПП</label>
+                                    <input type="text" class="form-control" id="kpp" name="kpp" value="{{ profile.kpp }}" pattern="\d{9}">
+                                    <div class="form-text">9 цифр, только для юр.лиц</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="ogrn" class="form-label">ОГРН{% if profile.legal_form == "ИП" %}ИП{% endif %} *</label>
+                                    <input type="text" class="form-control" id="ogrn" name="ogrn" value="{{ profile.ogrn }}" required pattern="\d{13,15}">
+                                    <div class="form-text">13 цифр для юр.лиц, 15 для ИП</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="legal_address" class="form-label">Юридический адрес *</label>
+                                    <textarea class="form-control" id="legal_address" name="legal_address" rows="3" required>{{ profile.legal_address }}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="actual_address" class="form-label">Фактический адрес</label>
+                                    <textarea class="form-control" id="actual_address" name="actual_address" rows="2">{{ profile.actual_address }}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="phone" class="form-label">Телефон</label>
+                                    <input type="tel" class="form-control" id="phone" name="phone" value="{{ profile.phone }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="email" name="email" value="{{ profile.email }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="ceo" class="form-label">{% if profile.legal_form == "ИП" %}ФИО индивидуального предпринимателя{% else %}Руководитель{% endif %} *</label>
+                                    <input type="text" class="form-control" id="ceo" name="ceo" value="{{ profile.ceo }}" required>
+                                </div>
+                                <div class="mb-3" id="ceo_position_field" {% if profile.legal_form == "ИП" %}style="display: none;"{% endif %}>
+                                    <label for="ceo_position" class="form-label">Должность руководителя</label>
+                                    <input type="text" class="form-control" id="ceo_position" name="ceo_position" value="{{ profile.ceo_position }}">
+                                </div>
+                                <div class="mb-3" id="chief_accountant_field" {% if profile.legal_form == "ИП" %}style="display: none;"{% endif %}>
+                                    <label for="chief_accountant_name" class="form-label">Главный бухгалтер</label>
+                                    <input type="text" class="form-control" id="chief_accountant_name" name="chief_accountant_name" value="{{ profile.chief_accountant_name }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Контакты и банки</h6>
+                                <div class="mb-3">
+                                    <label for="website" class="form-label">Сайт</label>
+                                    <input type="url" class="form-control" id="website" name="website" value="{{ profile.website }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="bank_name" class="form-label">Банк</label>
+                                    <input type="text" class="form-control" id="bank_name" name="bank_name" value="{{ profile.bank_name }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="bank_bik" class="form-label">БИК</label>
+                                    <input type="text" class="form-control" id="bank_bik" name="bank_bik" value="{{ profile.bank_bik }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="correspondent_account" class="form-label">Корреспондентский счет</label>
+                                    <input type="text" class="form-control" id="correspondent_account" name="correspondent_account" value="{{ profile.correspondent_account }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="settlement_account" class="form-label">Расчетный счет</label>
+                                    <input type="text" class="form-control" id="settlement_account" name="settlement_account" value="{{ profile.settlement_account }}">
+                                </div>
+                                <h6>Визуальные элементы</h6>
+                                <div class="mb-3">
+                                    <label for="logo_url" class="form-label">URL логотипа</label>
+                                    <input type="url" class="form-control" id="logo_url" name="logo_url" value="{{ profile.logo_url }}">
+                                    {% if profile.logo_url %}
+                                    <div class="mt-2">
+                                        <img src="{{ profile.logo_url }}" alt="Логотип" class="img-fluid" style="max-height: 100px;">
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="mb-3">
+                                    <label for="seal_url" class="form-label">URL печати</label>
+                                    <input type="url" class="form-control" id="seal_url" name="seal_url" value="{{ profile.seal_url }}">
+                                    {% if profile.seal_url %}
+                                    <div class="mt-2">
+                                        <img src="{{ profile.seal_url }}" alt="Печать" class="img-fluid" style="max-height: 100px;">
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="mb-3">
+                                    <label for="signature_url" class="form-label">URL подписи</label>
+                                    <input type="url" class="form-control" id="signature_url" name="signature_url" value="{{ profile.signature_url }}">
+                                    {% if profile.signature_url %}
+                                    <div class="mt-2">
+                                        <img src="{{ profile.signature_url }}" alt="Подпись" class="img-fluid" style="max-height: 100px;">
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                                <a href="{{ url_for('mdm.company_profile') }}" class="btn btn-secondary">Отмена</a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('legal_form').addEventListener('change', function() {
+    const kppField = document.getElementById('kpp_field');
+    const ceoPositionField = document.getElementById('ceo_position_field');
+    const chiefAccountantField = document.getElementById('chief_accountant_field');
+    const ogrnLabel = document.querySelector('label[for="ogrn"]');
+    const ceoLabel = document.querySelector('label[for="ceo"]');
+    if (this.value === 'ИП') {
+        kppField.style.display = 'none';
+        ceoPositionField.style.display = 'none';
+        chiefAccountantField.style.display = 'none';
+        ogrnLabel.textContent = 'ОГРНИП *';
+        ceoLabel.textContent = 'ФИО индивидуального предпринимателя *';
+    } else {
+        kppField.style.display = 'block';
+        ceoPositionField.style.display = 'block';
+        chiefAccountantField.style.display = 'block';
+        ogrnLabel.textContent = 'ОГРН *';
+        ceoLabel.textContent = 'Руководитель *';
+    }
+});
+</script>
+{% endblock %}

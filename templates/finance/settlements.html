@@ -16,6 +16,9 @@
         <form method="get" class="d-flex gap-2">
             <input class="form-control" name="period" value="{{ period }}" style="max-width: 10rem;">
             <button class="btn btn-primary" type="submit">Показать</button>
+            <a href="{{ url_for('finance.settlements_print', period=period) }}" class="btn btn-outline-primary" target="_blank" title="Печать">
+                <i class="bi bi-printer"></i> Печать
+            </a>
         </form>
     </div>
 </section>

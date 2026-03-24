@@ -1,0 +1,100 @@
+{% extends "finance/print/_print_base.html" %}
+
+{% block print_title %}БДР (Анализ рентабельности по сегментам){% endblock %}
+
+{% block print_content %}
+    {% include "finance/print/_print_header.html" %}
+    
+    <div class="report-title">БДР - РЕНТАБЕЛЬНОСТЬ ПО СЕГМЕНТАМ И ГРУППАМ</div>
+    <div class="report-period">Период: {{ period }}</div>
+    
+    <div class="section-title">Анализ прибыльности по бизнес-направлениям</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 12%;">Сегмент</td>
+            <td style="width: 15%;">Группа товаров</td>
+            <td style="width: 13%;">Выручка (₽)</td>
+            <td style="width: 13%;">Себестоимость (₽)</td>
+            <td style="width: 13%;">Брутто-прибыль (₽)</td>
+            <td style="width: 12%;">Маржа (%)</td>
+            <td style="width: 12%;">Количество (шт)</td>
+        </tr>
+        {% for item in pivot %}
+        <tr>
+            <td>{{ item.segment }}</td>
+            <td>{{ item.group }}</td>
+            <td class="currency">{{ "%.2f"|format(item.revenue) }}</td>
+            <td class="currency">{{ "%.2f"|format(item.cogs) }}</td>
+            <td class="currency" style="color: {% if item.gross_profit > 0 %}green{% else %}red{% endif %};">{{ "%.2f"|format(item.gross_profit) }}</td>
+            <td class="number" style="color: {% if item.gross_margin_pct > 0 %}green{% else %}red{% endif %}; font-weight: bold;">{{ "%.2f"|format(item.gross_margin_pct) }}%</td>
+            <td class="number">{{ item.quantity }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td colspan="2" style="font-weight: bold;">ИТОГО ПО ВСЕМ СЕГМЕНТАМ</td>
+            <td class="currency" style="font-weight: bold; color: blue;">{{ "%.2f"|format(total_revenue) }}</td>
+            <td class="currency" style="font-weight: bold; color: red;">{{ "%.2f"|format(total_cogs) }}</td>
+            <td class="currency" style="font-weight: bold; color: {% if total_profit > 0 %}green{% else %}red{% endif %};">{{ "%.2f"|format(total_profit) }}</td>
+            <td class="number" style="font-weight: bold; color: {% if (total_profit / total_revenue * 100 if total_revenue else 0) > 0 %}green{% else %}red{% endif %};">{{ "%.2f"|format((total_profit / total_revenue * 100) if total_revenue else 0) }}%</td>
+            <td class="number" style="font-weight: bold;">{{ pivot|sum(attribute='quantity') }}</td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Интерпретация показателей</div>
+    
+    <table>
+        <tr>
+            <td>
+                <strong>Выручка (Revenue):</strong> Валовая выручка от продаж товаров в сегменте<br>
+                <strong>Себестоимость (COGS):</strong> Прямые затраты на производство/приобретение товаров (ФИФО метод COGS)<br>
+                <strong>Брутто-прибыль (GP):</strong> Выручка минус себестоимость = Выручка - COGS<br>
+                <strong>Маржа (%):</strong> Процент прибыли от выручки = (GP / Выручка) × 100%<br>
+                <strong>Количество:</strong> Единицы товара реализованы в сегменте<br>
+                <br>
+                <strong>Ключевые выводы:</strong><br>
+                {% set best_segment = pivot|max(attribute='gross_margin_pct') if pivot else None %}
+                {% set worst_segment = pivot|min(attribute='gross_margin_pct') if pivot else None %}
+                
+                {% if best_segment %}
+                    ✓ Самый прибыльный сегмент: <strong>{{ best_segment.segment }} / {{ best_segment.group }}</strong> ({{ "%.2f"|format(best_segment.gross_margin_pct) }}% маржи)<br>
+                {% endif %}
+                {% if worst_segment and worst_segment.gross_margin_pct < 10 %}
+                    ✗ Требует анализа сегмент: <strong>{{ worst_segment.segment }} / {{ worst_segment.group }}</strong> ({{ "%.2f"|format(worst_segment.gross_margin_pct) }}% маржи)<br>
+                {% endif %}
+                
+                {% if total_revenue > 0 %}
+                    Средняя валовая маржа по компании: <strong>{{ "%.2f"|format((total_profit / total_revenue * 100) if total_revenue else 0) }}%</strong>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+    
+    <div class="section-title">Рекомендации по развитию сегментов</div>
+    
+    <table>
+        <tr>
+            <td>
+                <strong>Для высокомаржинальных сегментов (маржа > 30%):</strong><br>
+                • Увеличить объемы продаж и инвестиции в маркетинг<br>
+                • Рассмотреть расширение ассортимента в этом направлении<br>
+                • Защитить позицию от конкурентов<br>
+                <br>
+                <strong>Для среднемаржинальных сегментов (маржа 15-30%):</strong><br>
+                • Оптимизировать себестоимость и логистику<br>
+                • Анализировать конкурентоспособность и объемы<br>
+                • Проверить соответствие целевым показателям<br>
+                <br>
+                <strong>Для низкомаржинальных сегментов (маржа < 15%):</strong><br>
+                • Провести детальный анализ причин низкой маржи<br>
+                • Рассмотреть увеличение цен или сокращение расходов<br>
+                • Принять решение о целесообразности продолжения работы в сегменте<br>
+                • Возможно, перенести ресурсы на более прибыльные направления
+            </td>
+        </tr>
+    </table>
+    
+    <br>
+    {% include "finance/print/_print_signatures.html" %}
+    {% include "finance/print/_print_footer.html" %}
+{% endblock %}

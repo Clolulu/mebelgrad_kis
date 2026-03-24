@@ -1,0 +1,104 @@
+{% extends "finance/print/_print_base.html" %}
+
+{% block print_title %}Баланс по управленческому учету{% endblock %}
+
+{% block print_content %}
+    {% include "finance/print/_print_header.html" %}
+    
+    <div class="report-title">БАЛАНС ПО УПРАВЛЕНЧЕСКОМУ УЧЕТУ</div>
+    <div class="report-period">На дату: {{ snapshot_date.strftime('%d.%m.%Y') }}</div>
+    
+    <div class="section-title">АКТИВЫ</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 60%;">Статья активов</td>
+            <td style="width: 40%;">Сумма (₽)</td>
+        </tr>
+        <tr>
+            <td>I. ТЕКУЩИЕ АКТИВЫ</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td style="padding-left: 30px;">Производственные запасы (Инвентарь)</td>
+            <td class="currency">{{ "%.2f"|format(inventory_value) }}</td>
+        </tr>
+        <tr>
+            <td style="padding-left: 30px;">Денежные средства и эквиваленты</td>
+            <td class="currency">{{ "%.2f"|format(cash_amount) }}</td>
+        </tr>
+        <tr>
+            <td style="padding-left: 30px;">Дебиторская задолженность</td>
+            <td class="currency">{{ "%.2f"|format(receivables) }}</td>
+        </tr>
+        <tr class="total-row">
+            <td style="font-weight: bold;">ИТОГО ТЕКУЩИЕ АКТИВЫ</td>
+            <td class="currency">{{ "%.2f"|format(total_assets) }}</td>
+        </tr>
+    </table>
+    
+    <div class="section-title">ПАССИВЫ</div>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 60%;">Статья пассивов</td>
+            <td style="width: 40%;">Сумма (₽)</td>
+        </tr>
+        <tr>
+            <td>I. ТЕКУЩИЕ ОБЯЗАТЕЛЬСТВА</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td style="padding-left: 30px;">Кредиторская задолженность перед поставщиками</td>
+            <td class="currency">{{ "%.2f"|format(payables) }}</td>
+        </tr>
+        <tr class="total-row">
+            <td style="font-weight: bold;">ИТОГО ТЕКУЩИЕ ОБЯЗАТЕЛЬСТВА</td>
+            <td class="currency">{{ "%.2f"|format(total_liabilities) }}</td>
+        </tr>
+    </table>
+    
+    <br>
+    
+    <table>
+        <tr class="total-row">
+            <td style="width: 60%;">Статья</td>
+            <td style="width: 40%;">Сумма (₽)</td>
+        </tr>
+        <tr class="total-row">
+            <td style="font-weight: bold;">СОБСТВЕННЫЙ КАПИТАЛ</td>
+            <td class="currency">{{ "%.2f"|format(equity) }}</td>
+        </tr>
+        <tr>
+            <td style="color: #666; font-size: 11px;">Уравнение баланса: Активы - Обязательства = Капитал</td>
+            <td style="color: #666; font-size: 11px; text-align: right;">█ {{ "Проверка: ВЕРНО"|replace("█", "✓" if check_equal else "✗") }}</td>
+        </tr>
+    </table>
+    
+    <div class="section-title">КОММЕНТАРИИ И ПРИМЕЧАНИЯ</div>
+    
+    <table>
+        <tr>
+            <td>
+                <strong>Структура баланса:</strong><br>
+                • Производственные запасы включают готовую продукцию и сырье в наличии<br>
+                • Денежные средства отражают кассовые остатки и расчетные счета<br>
+                • Дебиторская задолженность - задолженность покупателей перед компанией<br>
+                • Кредиторская задолженность - задолженность перед поставщиками<br>
+                <br>
+                <strong>Финансовое положение:</strong><br>
+                {% if equity > 0 %}
+                    ✓ Компания имеет положительный собственный капитал<br>
+                    ✓ Активы покрывают все обязательства на {{ "%.1f"|format((equity / total_assets * 100) if total_assets else 0) }}%
+                {% else %}
+                    ✗ Компания имеет отрицательный собственный капитал (техническая несостоятельность)<br>
+                    ✗ Требуется увеличение капитала или снижение обязательств
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+    
+    <br>
+    {% include "finance/print/_print_signatures.html" %}
+    {% include "finance/print/_print_footer.html" %}
+{% endblock %}

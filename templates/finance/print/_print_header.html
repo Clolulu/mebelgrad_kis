@@ -1,0 +1,49 @@
+<!-- Print Header Block -->
+<div class="print-header">
+    {% if company.logo_url %}
+        <img src="{{ company.logo_url }}" alt="Логотип" class="company-logo">
+    {% else %}
+        <div style="width: 80px;"></div>
+    {% endif %}
+    
+    <div class="company-info">
+        <div class="company-name">{{ company.company_name }}</div>
+        <div class="company-legal-form">{{ company.legal_form }}{% if company.tax_system %} | {{ company.tax_system }}{% endif %}</div>
+        <div class="company-rekvizity">
+            ИНН: {{ company.inn }}<br>
+            {% if company.legal_form != "ИП" %}
+                КПП: {{ company.kpp }}<br>
+            {% endif %}
+            {% if company.legal_form == "ИП" %}
+                ОГРНИП: {{ company.ogrn }}<br>
+            {% else %}
+                ОГРН: {{ company.ogrn }}<br>
+            {% endif %}
+            {% if company.okved %}
+                ОКВЭД: {{ company.okved }}<br>
+            {% endif %}
+            {% if company.employees_count %}
+                Сотрудников: {{ company.employees_count }}<br>
+            {% endif %}
+            <br>
+            {{ company.legal_address }}<br>
+            {% if company.actual_address %}
+                {{ company.actual_address }}<br>
+            {% endif %}
+            Тел.: {{ company.phone }}<br>
+            Email: {{ company.email }}<br>
+            {% if company.bank_name %}
+                Банк: {{ company.bank_name }}<br>
+                БИК: {{ company.bank_bik }}<br>
+                К/с: {{ company.correspondent_account }}<br>
+                Р/с: {{ company.settlement_account }}<br>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if company.seal_url and show_seal %}
+        <img src="{{ company.seal_url }}" alt="Печать" class="company-seal">
+    {% else %}
+        <div style="width: 100px;"></div>
+    {% endif %}
+</div>

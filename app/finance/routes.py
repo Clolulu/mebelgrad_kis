@@ -13,6 +13,7 @@ from app.models import (
     BalanceSnapshot,
     BudgetItem,
     CashCalendarItem,
+    CompanyProfile,
     Customer,
     IndirectExpense,
     InventoryBatch,
@@ -640,20 +641,7 @@ def cash_flow():
             outgoing_scheduled_map[order.order_date.date()] += order.total_amount
 
     rows = []
-    # Начальный остаток -- сумма фактически полученных платежей до начала периода
-    running_balance = (
-        db.session.query(func.sum(Payment.amount))
-        .filter(Payment.status == "completed", Payment.payment_date < start_date)
-        .scalar()
-        or 0
-
-    # Include expected outgoing from unpaid purchase orders scheduled after order_date
-    for order in PurchaseOrder.query.filter(PurchaseOrder.order_date < end_date).all():
-        if not order.is_paid:
-            pay_date = (order.order_date + timedelta(days=30)).date()
-            # add as planned outgoing with high probability
-            outgoing[pay_date] += order.total_amount * 0.95
-    )
+    running_balance = 0
     day = start_date
     while day < end_date:
         day_key = day.date()
@@ -662,16 +650,6 @@ def cash_flow():
         outgoing_scheduled = outgoing_scheduled_map.get(day_key, 0)
         running_balance += incoming - outgoing_paid
         rows.append(
-
-    # Include expected collections from unpaid sales orders (receivables)
-    for so in SalesOrder.query.filter(SalesOrder.order_date < end_date).all():
-        accrued = so.total_amount or 0
-        paid = sum(p.amount for p in so.payments if p.status == "completed" and p.payment_date < end_date)
-        due = max(0, accrued - paid)
-        if due > 0:
-            # assume collections happen 14 days after order by default with 80% probability
-            collect_date = (so.order_date + timedelta(days=14)).date()
-            incoming[collect_date] += due * 0.8
             {
                 "date": day_key,
                 "incoming": incoming,
@@ -848,6 +826,7 @@ def _build_cash_calendar_rows(start_date, end_date):
     incoming = defaultdict(float)
     outgoing = defaultdict(float)
 
+    # Фактические платежи, уже произведенные
     for payment in Payment.query.filter(
         Payment.payment_date >= start_date,
         Payment.payment_date < end_date,
@@ -855,15 +834,32 @@ def _build_cash_calendar_rows(start_date, end_date):
         if payment.status == "completed":
             incoming[payment.payment_date.date()] += payment.amount
 
+    # Фактические расходы (оплаченные закупки)
     for order in PurchaseOrder.query.filter(
         PurchaseOrder.order_date >= start_date,
         PurchaseOrder.order_date < end_date,
     ).all():
         if order.is_paid:
             outgoing[order.order_date.date()] += order.total_amount
-        else:
-            outgoing[order.order_date.date()] += 0
 
+    # Плановые платежи для неоплаченных закупок (30 дней от заказа)
+    for order in PurchaseOrder.query.filter(PurchaseOrder.order_date < end_date).all():
+        if not order.is_paid:
+            pay_date = (order.order_date + timedelta(days=30)).date()
+            if pay_date < end_date.date():
+                outgoing[pay_date] += order.total_amount * 0.95
+
+    # Ожидаемые поступления от дебиторки (14 дней от заказа)
+    for so in SalesOrder.query.filter(SalesOrder.order_date < end_date).all():
+        accrued = so.total_amount or 0
+        paid = sum(p.amount for p in so.payments if p.status == "completed" and p.payment_date < end_date)
+        due = max(0, accrued - paid)
+        if due > 0:
+            collect_date = (so.order_date + timedelta(days=14)).date()
+            if collect_date < end_date.date():
+                incoming[collect_date] += due * 0.8
+
+    # Позиции платежного календаря
     for item in CashCalendarItem.query.filter(
         CashCalendarItem.date >= start_date,
         CashCalendarItem.date < end_date,
@@ -874,8 +870,15 @@ def _build_cash_calendar_rows(start_date, end_date):
         else:
             outgoing[d] += item.amount * item.probability
 
+    # Начальный остаток = сумма полученных платежей до начала периода
+    running_balance = (
+        db.session.query(func.sum(Payment.amount))
+        .filter(Payment.status == "completed", Payment.payment_date < start_date)
+        .scalar()
+        or 0
+    )
+
     rows = []
-    running_balance = 0
     day = start_date
     while day < end_date:
         d = day.date()
@@ -1136,4 +1139,525 @@ def export_1c():
         mimetype="application/json",
         as_attachment=True,
         download_name=f"mebelgrad_exchange_{period}.json",
+    )
+
+
+# ============================================================================
+# PRINT ENDPOINTS / ПЕЧАТЬ ОТЧЁТОВ
+# ============================================================================
+
+@finance_bp.route("/dashboard/print")
+@login_required
+@finance_required
+def dashboard_print():
+    """Печать финансового дашборда"""
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
+    show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
+    
+    start_date, end_date = get_period_bounds(period)
+    
+    revenue = calculate_income(start_date, end_date)
+    cogs = (
+        db.session.query(func.sum(SalesOrderItem.quantity * SalesOrderItem.cost_price))
+        .join(SalesOrder)
+        .filter(
+            SalesOrder.order_date >= start_date,
+            SalesOrder.order_date < end_date,
+            SalesOrder.status == "completed",
+        )
+        .scalar()
+        or 0
+    )
+    gross_profit = revenue - cogs
+    operating_expenses = calculate_actual_expenses(start_date, end_date)
+    net_profit = gross_profit - operating_expenses
+    
+    inventory_value = sum(batch.available_quantity() * batch.unit_cost for batch in InventoryBatch.query.all())
+    cash_amount = (
+        db.session.query(func.sum(Payment.amount))
+        .filter(Payment.status == "completed", Payment.payment_date < end_date)
+        .scalar()
+        or 0
+    )
+    
+    receivables = 0
+    for order in SalesOrder.query.filter(SalesOrder.order_date <= end_date).all():
+        accrued = order.total_amount
+        paid = sum(p.amount for p in order.payments if p.status == "completed" and p.payment_date <= end_date)
+        receivables += max(0, accrued - paid)
+    
+    assets = total_assets = inventory_value + cash_amount + receivables
+    liabilities = payables = sum(order.total_amount for order in PurchaseOrder.query.filter_by(is_paid=False).all())
+    equity = total_assets - liabilities
+    roe = (net_profit * 12 / equity * 100) if equity else 0
+    
+    fixed_costs = sum(exp.amount for exp in IndirectExpense.query.filter_by(period=period).all())
+    breakeven = (fixed_costs / (gross_profit / revenue) if revenue and gross_profit > 0 else 0)
+    strength_buffer = ((revenue - breakeven) / revenue * 100) if revenue else 0
+    
+    company = CompanyProfile.query.first()
+    
+    return render_template(
+        "finance/print/dashboard_print.html",
+        company=company,
+        period=period,
+        net_profit=net_profit,
+        cash_balance=cash_amount,
+        roe=roe,
+        breakeven=breakeven,
+        strength_buffer=strength_buffer,
+        revenue=revenue,
+        inventory_value=inventory_value,
+        cash_balance_detail=cash_amount,
+        payables=payables,
+        assets=assets,
+        liabilities=liabilities,
+        equity=equity,
+        show_seal=show_seal,
+        show_signatures=show_signatures,
+        now=datetime.now(),
+    )
+
+
+@finance_bp.route("/management-balance/print")
+@login_required
+@finance_required
+def management_balance_print():
+    """Печать баланса по управленческому учету"""
+    date_str = request.args.get("date", datetime.now().strftime("%Y-%m-%d"))
+    show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
+    show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
+    
+    try:
+        snapshot_date = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        snapshot_date = datetime.now()
+    
+    inventory_value = 0
+    for batch in InventoryBatch.query.all():
+        inventory_value += batch.available_quantity() * batch.unit_cost
+    
+    cash_amount = (
+        db.session.query(func.sum(Payment.amount))
+        .filter(Payment.status == "completed", Payment.payment_date <= snapshot_date)
+        .scalar()
+        or 0
+    )
+    
+    receivables = 0
+    for order in SalesOrder.query.filter(SalesOrder.order_date <= snapshot_date).all():
+        accrued = order.total_amount
+        paid = sum(p.amount for p in order.payments if p.status == "completed" and p.payment_date <= snapshot_date)
+        receivables += max(0, accrued - paid)
+    
+    payables = 0
+    for order in PurchaseOrder.query.filter(PurchaseOrder.order_date <= snapshot_date).all():
+        if not order.is_paid:
+            payables += order.total_amount
+    
+    total_assets = inventory_value + cash_amount + receivables
+    total_liabilities = payables
+    equity = total_assets - total_liabilities
+    
+    company = CompanyProfile.query.first()
+    
+    return render_template(
+        "finance/print/management_balance_print.html",
+        company=company,
+        snapshot_date=snapshot_date.date(),
+        inventory_value=inventory_value,
+        cash_amount=cash_amount,
+        receivables=receivables,
+        payables=payables,
+        total_assets=total_assets,
+        total_liabilities=total_liabilities,
+        equity=equity,
+        check_equal=(abs(total_assets - total_liabilities - equity) < 1e-2),
+        show_seal=show_seal,
+        show_signatures=show_signatures,
+        now=datetime.now(),
+    )
+
+
+@finance_bp.route("/plan-fact-analysis/print")
+@login_required
+@finance_required
+def plan_fact_analysis_print():
+    """Печать анализа плана и факта"""
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
+    show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
+    
+    start_date, end_date = get_period_bounds(period)
+    budget_items = BudgetItem.query.filter_by(period=period).all()
+    
+    planned_by_category = defaultdict(float)
+    for item in budget_items:
+        planned_by_category[(item.item_type, item.category)] += item.planned_amount
+    
+    actual_income = calculate_income(start_date, end_date)
+    actual_expenses = calculate_actual_expenses(start_date, end_date)
+    indirect_map = get_indirect_expense_map(period)
+    
+    flex_factor = (
+        actual_income / planned_by_category.get(("income", "Продажи"), actual_income or 1)
+    ) if planned_by_category.get(("income", "Продажи"), 0) else 1
+    
+    analysis = [
+        {
+            "category": "Продажи",
+            "type": "income",
+            "planned": planned_by_category.get(("income", "Продажи"), 0),
+            "actual": actual_income * 0.75,
+            "variance": actual_income * 0.75 - planned_by_category.get(("income", "Продажи"), 0),
+            "flexed": planned_by_category.get(("income", "Продажи"), 0) * flex_factor,
+        },
+        {
+            "category": "Корпоративные проекты",
+            "type": "income",
+            "planned": planned_by_category.get(("income", "Корпоративные проекты"), 0),
+            "actual": actual_income * 0.15,
+            "variance": actual_income * 0.15 - planned_by_category.get(("income", "Корпоративные проекты"), 0),
+            "flexed": planned_by_category.get(("income", "Корпоративные проекты"), 0) * flex_factor,
+        },
+        {
+            "category": "Сборка и доставка",
+            "type": "income",
+            "planned": planned_by_category.get(("income", "Сборка и доставка"), 0),
+            "actual": actual_income * 0.10,
+            "variance": actual_income * 0.10 - planned_by_category.get(("income", "Сборка и доставка"), 0),
+            "flexed": planned_by_category.get(("income", "Сборка и доставка"), 0) * flex_factor,
+        },
+        {
+            "category": "Закупки",
+            "type": "expense",
+            "planned": planned_by_category.get(("expense", "Закупки"), 0),
+            "actual": actual_expenses,
+            "variance": actual_expenses - planned_by_category.get(("expense", "Закупки"), 0),
+            "flexed": planned_by_category.get(("expense", "Закупки"), 0) * flex_factor,
+        },
+    ]
+    
+    for (item_type, category), planned_value in sorted(planned_by_category.items()):
+        if category in {"Продажи", "Корпоративные проекты", "Сборка и доставка", "Закупки"}:
+            continue
+        if item_type == "income":
+            if category == "Корпоративные проекты":
+                actual_value = actual_income * 0.15
+            elif category == "Сборка и доставка":
+                actual_value = actual_income * 0.10
+            else:
+                actual_value = actual_income * 0.05
+        else:
+            actual_value = float(indirect_map.get(category, 0))
+        flexed_value = planned_value * flex_factor
+        variance = actual_value - planned_value
+        analysis.append(
+            {
+                "category": category,
+                "type": item_type,
+                "planned": planned_value,
+                "actual": actual_value,
+                "variance": variance,
+                "flexed": flexed_value,
+            }
+        )
+    
+    deviations = PlanFactDeviation.query.filter_by(period=period).order_by(PlanFactDeviation.created_at.desc()).all()
+    total_planned = sum(item["planned"] for item in analysis)
+    total_actual = sum(item["actual"] for item in analysis)
+    
+    deviations_alpha = []
+    for item in analysis:
+        planned = item.get("planned", 0) or 0
+        variance_pct = (item.get("variance", 0) / planned * 100) if planned else 0
+        if abs(variance_pct) >= 20:
+            deviations_alpha.append({"category": item["category"], "variance_pct": variance_pct})
+    
+    company = CompanyProfile.query.first()
+    
+    return render_template(
+        "finance/print/plan_fact_print.html",
+        company=company,
+        period=period,
+        start_date=start_date,
+        end_date=end_date,
+        analysis=analysis,
+        deviations=deviations,
+        deviations_alpha=deviations_alpha,
+        total_planned=total_planned,
+        total_actual=total_actual,
+        total_variance=total_actual - total_planned,
+        cash_gap=actual_income - actual_expenses,
+        show_seal=show_seal,
+        show_signatures=show_signatures,
+        now=datetime.now(),
+    )
+
+
+@finance_bp.route("/cash-flow/print")
+@login_required
+@finance_required
+def cash_flow_print():
+    """Печать отчета о кассовых потоках"""
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
+    show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
+    
+    start_date, end_date = get_period_bounds(period)
+    
+    incoming_map = defaultdict(float)
+    for payment in Payment.query.filter(
+        Payment.payment_date >= start_date,
+        Payment.payment_date < end_date,
+        Payment.status == "completed",
+    ).all():
+        incoming_map[payment.payment_date.date()] += payment.amount
+    
+    outgoing_paid_map = defaultdict(float)
+    outgoing_scheduled_map = defaultdict(float)
+    for order in PurchaseOrder.query.filter(
+        PurchaseOrder.order_date >= start_date,
+        PurchaseOrder.order_date < end_date,
+    ).all():
+        if order.is_paid:
+            outgoing_paid_map[order.order_date.date()] += order.total_amount
+        else:
+            outgoing_scheduled_map[order.order_date.date()] += order.total_amount
+    
+    rows = []
+    running_balance = 0
+    day = start_date
+    while day < end_date:
+        day_key = day.date()
+        incoming = incoming_map.get(day_key, 0)
+        outgoing_paid = outgoing_paid_map.get(day_key, 0)
+        outgoing_scheduled = outgoing_scheduled_map.get(day_key, 0)
+        running_balance += incoming - outgoing_paid
+        rows.append(
+            {
+                "date": day_key,
+                "incoming": incoming,
+                "outgoing_paid": outgoing_paid,
+                "outgoing_scheduled": outgoing_scheduled,
+                "net_actual": incoming - outgoing_paid,
+                "projected_gap": incoming - outgoing_paid - outgoing_scheduled,
+                "running_balance": running_balance,
+            }
+        )
+        day += timedelta(days=1)
+    
+    active_rows = [
+        row
+        for row in rows
+        if row["incoming"] or row["outgoing_paid"] or row["outgoing_scheduled"]
+    ]
+    
+    company = CompanyProfile.query.first()
+    
+    return render_template(
+        "finance/print/cash_flow_print.html",
+        company=company,
+        period=period,
+        rows=rows,
+        active_rows=active_rows,
+        total_incoming=sum(row["incoming"] for row in rows),
+        total_outgoing_paid=sum(row["outgoing_paid"] for row in rows),
+        total_outgoing_scheduled=sum(row["outgoing_scheduled"] for row in rows),
+        closing_balance=running_balance,
+        show_seal=show_seal,
+        show_signatures=show_signatures,
+        now=datetime.now(),
+    )
+
+
+@finance_bp.route("/bdds/forecast/print")
+@login_required
+@finance_required
+def bdds_forecast_print():
+    """Печать прогноза денежных потоков"""
+    show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
+    show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
+    
+    base_date = datetime.now().date()
+    start_date = datetime.combine(base_date, datetime.min.time())
+    end_date = start_date + timedelta(days=30)
+    rows = _build_cash_calendar_rows(start_date, end_date)
+    
+    if rows:
+        saturdays = [r for r in rows if r["balance"] < 0][-3:]
+        critical_dates = [r["date"] for r in rows if r["balance"] < 0]
+    else:
+        critical_dates = []
+    
+    company = CompanyProfile.query.first()
+    
+    return render_template(
+        "finance/print/bdds_forecast_print.html",
+        company=company,
+        rows=rows,
+        ending_balance=rows[-1]["balance"] if rows else 0,
+        critical_dates=critical_dates,
+        show_seal=show_seal,
+        show_signatures=show_signatures,
+        now=datetime.now(),
+    )
+
+
+@finance_bp.route("/settlements/print")
+@login_required
+@finance_required
+def settlements_print():
+    """Печать расчетов с контрагентами"""
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
+    show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
+    
+    start_date, end_date = get_period_bounds(period)
+    
+    customer_rows = []
+    for customer in Customer.query.order_by(Customer.name.asc()).all():
+        orders = [
+            order
+            for order in customer.sales_orders
+            if start_date <= order.order_date < end_date
+        ]
+        if not orders:
+            continue
+        billed = sum(order.total_amount for order in orders)
+        paid = sum(
+            payment.amount
+            for order in orders
+            for payment in order.payments
+            if start_date <= payment.payment_date < end_date
+            and payment.status == "completed"
+        )
+        customer_rows.append(
+            {
+                "name": customer.name,
+                "type": customer.type,
+                "orders_count": len(orders),
+                "billed": billed,
+                "paid": paid,
+                "debt": billed - paid,
+            }
+        )
+    
+    supplier_rows = []
+    for supplier in Supplier.query.order_by(Supplier.name.asc()).all():
+        orders = [
+            order
+            for order in supplier.purchase_orders
+            if start_date <= order.order_date < end_date
+        ]
+        if not orders:
+            continue
+        accrued = sum(order.total_amount for order in orders)
+        paid = sum(order.total_amount for order in orders if order.is_paid)
+        supplier_rows.append(
+            {
+                "name": supplier.name,
+                "orders_count": len(orders),
+                "accrued": accrued,
+                "paid": paid,
+                "payable": accrued - paid,
+            }
+        )
+    
+    customer_rows.sort(key=lambda row: row["debt"], reverse=True)
+    supplier_rows.sort(key=lambda row: row["payable"], reverse=True)
+    
+    company = CompanyProfile.query.first()
+    
+    return render_template(
+        "finance/print/settlements_print.html",
+        company=company,
+        period=period,
+        customer_rows=customer_rows,
+        supplier_rows=supplier_rows,
+        total_customer_billed=sum(row["billed"] for row in customer_rows),
+        total_customer_paid=sum(row["paid"] for row in customer_rows),
+        total_supplier_accrued=sum(row["accrued"] for row in supplier_rows),
+        total_supplier_paid=sum(row["paid"] for row in supplier_rows),
+        top_customer_income=sorted(
+            calculate_period_customer_income(start_date, end_date).items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:5],
+        top_supplier_payables=sorted(
+            calculate_period_supplier_payables(start_date, end_date).items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:5],
+        show_seal=show_seal,
+        show_signatures=show_signatures,
+        now=datetime.now(),
+    )
+
+
+@finance_bp.route("/budget/print")
+@login_required
+@finance_required
+def budget_print():
+    """Печать бюджета доходов и расходов"""
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
+    show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
+    
+    items = (
+        BudgetItem.query.filter_by(period=period)
+        .order_by(BudgetItem.item_type, BudgetItem.category)
+        .all()
+    )
+    income_items = [item for item in items if item.item_type == "income"]
+    expense_items = [item for item in items if item.item_type == "expense"]
+    total_income_plan = sum(item.planned_amount for item in income_items)
+    total_expense_plan = sum(item.planned_amount for item in expense_items)
+    
+    company = CompanyProfile.query.first()
+    
+    return render_template(
+        "finance/print/budget_print.html",
+        company=company,
+        period=period,
+        income_items=income_items,
+        expense_items=expense_items,
+        total_income_plan=total_income_plan,
+        total_expense_plan=total_expense_plan,
+        planned_balance=total_income_plan - total_expense_plan,
+        show_seal=show_seal,
+        show_signatures=show_signatures,
+        now=datetime.now(),
+    )
+
+
+@finance_bp.route("/bdr/print")
+@login_required
+@finance_required
+def bdr_report_print():
+    """Печать анализа рентабельности по сегментам"""
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
+    show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
+    
+    start_date, end_date = get_period_bounds(period)
+    pivot = calculate_bdr_pivot(start_date, end_date)
+    total_revenue = sum(x["revenue"] for x in pivot)
+    total_cogs = calculate_cogs_fifo(start_date, end_date)
+    total_profit = total_revenue - total_cogs
+    
+    company = CompanyProfile.query.first()
+    
+    return render_template(
+        "finance/print/bdr_print.html",
+        company=company,
+        period=period,
+        pivot=pivot,
+        total_revenue=total_revenue,
+        total_cogs=total_cogs,
+        total_profit=total_profit,
+        show_seal=show_seal,
+        show_signatures=show_signatures,
+        now=datetime.now(),
     )

@@ -1,0 +1,46 @@
+<!-- Signatures Block -->
+<div class="signature-block">
+    {% if show_signatures %}
+    {% if company.legal_form == "ИП" %}
+    <div class="signature">
+        <div class="signature-space">
+            {% if company.signature_url %}
+                <img src="{{ company.signature_url }}" alt="Подпись ИП" class="signature-image">
+            {% endif %}
+        </div>
+        <div class="signature-line">_________________</div>
+        <div class="signature-name">{{ company.ceo }}</div>
+        <div class="signature-position">Индивидуальный предприниматель</div>
+    </div>
+    {% else %}
+    <div class="signature">
+        <div class="signature-space">
+            {% if company.ceo_signature_url %}
+                <img src="{{ company.ceo_signature_url }}" alt="Подпись" class="signature-image">
+            {% endif %}
+        </div>
+        <div class="signature-line">_________________</div>
+        <div class="signature-name">{{ company.ceo_name }}</div>
+        <div class="signature-position">{{ company.ceo_position }}</div>
+    </div>
+    
+    <div class="signature">
+        <div class="signature-space">
+            {% if company.chief_accountant_signature_url %}
+                <img src="{{ company.chief_accountant_signature_url }}" alt="Подпись" class="signature-image">
+            {% endif %}
+        </div>
+        <div class="signature-line">_________________</div>
+        <div class="signature-name">{{ company.chief_accountant_name }}</div>
+        <div class="signature-position">Главный бухгалтер</div>
+    </div>
+    {% endif %}
+    {% endif %}
+    
+    {% if show_seal and company.seal_url %}
+    <div class="signature" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <img src="{{ company.seal_url }}" alt="Печать" style="max-width: 120px; max-height: 120px; opacity: 0.5;">
+        <div style="font-size: 11px; color: #666; margin-top: 10px;">М.П.</div>
+    </div>
+    {% endif %}
+</div>
