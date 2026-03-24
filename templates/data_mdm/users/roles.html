@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Роли MDM | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div>
+        <div class="text-uppercase text-secondary small">Управление данными / Роли</div>
+        <h1 class="h3 mb-2">Настройка прав доступа к MDM</h1>
+        <p class="mb-0">Установите для пользователя доступ к просмотру, редактированию и администрированию справочников.</p>
+    </div>
+</section>
+
+<form method="post" class="surface p-4">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Пользователь</th>
+                <th>admin</th>
+                <th>MDM admin</th>
+                <th>MDM editor</th>
+                <th>MDM viewer</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+                <tr>
+                    <td>{{ user.username }}</td>
+                    <td>{{ 'Да' if user.is_admin else 'Нет' }}</td>
+                    <td><input type="checkbox" name="data_admin_{{ user.id }}" {% if user.is_data_admin %}checked{% endif %}></td>
+                    <td><input type="checkbox" name="data_editor_{{ user.id }}" {% if user.is_data_editor %}checked{% endif %}></td>
+                    <td><input type="checkbox" name="data_viewer_{{ user.id }}" {% if user.is_data_viewer %}checked{% endif %}></td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <button type="submit" class="btn btn-primary">Сохранить права</button>
+</form>
+{% endblock %}

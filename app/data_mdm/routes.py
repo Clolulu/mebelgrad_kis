@@ -19,14 +19,61 @@ def admin_required(view):
     return wrapper
 
 
+def mdm_readonly_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if (
+            not current_user.is_authenticated
+            or not (
+                current_user.is_admin
+                or current_user.is_data_admin
+                or current_user.is_data_editor
+                or current_user.is_data_viewer
+            )
+        ):
+            flash("Доступ к данным MDM ограничен. Обратитесь к администратору.", "danger")
+            return redirect(url_for("index"))
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
+def mdm_editor_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if (
+            not current_user.is_authenticated
+            or not (
+                current_user.is_admin
+                or current_user.is_data_admin
+                or current_user.is_data_editor
+            )
+        ):
+            flash("Изменение данных MDM разрешено только пользователям с правами редактирования.", "danger")
+            return redirect(url_for("mdm.index"))
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
 @mdm_bp.route("/")
 @login_required
-@admin_required
+@mdm_readonly_required
 def index():
     products = Product.query.all()
     customers = Customer.query.all()
     suppliers = Supplier.query.all()
     employees = Employee.query.all()
+    user_roles = []
+    if current_user.is_admin:
+        user_roles.append("admin")
+    if current_user.is_data_admin:
+        user_roles.append("mdm-admin")
+    if current_user.is_data_editor:
+        user_roles.append("mdm-editor")
+    if current_user.is_data_viewer:
+        user_roles.append("mdm-viewer")
+
     return render_template(
         "data_mdm/index.html",
         products_count=len(products),
@@ -52,12 +99,13 @@ def index():
         ),
         total_reserved=sum(product.qty_reserved for product in products),
         total_on_hand=sum(product.qty_on_hand for product in products),
+        user_roles=user_roles,
     )
 
 
 @mdm_bp.route("/quality")
 @login_required
-@admin_required
+@mdm_readonly_required
 def quality_dashboard():
     products = Product.query.order_by(Product.name.asc()).all()
     customers = Customer.query.order_by(Customer.name.asc()).all()
@@ -132,7 +180,7 @@ def quality_dashboard():
 
 @mdm_bp.route("/products")
 @login_required
-@admin_required
+@mdm_readonly_required
 def products_list():
     page = request.args.get("page", 1, type=int)
     q = request.args.get("q", "").strip()
@@ -165,7 +213,7 @@ def products_list():
 
 @mdm_bp.route("/products/create", methods=["GET", "POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def create_product():
     if request.method == "POST":
         sku = request.form.get("sku", "").strip()
@@ -203,7 +251,7 @@ def create_product():
 
 @mdm_bp.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def edit_product(product_id):
     product = Product.query.get_or_404(product_id)
 
@@ -222,7 +270,7 @@ def edit_product(product_id):
 
 @mdm_bp.route("/products/<int:product_id>/delete", methods=["POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def delete_product(product_id):
     product = Product.query.get_or_404(product_id)
     db.session.delete(product)
@@ -233,7 +281,7 @@ def delete_product(product_id):
 
 @mdm_bp.route("/customers")
 @login_required
-@admin_required
+@mdm_readonly_required
 def customers_list():
     page = request.args.get("page", 1, type=int)
     q = request.args.get("q", "").strip()
@@ -265,7 +313,7 @@ def customers_list():
 
 @mdm_bp.route("/customers/create", methods=["GET", "POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def create_customer():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -291,7 +339,7 @@ def create_customer():
 
 @mdm_bp.route("/customers/<int:customer_id>/edit", methods=["GET", "POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def edit_customer(customer_id):
     customer = Customer.query.get_or_404(customer_id)
 
@@ -311,7 +359,7 @@ def edit_customer(customer_id):
 
 @mdm_bp.route("/customers/<int:customer_id>/delete", methods=["POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def delete_customer(customer_id):
     customer = Customer.query.get_or_404(customer_id)
     db.session.delete(customer)
@@ -322,7 +370,7 @@ def delete_customer(customer_id):
 
 @mdm_bp.route("/suppliers")
 @login_required
-@admin_required
+@mdm_readonly_required
 def suppliers_list():
     page = request.args.get("page", 1, type=int)
     q = request.args.get("q", "").strip()
@@ -350,7 +398,7 @@ def suppliers_list():
 
 @mdm_bp.route("/suppliers/create", methods=["GET", "POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def create_supplier():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -376,7 +424,7 @@ def create_supplier():
 
 @mdm_bp.route("/suppliers/<int:supplier_id>/edit", methods=["GET", "POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def edit_supplier(supplier_id):
     supplier = Supplier.query.get_or_404(supplier_id)
 
@@ -396,7 +444,7 @@ def edit_supplier(supplier_id):
 
 @mdm_bp.route("/suppliers/<int:supplier_id>/delete", methods=["POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def delete_supplier(supplier_id):
     supplier = Supplier.query.get_or_404(supplier_id)
     db.session.delete(supplier)
@@ -407,7 +455,7 @@ def delete_supplier(supplier_id):
 
 @mdm_bp.route("/employees")
 @login_required
-@admin_required
+@mdm_readonly_required
 def employees_list():
     page = request.args.get("page", 1, type=int)
     q = request.args.get("q", "").strip()
@@ -439,7 +487,7 @@ def employees_list():
 
 @mdm_bp.route("/employees/create", methods=["GET", "POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def create_employee():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -465,7 +513,7 @@ def create_employee():
 
 @mdm_bp.route("/employees/<int:employee_id>/edit", methods=["GET", "POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def edit_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
 
@@ -487,7 +535,7 @@ def edit_employee(employee_id):
 
 @mdm_bp.route("/employees/<int:employee_id>/delete", methods=["POST"])
 @login_required
-@admin_required
+@mdm_editor_required
 def delete_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     db.session.delete(employee)
@@ -498,7 +546,7 @@ def delete_employee(employee_id):
 
 @mdm_bp.route("/stock")
 @login_required
-@admin_required
+@mdm_readonly_required
 def stock_list():
     page = request.args.get("page", 1, type=int)
     q = request.args.get("q", "").strip()
@@ -545,3 +593,23 @@ def stock_list():
         reserved_count=sum(1 for product in Product.query.all() if product.qty_reserved > 0),
         total_on_hand=sum(product.qty_on_hand for product in Product.query.all()),
     )
+
+
+@mdm_bp.route("/users/roles", methods=["GET", "POST"])
+@login_required
+@admin_required
+def user_roles():
+    from app.models import User
+
+    if request.method == "POST":
+        for user in User.query.all():
+            user.is_data_admin = request.form.get(f"data_admin_{user.id}") == "on"
+            user.is_data_editor = request.form.get(f"data_editor_{user.id}") == "on"
+            user.is_data_viewer = request.form.get(f"data_viewer_{user.id}") == "on"
+        db.session.commit()
+        flash("Роли доступа к MDM обновлены", "success")
+        return redirect(url_for("mdm.user_roles"))
+
+    users = User.query.order_by(User.username).all()
+    return render_template("data_mdm/users/roles.html", users=users)
+

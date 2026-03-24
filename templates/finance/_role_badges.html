@@ -1,0 +1,18 @@
+<div class="mb-3">
+    <strong>Роль в системе:</strong>
+    {% if current_user.is_admin %}
+        <span class="badge bg-danger">admin</span>
+    {% endif %}
+    {% if current_user.is_finance %}
+        <span class="badge bg-success">finance</span>
+    {% endif %}
+    {% if current_user.is_data_admin %}
+        <span class="badge bg-primary">mdm-admin</span>
+    {% endif %}
+    {% if current_user.is_data_editor %}
+        <span class="badge bg-info text-dark">mdm-editor</span>
+    {% endif %}
+    {% if current_user.is_data_viewer %}
+        <span class="badge bg-secondary">mdm-viewer</span>
+    {% endif %}
+</div>

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}БДДС — Платежный календарь | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<div class="surface p-4">
+  <h1 class="h4 mb-3">Бюджет движения денежных средств (БДДС)</h1>
+  <p class="text-secondary">Период: {{ period }}</p>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead class="table-light">
+        <tr><th>Дата</th><th>Поступления</th><th>Выплаты</th><th>Чистый</th><th>Баланс</th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr class="{% if row.is_gap %}table-danger{% endif %}">
+            <td>{{ row.date }}</td>
+            <td>{{ "%.2f"|format(row.incoming) }}</td>
+            <td>{{ "%.2f"|format(row.outgoing) }}</td>
+            <td>{{ "%.2f"|format(row.net) }}</td>
+            <td>{{ "%.2f"|format(row.balance) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="mt-3"><strong>Закрывающий остаток:</strong> {{ "%.2f"|format(closing_balance) }} ₽</div>
+</div>
+{% endblock %}

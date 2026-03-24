@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Прогноз БДДС | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<div class="surface p-4 mb-4">
+    <h1 class="h4 mb-3">Прогноз движения денежных средств на 30 дней</h1>
+    <p class="text-secondary">Период: от {{ rows[0].date if rows else '—' }} до {{ rows[-1].date if rows else '—' }}</p>
+    <p class="mb-2">Ожидаемый остаток: {{ "%.2f"|format(ending_balance) }} ₽</p>
+
+    {% if critical_dates %}
+        <div class="alert alert-danger">В прогнозе зафиксированы отрицательные остатки на {{ critical_dates|length }} днях, первая дата: {{ critical_dates[0] }}</div>
+    {% else %}
+        <div class="alert alert-success">Кассовый риск в прогнозе отсутствует.</div>
+    {% endif %}
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light"><tr><th>Дата</th><th>Поступления</th><th>Выплаты</th><th>Чистый</th><th>Остаток</th></tr></thead>
+            <tbody>
+                {% for row in rows %}
+                    <tr class="{% if row.balance < 0 %}table-danger{% elif row.net >= 0 %}table-success{% endif %}">
+                        <td>{{ row.date }}</td>
+                        <td>{{ "%.2f"|format(row.incoming) }}</td>
+                        <td>{{ "%.2f"|format(row.outgoing) }}</td>
+                        <td>{{ "%.2f"|format(row.net) }}</td>
+                        <td>{{ "%.2f"|format(row.balance) }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

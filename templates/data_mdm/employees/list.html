@@ -10,7 +10,12 @@
             <h1 class="h3 mb-2">Кадровый справочник</h1>
             <p class="mb-0">Организационная структура, должности и контактные данные без привязки к учетным записям входа.</p>
         </div>
-        <a href="{{ url_for('mdm.create_employee') }}" class="btn btn-primary">Добавить сотрудника</a>
+        {% set can_edit = current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
+        {% if can_edit %}
+            <a href="{{ url_for('mdm.create_employee') }}" class="btn btn-primary">Добавить сотрудника</a>
+        {% else %}
+            <span class="badge bg-secondary">Только просмотр</span>
+        {% endif %}
     </div>
 </section>
 
@@ -58,10 +63,14 @@
                         <td><span class="badge {% if employee.is_active %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ "Активен" if employee.is_active else "Неактивен" }}</span></td>
                         <td class="text-end">
                             <div class="d-flex gap-2 justify-content-end">
-                                <a href="{{ url_for('mdm.edit_employee', employee_id=employee.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
-                                <form method="post" action="{{ url_for('mdm.delete_employee', employee_id=employee.id) }}" onsubmit="return confirm('Удалить сотрудника из справочника?');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                                </form>
+                                {% if can_edit %}
+                                    <a href="{{ url_for('mdm.edit_employee', employee_id=employee.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
+                                    <form method="post" action="{{ url_for('mdm.delete_employee', employee_id=employee.id) }}" onsubmit="return confirm('Удалить сотрудника из справочника?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                    </form>
+                                {% else %}
+                                    <span class="text-secondary small">Только просмотр</span>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>

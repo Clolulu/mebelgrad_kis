@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Управленческий баланс | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<div class="surface p-4">
+  <h1 class="h4 mb-3">Управленческий баланс на {{ snapshot_date }}</h1>
+  <div class="row gy-3">
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary">Запасы</div><div class="h5">{{ "%.2f"|format(inventory_value) }} ₽</div></div></div>
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary">Денежные средства</div><div class="h5">{{ "%.2f"|format(cash_amount) }} ₽</div></div></div>
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary">Дебиторка</div><div class="h5">{{ "%.2f"|format(receivables) }} ₽</div></div></div>
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary">Кредиторка</div><div class="h5">{{ "%.2f"|format(payables) }} ₽</div></div></div>
+  </div>
+  <div class="row gy-3 mt-3">
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Активы</div><div class="h4">{{ "%.2f"|format(total_assets) }} ₽</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Пассивы</div><div class="h4">{{ "%.2f"|format(total_liabilities) }} ₽</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Собственный капитал</div><div class="h4">{{ "%.2f"|format(equity) }} ₽</div></div></div>
+  </div>
+  <div class="mt-3">
+    <span class="badge {% if check_equal %}text-bg-success{% else %}text-bg-danger{% endif %}">Баланс равен: {{ check_equal }}</span>
+  </div>
+</div>
+{% endblock %}

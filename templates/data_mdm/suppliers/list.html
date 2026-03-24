@@ -10,7 +10,12 @@
             <h1 class="h3 mb-2">Реестр поставщиков</h1>
             <p class="mb-0">База контрагентов по закупкам, договорам и операционному обеспечению бизнеса.</p>
         </div>
-        <a href="{{ url_for('mdm.create_supplier') }}" class="btn btn-primary">Добавить поставщика</a>
+        {% set can_edit = current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
+        {% if can_edit %}
+            <a href="{{ url_for('mdm.create_supplier') }}" class="btn btn-primary">Добавить поставщика</a>
+        {% else %}
+            <span class="badge bg-secondary">Только просмотр</span>
+        {% endif %}
     </div>
 </section>
 
@@ -54,10 +59,14 @@
                         <td><span class="badge {% if supplier.is_active %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ "Активен" if supplier.is_active else "Неактивен" }}</span></td>
                         <td class="text-end">
                             <div class="d-flex gap-2 justify-content-end">
-                                <a href="{{ url_for('mdm.edit_supplier', supplier_id=supplier.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
-                                <form method="post" action="{{ url_for('mdm.delete_supplier', supplier_id=supplier.id) }}" onsubmit="return confirm('Удалить поставщика из справочника?');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                                </form>
+                                {% if can_edit %}
+                                    <a href="{{ url_for('mdm.edit_supplier', supplier_id=supplier.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
+                                    <form method="post" action="{{ url_for('mdm.delete_supplier', supplier_id=supplier.id) }}" onsubmit="return confirm('Удалить поставщика из справочника?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                    </form>
+                                {% else %}
+                                    <span class="text-secondary small">Только просмотр</span>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>

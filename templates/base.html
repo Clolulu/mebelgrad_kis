@@ -100,7 +100,16 @@
                 </ul>
                 <div class="d-flex align-items-center gap-2">
                     {% if current_user.is_authenticated %}
-                        <span class="text-white-50 small">{{ current_user.username }}</span>
+                        <div class="d-flex flex-column align-items-end text-white-50 small me-3">
+                            <span>{{ current_user.username }}</span>
+                            <span>
+                                {% if current_user.is_admin %}<span class="badge bg-danger">admin</span>{% endif %}
+                                {% if current_user.is_finance %}<span class="badge bg-success">finance</span>{% endif %}
+                                {% if current_user.is_data_admin %}<span class="badge bg-primary">mdm-admin</span>{% endif %}
+                                {% if current_user.is_data_editor %}<span class="badge bg-info text-dark">mdm-editor</span>{% endif %}
+                                {% if current_user.is_data_viewer %}<span class="badge bg-secondary">mdm-viewer</span>{% endif %}
+                            </span>
+                        </div>
                         <a class="btn btn-outline-light btn-sm" href="{{ url_for('auth.logout') }}">Выйти</a>
                     {% else %}
                         <a class="btn btn-outline-light btn-sm" href="{{ url_for('auth.login') }}">Войти</a>

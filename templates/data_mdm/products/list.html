@@ -11,7 +11,9 @@
             <p class="mb-0">Карточки номенклатуры, статусы активности, остатки и фильтры для оперативной работы со справочником.</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <a href="{{ url_for('mdm.create_product') }}" class="btn btn-primary">Создать карточку товара</a>
+            {% if current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
+                <a href="{{ url_for('mdm.create_product') }}" class="btn btn-primary">Создать карточку товара</a>
+            {% endif %}
             <a href="{{ url_for('mdm.stock_list') }}" class="btn btn-outline-dark">Открыть остатки</a>
         </div>
     </div>
@@ -92,10 +94,14 @@
                         </td>
                         <td class="text-end">
                             <div class="d-flex gap-2 justify-content-end">
-                                <a href="{{ url_for('mdm.edit_product', product_id=product.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
-                                <form method="post" action="{{ url_for('mdm.delete_product', product_id=product.id) }}" onsubmit="return confirm('Удалить товар из справочника?');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                                </form>
+                                {% if current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
+                                    <a href="{{ url_for('mdm.edit_product', product_id=product.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
+                                    <form method="post" action="{{ url_for('mdm.delete_product', product_id=product.id) }}" onsubmit="return confirm('Удалить товар из справочника?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                    </form>
+                                {% else %}
+                                    <span class="text-secondary small">Просмотр</span>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>

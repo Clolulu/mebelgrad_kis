@@ -15,6 +15,9 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     is_finance = db.Column(db.Boolean, default=False)
+    is_data_admin = db.Column(db.Boolean, default=False)
+    is_data_editor = db.Column(db.Boolean, default=False)
+    is_data_viewer = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -139,6 +142,7 @@ class SalesOrder(db.Model):
     order_number = db.Column(db.String(50), unique=True, nullable=False)
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
     order_date = db.Column(db.DateTime, default=datetime.utcnow)
+    segment = db.Column(db.String(50), default='retail')  # retail / b2b / service
     status = db.Column(db.String(50), default='pending')  # 'pending', 'completed', 'cancelled'
     total_amount = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -161,6 +165,7 @@ class SalesOrderItem(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     unit_price = db.Column(db.Float, nullable=False)
     cost_price = db.Column(db.Float, default=0.0)  # For calculating COGS
+    product_group = db.Column(db.String(50), default='general')  # корпусная/мягкая/кухни/офис
     
     def __repr__(self):
         return f'<SalesOrderItem Order {self.sales_order_id} - Product {self.product_id}>'
@@ -229,3 +234,87 @@ class BudgetItem(db.Model):
     
     def __repr__(self):
         return f'<BudgetItem {self.period} - {self.category}: {self.planned_amount}>'
+
+
+class InventoryBatch(db.Model):
+    """Инвентарная партия для расчета COGS FIFO/средней"""
+    __tablename__ = 'inventory_batches'
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    received_date = db.Column(db.DateTime, default=datetime.utcnow)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_cost = db.Column(db.Float, nullable=False)
+    transport_cost = db.Column(db.Float, default=0.0)
+    quantity_consumed = db.Column(db.Integer, default=0)
+
+    def available_quantity(self):
+        return max(self.quantity - self.quantity_consumed, 0)
+
+
+class IndirectExpense(db.Model):
+    """Косвенные операционные расходы"""
+    __tablename__ = 'indirect_expenses'
+
+    id = db.Column(db.Integer, primary_key=True)
+    period = db.Column(db.String(20), nullable=False)
+    category = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    description = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<IndirectExpense {self.period} - {self.category}: {self.amount}>'
+
+
+class CashCalendarItem(db.Model):
+    """Позиции платежного календаря"""
+    __tablename__ = 'cash_calendar_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.DateTime, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    direction = db.Column(db.String(20), nullable=False)  # incoming/outgoing
+    cash_type = db.Column(db.String(20), nullable=False)  # operational/investment/financial
+    counterparty_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey('suppliers.id'), nullable=True)
+    status = db.Column(db.String(20), default='planned')  # planned/confirmed/executed
+    probability = db.Column(db.Float, default=1.0)
+    comment = db.Column(db.String(255))
+
+    def __repr__(self):
+        return f'<CashCalendarItem {self.date.date()} {self.direction} {self.amount}>'
+
+
+class BalanceSnapshot(db.Model):
+    """Управленческий баланс на дату"""
+    __tablename__ = 'balance_snapshots'
+
+    id = db.Column(db.Integer, primary_key=True)
+    snapshot_date = db.Column(db.DateTime, nullable=False)
+    total_assets = db.Column(db.Float, nullable=False)
+    total_liabilities = db.Column(db.Float, nullable=False)
+    equity = db.Column(db.Float, nullable=False)
+    details = db.Column(db.String)
+
+    def __repr__(self):
+        return f'<BalanceSnapshot {self.snapshot_date.date()}: A{self.total_assets} L{self.total_liabilities} E{self.equity}>'
+
+
+class PlanFactDeviation(db.Model):
+    """Отклонения план-факт со статусом и причиной"""
+    __tablename__ = 'plan_fact_deviations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    period = db.Column(db.String(20), nullable=False)
+    item_name = db.Column(db.String(100), nullable=False)
+    planned_value = db.Column(db.Float, default=0.0)
+    actual_value = db.Column(db.Float, default=0.0)
+    deviation = db.Column(db.Float, default=0.0)
+    deviation_pct = db.Column(db.Float, default=0.0)
+    reason = db.Column(db.String(255))
+    entered_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<PlanFactDeviation {self.period} {self.item_name}: {self.deviation}>'

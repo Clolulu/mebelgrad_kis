@@ -5,11 +5,14 @@ from dotenv import load_dotenv
 from flask import Flask, render_template
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager, current_user
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
 from app.models import (
     BudgetItem,
     Customer,
     Employee,
+    IndirectExpense,
     Payment,
     Product,
     PurchaseOrder,
@@ -54,9 +57,40 @@ def create_app(config_name="development"):
 
     with app.app_context():
         db.create_all()
-        seed_database()
+        try:
+            sync_user_schema()
+            seed_database()
+        except OperationalError as exc:
+            app.logger.warning(
+                'Схема базы данных устарела или повреждена (%s), пересоздаю...',
+                exc,
+            )
+            db.drop_all()
+            db.create_all()
+            sync_user_schema()
+            seed_database()
 
     return app
+
+
+def sync_user_schema():
+    """Выполняем дообновление схемы users для старых БД."""
+    existing_columns = [
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info('users');")).fetchall()
+    ]
+    required_columns = [
+        'is_data_admin',
+        'is_data_editor',
+        'is_data_viewer',
+    ]
+
+    for column in required_columns:
+        if column not in existing_columns:
+            db.session.execute(
+                text(f"ALTER TABLE users ADD COLUMN {column} BOOLEAN DEFAULT 0")
+            )
+            db.session.commit()
 
 
 @login_manager.user_loader
@@ -119,7 +153,16 @@ def register_routes(app):
 
 
 def seed_database():
-    def ensure_user(username, email, password, is_admin=False, is_finance=False):
+    def ensure_user(
+        username,
+        email,
+        password,
+        is_admin=False,
+        is_finance=False,
+        is_data_admin=False,
+        is_data_editor=False,
+        is_data_viewer=False,
+    ):
         user = User.query.filter_by(username=username).first()
         if user is None:
             user = User(
@@ -127,13 +170,41 @@ def seed_database():
                 email=email,
                 is_admin=is_admin,
                 is_finance=is_finance,
+                is_data_admin=is_data_admin,
+                is_data_editor=is_data_editor,
+                is_data_viewer=is_data_viewer,
             )
             user.set_password(password)
             db.session.add(user)
+        else:
+            # Накат прав существующим пользователям при запуске
+            user.is_admin = is_admin or user.is_admin
+            user.is_finance = is_finance or user.is_finance
+            user.is_data_admin = is_data_admin or user.is_data_admin
+            user.is_data_editor = is_data_editor or user.is_data_editor
+            user.is_data_viewer = is_data_viewer or user.is_data_viewer
+
         return user
 
-    ensure_user("admin", "admin@mebelgrad.local", "admin123", is_admin=True, is_finance=True)
-    ensure_user("finance", "finance@mebelgrad.local", "finance123", is_finance=True)
+    ensure_user(
+        "admin",
+        "admin@mebelgrad.local",
+        "admin123",
+        is_admin=True,
+        is_finance=True,
+        # Админ имеет полные права MDM/Finance
+        is_data_admin=True,
+        is_data_editor=True,
+        is_data_viewer=True,
+    )
+    ensure_user(
+        "finance",
+        "finance@mebelgrad.local",
+        "finance123",
+        is_finance=True,
+        # Финансистам доступ к просмотру MDM, но не к редактированию пока
+        is_data_viewer=True,
+    )
 
     customers_data = [
         {"name": "ООО СтройКорп", "phone": "+7 (800) 123-45-67", "email": "info@stroycorp.ru", "type": "legal_entity"},
@@ -308,6 +379,27 @@ def seed_database():
         stock.qty_on_hand = values[0]
         stock.qty_reserved = values[1]
 
+    # Create inventory batches for COGS and to have non-zero inventory value
+    for sku, values in stock_levels.items():
+        product = product_map[sku]
+        # create a batch with a conservative unit cost (50% of retail for demo)
+        unit_cost = round(product.retail_price * 0.5, 2)
+        batch = (
+            InventoryBatch.query.filter_by(product_id=product.id, unit_cost=unit_cost).first()
+        )
+        if batch is None:
+            qty = values[0]
+            if qty > 0:
+                db.session.add(
+                    InventoryBatch(
+                        product_id=product.id,
+                        received_date=datetime(2026, 3, 1),
+                        quantity=qty,
+                        unit_cost=unit_cost,
+                        transport_cost=0,
+                    )
+                )
+
     purchase_orders_data = [
         {"order_number": "PO-2601-001", "supplier": "АО ДеревоПродукт", "order_date": datetime(2026, 1, 5, 10, 15), "status": "completed", "is_paid": True, "items": [("STOL-001", 20, 3300.00), ("STUL-002", 60, 1500.00), ("SHKAF-003", 8, 12900.00)]},
         {"order_number": "PO-2601-002", "supplier": "ООО СеверФурнитура", "order_date": datetime(2026, 1, 18, 12, 40), "status": "completed", "is_paid": True, "items": [("TUMBA-007", 20, 4100.00), ("KRESLO-008", 25, 6200.00)]},
@@ -322,6 +414,17 @@ def seed_database():
         {"order_number": "PO-2603-004", "supplier": "ООО ЭкоПанель", "order_date": datetime(2026, 3, 10, 13, 15), "status": "received", "is_paid": False, "items": [("PANEL-020", 40, 3700.00), ("STOIKA-015", 3, 22800.00)]},
         {"order_number": "PO-2603-005", "supplier": "ООО МеталлКаркас", "order_date": datetime(2026, 3, 18, 11, 40), "status": "pending", "is_paid": False, "items": [("KONSOL-019", 6, 9100.00), ("STELL-009", 8, 9700.00)]},
     ]
+
+    purchase_orders_data.extend([
+        {"order_number": "PO-2507-001", "supplier": "ООО МебельИмпорт", "order_date": datetime(2025, 7, 3, 9, 20), "status": "completed", "is_paid": True, "items": [("STOL-001", 35, 3400.00), ("STUL-002", 80, 1480.00)]},
+        {"order_number": "PO-2507-002", "supplier": "ООО ЭкоПанель", "order_date": datetime(2025, 7, 17, 10, 5), "status": "completed", "is_paid": True, "items": [("PANEL-020", 60, 3600.00), ("POLKA-012", 40, 1650.00)]},
+        {"order_number": "PO-2508-001", "supplier": "АО ДеревоПродукт", "order_date": datetime(2025, 8, 5, 14, 45), "status": "received", "is_paid": False, "items": [("SHKAF-003", 10, 12500.00), ("KOMOD-010", 15, 10500.00)]},
+        {"order_number": "PO-2509-001", "supplier": "ООО СеверФурнитура", "order_date": datetime(2025, 9, 4, 11, 10), "status": "completed", "is_paid": True, "items": [("KRESLO-008", 30, 6150.00), ("STELL-009", 12, 9700.00)]},
+        {"order_number": "PO-2509-002", "supplier": "ООО ТекстильСнаб", "order_date": datetime(2025, 9, 21, 16, 35), "status": "completed", "is_paid": True, "items": [("DIVAN-004", 8, 32300.00), ("BANKET-014", 12, 4200.00)]},
+        {"order_number": "PO-2510-001", "supplier": "ООО Кухни Регион", "order_date": datetime(2025, 10, 8, 9, 55), "status": "received", "is_paid": False, "items": [("KUHNYA-006", 4, 89000.00), ("KOMOD-010", 6, 10850.00)]},
+        {"order_number": "PO-2511-001", "supplier": "ООО Логистика Волга", "order_date": datetime(2025, 11, 12, 13, 0), "status": "completed", "is_paid": True, "items": [("STOIKA-015", 5, 22900.00), ("PUF-018", 18, 2850.00)]},
+        {"order_number": "PO-2512-001", "supplier": "ООО МеталлКаркас", "order_date": datetime(2025, 12, 6, 10, 30), "status": "completed", "is_paid": True, "items": [("PEREG-011", 8, 8550.00), ("KONSOL-019", 4, 9000.00)]},
+    ])
 
     for item in purchase_orders_data:
         if PurchaseOrder.query.filter_by(order_number=item["order_number"]).first():
@@ -348,6 +451,25 @@ def seed_database():
             )
         purchase_order.total_amount = total_amount
 
+    # Add scheduled cash calendar items for unpaid purchase orders (outgoing)
+    for po in PurchaseOrder.query.filter_by(is_paid=False).all():
+        # schedule payment 30 days after order if not present
+        scheduled_date = po.order_date + timedelta(days=30)
+        exists = (
+            CashCalendarItem.query.filter_by(date=scheduled_date, amount=po.total_amount, supplier_id=po.supplier_id, direction='outgoing').first()
+        )
+        if not exists:
+            db.session.add(
+                CashCalendarItem(
+                    date=scheduled_date,
+                    amount=po.total_amount,
+                    direction='outgoing',
+                    cash_type='operational',
+                    supplier_id=po.supplier_id,
+                    probability=0.95,
+                )
+            )
+
     sales_orders_data = [
         {"order_number": "SO-2601-001", "customer": "ООО Северный Офис", "order_date": datetime(2026, 1, 9, 13, 10), "status": "completed", "payment": (datetime(2026, 1, 11, 15, 30), "FN-2026-0101"), "items": [("KRESLO-008", 6, 9500.00, 6200.00), ("STELL-009", 3, 14800.00, 9800.00), ("PEREG-011", 2, 12900.00, 8600.00)]},
         {"order_number": "SO-2601-002", "customer": "Иван Петров", "order_date": datetime(2026, 1, 14, 11, 25), "status": "completed", "payment": (datetime(2026, 1, 14, 17, 40), "FN-2026-0102"), "items": [("STOL-001", 1, 5600.00, 3300.00), ("STUL-002", 4, 2300.00, 1500.00)]},
@@ -369,6 +491,19 @@ def seed_database():
         {"order_number": "SO-2603-007", "customer": "Виктория Демидова", "order_date": datetime(2026, 3, 17, 14, 35), "status": "completed", "payment": (datetime(2026, 3, 17, 19, 15), "FN-2026-0307"), "items": [("PUF-018", 2, 5400.00, 2900.00), ("BANKET-014", 1, 7600.00, 4300.00)]},
         {"order_number": "SO-2603-008", "customer": "ООО Северный Берег", "order_date": datetime(2026, 3, 19, 12, 55), "status": "pending", "payment": None, "items": [("PANEL-020", 18, 6900.00, 3700.00), ("PEREG-011", 6, 12800.00, 8600.00)]},
     ]
+
+    sales_orders_data.extend([
+        {"order_number": "SO-2507-001", "customer": "ООО Северный Офис", "order_date": datetime(2025, 7, 7, 14, 10), "status": "completed", "payment": (datetime(2025, 7, 9, 15, 20), "FN-2025-0701"), "items": [("STOL-001", 6, 5750.00, 3300.00), ("STUL-002", 20, 2200.00, 1480.00)]},
+        {"order_number": "SO-2507-002", "customer": "Гостиница Нева", "order_date": datetime(2025, 7, 18, 10, 50), "status": "completed", "payment": (datetime(2025, 7, 21, 11, 5), "FN-2025-0702"), "items": [("SHKAF-003", 3, 20500.00, 12500.00), ("KUHNYA-006", 1, 122000.00, 89000.00)]},
+        {"order_number": "SO-2508-001", "customer": "Кафе Лофт", "order_date": datetime(2025, 8, 2, 16, 30), "status": "completed", "payment": (datetime(2025, 8, 2, 18, 40), "FN-2025-0801"), "items": [("STOL-001", 3, 5800.00, 3400.00), ("TUMBA-007", 10, 6600.00, 4100.00)]},
+        {"order_number": "SO-2508-002", "customer": "Иван Петров", "order_date": datetime(2025, 8, 10, 12, 15), "status": "completed", "payment": (datetime(2025, 8, 11, 14, 10), "FN-2025-0802"), "items": [("DIVAN-004", 1, 49900.00, 32300.00), ("PUF-018", 1, 5500.00, 3100.00)]},
+        {"order_number": "SO-2509-001", "customer": "ООО СтройКорп", "order_date": datetime(2025, 9, 6, 10, 5), "status": "completed", "payment": (datetime(2025, 9, 8, 12, 0), "FN-2025-0901"), "items": [("KROVAT-005", 2, 28700.00, 19000.00), ("STELL-009", 4, 15200.00, 9700.00)]},
+        {"order_number": "SO-2509-002", "customer": "ООО Бизнес-Парк Центр", "order_date": datetime(2025, 9, 14, 15, 20), "status": "completed", "payment": (datetime(2025, 9, 16, 13, 45), "FN-2025-0902"), "items": [("KRESLO-008", 15, 9400.00, 6150.00), ("PEREG-011", 4, 12750.00, 8550.00)]},
+        {"order_number": "SO-2510-001", "customer": "ООО Северный Берег", "order_date": datetime(2025, 10, 1, 11, 0), "status": "completed", "payment": (datetime(2025, 10, 2, 12, 15), "FN-2025-1001"), "items": [("KUHNYA-006", 1, 121000.00, 89000.00), ("POLKA-012", 8, 2750.00, 1650.00)]},
+        {"order_number": "SO-2510-002", "customer": "Марина Орлова", "order_date": datetime(2025, 10, 12, 17, 25), "status": "completed", "payment": (datetime(2025, 10, 12, 19, 0), "FN-2025-1002"), "items": [("KOMOD-010", 2, 16700.00, 10500.00), ("STOIKA-015", 1, 36600.00, 22900.00)]},
+        {"order_number": "SO-2511-001", "customer": "ООО Атриум Офис", "order_date": datetime(2025, 11, 6, 14, 10), "status": "completed", "payment": (datetime(2025, 11, 8, 10, 5), "FN-2025-1101"), "items": [("VITRINA-013", 2, 22000.00, 14900.00), ("KONSOL-019", 3, 14100.00, 9000.00)]},
+        {"order_number": "SO-2512-001", "customer": "ООО Гранд Холл", "order_date": datetime(2025, 12, 5, 16, 30), "status": "completed", "payment": (datetime(2025, 12, 7, 13, 40), "FN-2025-1201"), "items": [("DIVAN-004", 2, 49800.00, 32300.00), ("MATRAS-016", 3, 18400.00, 11100.00)]},
+    ])
 
     for item in sales_orders_data:
         if SalesOrder.query.filter_by(order_number=item["order_number"]).first():
@@ -437,6 +572,54 @@ def seed_database():
         ("2026-02", "expense", "Налоги и комиссии", 46000.00),
         ("2026-03", "expense", "IT и связь", 24000.00),
         ("2026-03", "expense", "Налоги и комиссии", 41000.00),
+        ("2025-07", "income", "Продажи", 520000.00),
+        ("2025-07", "income", "Корпоративные проекты", 160000.00),
+        ("2025-07", "income", "Сборка и доставка", 47000.00),
+        ("2025-07", "expense", "Закупки", 380000.00),
+        ("2025-07", "expense", "Логистика", 42000.00),
+        ("2025-07", "expense", "Фонд оплаты труда", 200000.00),
+        ("2025-07", "expense", "Маркетинг", 25000.00),
+        ("2025-07", "expense", "Аренда", 80000.00),
+        ("2025-08", "income", "Продажи", 560000.00),
+        ("2025-08", "income", "Корпоративные проекты", 175000.00),
+        ("2025-08", "income", "Сборка и доставка", 51000.00),
+        ("2025-08", "expense", "Закупки", 410000.00),
+        ("2025-08", "expense", "Логистика", 45000.00),
+        ("2025-08", "expense", "Фонд оплаты труда", 205000.00),
+        ("2025-08", "expense", "Маркетинг", 27000.00),
+        ("2025-08", "expense", "Аренда", 80000.00),
+        ("2025-09", "income", "Продажи", 610000.00),
+        ("2025-09", "income", "Корпоративные проекты", 190000.00),
+        ("2025-09", "income", "Сборка и доставка", 54000.00),
+        ("2025-09", "expense", "Закупки", 450000.00),
+        ("2025-09", "expense", "Логистика", 47000.00),
+        ("2025-09", "expense", "Фонд оплаты труда", 207000.00),
+        ("2025-09", "expense", "Маркетинг", 28000.00),
+        ("2025-09", "expense", "Аренда", 80000.00),
+        ("2025-10", "income", "Продажи", 650000.00),
+        ("2025-10", "income", "Корпоративные проекты", 210000.00),
+        ("2025-10", "income", "Сборка и доставка", 56000.00),
+        ("2025-10", "expense", "Закупки", 480000.00),
+        ("2025-10", "expense", "Логистика", 49000.00),
+        ("2025-10", "expense", "Фонд оплаты труда", 208000.00),
+        ("2025-10", "expense", "Маркетинг", 29500.00),
+        ("2025-10", "expense", "Аренда", 80000.00),
+        ("2025-11", "income", "Продажи", 620000.00),
+        ("2025-11", "income", "Корпоративные проекты", 175000.00),
+        ("2025-11", "income", "Сборка и доставка", 52000.00),
+        ("2025-11", "expense", "Закупки", 460000.00),
+        ("2025-11", "expense", "Логистика", 47000.00),
+        ("2025-11", "expense", "Фонд оплаты труда", 210000.00),
+        ("2025-11", "expense", "Маркетинг", 28000.00),
+        ("2025-11", "expense", "Аренда", 80000.00),
+        ("2025-12", "income", "Продажи", 730000.00),
+        ("2025-12", "income", "Корпоративные проекты", 210000.00),
+        ("2025-12", "income", "Сборка и доставка", 61000.00),
+        ("2025-12", "expense", "Закупки", 540000.00),
+        ("2025-12", "expense", "Логистика", 52000.00),
+        ("2025-12", "expense", "Фонд оплаты труда", 210000.00),
+        ("2025-12", "expense", "Маркетинг", 31000.00),
+        ("2025-12", "expense", "Аренда", 80000.00),
     ]
 
     for period, item_type, category, planned_amount in budget_items:
@@ -454,5 +637,67 @@ def seed_database():
                     planned_amount=planned_amount,
                 )
             )
+
+    indirect_data = [
+        ("2025-07", "IT и связь", 23000.00),
+        ("2025-07", "Аренда", 79000.00),
+        ("2025-07", "Логистика", 42000.00),
+        ("2025-07", "Маркетинг", 24000.00),
+        ("2025-07", "Налоги и комиссии", 36000.00),
+        ("2025-07", "Фонд оплаты труда", 195000.00),
+        ("2025-08", "IT и связь", 24500.00),
+        ("2025-08", "Аренда", 79000.00),
+        ("2025-08", "Логистика", 45000.00),
+        ("2025-08", "Маркетинг", 26500.00),
+        ("2025-08", "Налоги и комиссии", 39000.00),
+        ("2025-08", "Фонд оплаты труда", 198000.00),
+        ("2025-09", "IT и связь", 24800.00),
+        ("2025-09", "Аренда", 79000.00),
+        ("2025-09", "Логистика", 47000.00),
+        ("2025-09", "Маркетинг", 28000.00),
+        ("2025-09", "Налоги и комиссии", 40000.00),
+        ("2025-09", "Фонд оплаты труда", 200000.00),
+        ("2025-10", "IT и связь", 25200.00),
+        ("2025-10", "Аренда", 79000.00),
+        ("2025-10", "Логистика", 49000.00),
+        ("2025-10", "Маркетинг", 29500.00),
+        ("2025-10", "Налоги и комиссии", 42000.00),
+        ("2025-10", "Фонд оплаты труда", 203000.00),
+        ("2025-11", "IT и связь", 25000.00),
+        ("2025-11", "Аренда", 79000.00),
+        ("2025-11", "Логистика", 47000.00),
+        ("2025-11", "Маркетинг", 28000.00),
+        ("2025-11", "Налоги и комиссии", 39500.00),
+        ("2025-11", "Фонд оплаты труда", 205000.00),
+        ("2025-12", "IT и связь", 25500.00),
+        ("2025-12", "Аренда", 79000.00),
+        ("2025-12", "Логистика", 52000.00),
+        ("2025-12", "Маркетинг", 31000.00),
+        ("2025-12", "Налоги и комиссии", 44500.00),
+        ("2025-12", "Фонд оплаты труда", 208000.00),
+        ("2026-01", "IT и связь", 22000.00),
+        ("2026-01", "Аренда", 82000.00),
+        ("2026-01", "Логистика", 48000.00),
+        ("2026-01", "Маркетинг", 28000.00),
+        ("2026-01", "Налоги и комиссии", 37000.00),
+        ("2026-01", "Фонд оплаты труда", 215000.00),
+        ("2026-02", "IT и связь", 23000.00),
+        ("2026-02", "Аренда", 82000.00),
+        ("2026-02", "Логистика", 52000.00),
+        ("2026-02", "Маркетинг", 35000.00),
+        ("2026-02", "Налоги и комиссии", 46000.00),
+        ("2026-02", "Фонд оплаты труда", 215000.00),
+        ("2026-03", "IT и связь", 24000.00),
+        ("2026-03", "Аренда", 82000.00),
+        ("2026-03", "Логистика", 49000.00),
+        ("2026-03", "Маркетинг", 26000.00),
+        ("2026-03", "Налоги и комиссии", 41000.00),
+        ("2026-03", "Фонд оплаты труда", 215000.00),
+    ]
+
+    for period_val, category_val, amount_val in indirect_data:
+        exists = IndirectExpense.query.filter_by(period=period_val, category=category_val).first()
+        if exists is None:
+            db.session.add(IndirectExpense(period=period_val, category=category_val, amount=amount_val))
 
     db.session.commit()

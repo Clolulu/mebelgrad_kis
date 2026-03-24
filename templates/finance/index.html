@@ -70,7 +70,30 @@
                     <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">Календарь денежных средств</div>
                         <div class="small text-secondary mb-3">Дневной разрез поступлений, фактических выплат и ожидаемых кассовых разрывов.</div>
-                        <a href="{{ url_for('finance.cash_flow') }}" class="btn btn-outline-dark btn-sm">Открыть календарь</a>
+                        <a href="{{ url_for('finance.bdds_calendar') }}" class="btn btn-outline-dark btn-sm">Открыть календарь</a>
+                        <a href="{{ url_for('finance.bdds_forecast') }}" class="btn btn-outline-dark btn-sm mt-2">Прогноз на 30 дней</a>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">БДР по сегментам</div>
+                        <div class="small text-secondary mb-3">Валовая прибыль и маржинальность по товарным группам и каналам.</div>
+                        <a href="{{ url_for('finance.bdr_report') }}" class="btn btn-outline-dark btn-sm">Открыть БДР</a>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Управленческий баланс</div>
+                        <div class="small text-secondary mb-3">Баланс активов и обязательств на любую дату.</div>
+                        <a href="{{ url_for('finance.management_balance') }}" class="btn btn-outline-dark btn-sm">Открыть баланс</a>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Executive Dashboard</div>
+                        <div class="small text-secondary mb-3">Основные KPI и финансовые индикаторы для владельца.</div>
+                        <a href="{{ url_for('finance.dashboard') }}" class="btn btn-outline-dark btn-sm">Открыть дашборд</a>
+                        <a href="{{ url_for('finance.finance_help') }}" class="btn btn-outline-dark btn-sm mt-2">Открыть методичку</a>
                     </div>
                 </div>
                 <div class="col-md-6">

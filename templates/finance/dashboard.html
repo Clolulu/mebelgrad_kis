@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Executive Dashboard | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+{% include "finance/_role_badges.html" %}
+<div class="surface p-4 mb-4">
+  <h1 class="h4 mb-3">Executive Summary</h1>
+  <p class="text-secondary">Период: {{ period }}</p>
+  <div class="row g-3">
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Чистая прибыль</div><div class="h3">{{ "%.2f"|format(net_profit) }} ₽</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Свободный денежный остаток</div><div class="h3">{{ "%.2f"|format(cash_balance) }} ₽</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">ROE</div><div class="h3">{{ "%.2f"|format(roe) }} %</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Точка безубыточности</div><div class="h3">{{ "%.2f"|format(breakeven) }} ₽</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Запас прочности</div><div class="h3">{{ "%.2f"|format(strength_buffer) }} %</div></div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6"><div class="surface p-3"><h5>Ключевые метрики</h5>
+      <ul>
+        <li>Выручка: {{ "%.2f"|format(revenue) }} ₽</li>
+        <li>Запасы: {{ "%.2f"|format(inventory_value) }} ₽</li>
+        <li>Кредиторка: {{ "%.2f"|format(payables) }} ₽</li>
+        <li>Активы: {{ "%.2f"|format(assets) }} ₽</li>
+        <li>Пассивы: {{ "%.2f"|format(liabilities) }} ₽</li>
+        <li>Капитал: {{ "%.2f"|format(equity) }} ₽</li>
+      </ul>
+    </div>
+  </div>
+  <div class="col-md-6"><div class="surface p-3"><h5>Следующие действия</h5>
+      <ul>
+        <li>Проверьте план-фактные отклонения на странице План-фактного анализа.</li>
+        <li>Откройте календарь денежных средств и отметьте отрицательные дни красным.</li>
+        <li>Уточните причины отклонений по статьям бюджета.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -12,10 +12,23 @@
                 Модуль обеспечивает единое хранение номенклатуры, клиентских и кадровых справочников,
                 поддерживает целостность карточек и формирует операционную основу для финансового и складского контуров.
             </p>
+            <div class="mt-2">
+                <strong>Текущие роли пользователя:</strong>
+                {% if user_roles %}
+                    {% for role in user_roles %}
+                        <span class="badge bg-secondary text-white me-1">{{ role }}</span>
+                    {% endfor %}
+                {% else %}
+                    <span class="text-secondary">нет явных MDM ролей</span>
+                {% endif %}
+            </div>
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <a href="{{ url_for('mdm.quality_dashboard') }}" class="btn btn-primary">Открыть контроль качества</a>
             <a href="{{ url_for('mdm.stock_list') }}" class="btn btn-outline-dark">Остатки и резерв</a>
+            {% if current_user.is_admin or current_user.is_data_admin %}
+                <a href="{{ url_for('mdm.user_roles') }}" class="btn btn-outline-info">Настройки ролей MDM</a>
+            {% endif %}
         </div>
     </div>
 </section>
@@ -39,7 +52,9 @@
                         <div class="small text-secondary mb-3">Товары, единицы измерения, цены, активность и связь с остатками.</div>
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-dark btn-sm">Реестр товаров</a>
-                            <a href="{{ url_for('mdm.create_product') }}" class="btn btn-primary btn-sm">Новая карточка</a>
+                            {% if current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
+                                <a href="{{ url_for('mdm.create_product') }}" class="btn btn-primary btn-sm">Новая карточка</a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -49,7 +64,9 @@
                         <div class="small text-secondary mb-3">Физические и юридические лица, контактные данные и сегментация базы.</div>
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ url_for('mdm.customers_list') }}" class="btn btn-outline-dark btn-sm">Реестр клиентов</a>
-                            <a href="{{ url_for('mdm.create_customer') }}" class="btn btn-primary btn-sm">Добавить клиента</a>
+                            {% if current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
+                                <a href="{{ url_for('mdm.create_customer') }}" class="btn btn-primary btn-sm">Добавить клиента</a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -59,7 +76,9 @@
                         <div class="small text-secondary mb-3">Контрагенты закупочного контура, ИНН, каналы связи и актуальность карточек.</div>
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ url_for('mdm.suppliers_list') }}" class="btn btn-outline-dark btn-sm">Реестр поставщиков</a>
-                            <a href="{{ url_for('mdm.create_supplier') }}" class="btn btn-primary btn-sm">Добавить поставщика</a>
+                            {% if current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
+                                <a href="{{ url_for('mdm.create_supplier') }}" class="btn btn-primary btn-sm">Добавить поставщика</a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -69,7 +88,9 @@
                         <div class="small text-secondary mb-3">Кадровый справочник для организационной структуры без автоматического создания учетных записей.</div>
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ url_for('mdm.employees_list') }}" class="btn btn-outline-dark btn-sm">Кадровый реестр</a>
-                            <a href="{{ url_for('mdm.create_employee') }}" class="btn btn-primary btn-sm">Добавить сотрудника</a>
+                            {% if current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
+                                <a href="{{ url_for('mdm.create_employee') }}" class="btn btn-primary btn-sm">Добавить сотрудника</a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

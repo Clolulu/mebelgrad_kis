@@ -3,6 +3,7 @@
 {% block title %}План-фактный анализ | КИС "МебельГрад"{% endblock %}
 
 {% block content %}
+{% include "finance/_role_badges.html" %}
 <section class="hero-strip">
     <div class="text-uppercase text-secondary small">Финансы / Аналитика</div>
     <h1 class="h3 mb-2">План-фактный анализ</h1>
@@ -17,6 +18,38 @@
         </div>
         <div class="col-lg-2 d-flex align-items-end">
             <button class="btn btn-primary w-100" type="submit">Показать</button>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-4 mb-4">
+    <h5>Добавить причину отклонения</h5>
+    {% if deviations_alpha %}
+        <div class="alert alert-warning">Критические отклонения (>=20%): {% for d in deviations_alpha %}{{ d.category }} ({{ "%.1f"|format(d.variance_pct) }}%) {% if not loop.last %}, {% endif %}{% endfor %}</div>
+    {% endif %}
+    <form method="post" class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label" for="item_name">Статья</label>
+            <input class="form-control" type="text" id="item_name" name="item_name" required>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="planned">План</label>
+            <input class="form-control" type="number" step="0.01" id="planned" name="planned" value="0">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="actual">Факт</label>
+            <input class="form-control" type="number" step="0.01" id="actual" name="actual" value="0">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="deviation">Отклонение</label>
+            <input class="form-control" type="number" step="0.01" id="deviation" name="deviation" value="0">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="reason">Причина</label>
+            <input class="form-control" type="text" id="reason" name="reason" required>
+        </div>
+        <div class="col-12">
+            <button class="btn btn-outline-dark" type="submit">Сохранить причину</button>
         </div>
     </form>
 </div>
@@ -37,6 +70,7 @@
                     <th>Тип</th>
                     <th class="text-end">План</th>
                     <th class="text-end">Факт</th>
+                    <th class="text-end">Гибкий план</th>
                     <th class="text-end">Отклонение</th>
                     <th class="text-end">Отклонение, %</th>
                 </tr>
@@ -48,6 +82,7 @@
                         <td>{{ "Доход" if item.type == 'income' else "Расход" }}</td>
                         <td class="text-end">{{ "%.2f"|format(item.planned) }} ₽</td>
                         <td class="text-end">{{ "%.2f"|format(item.actual) }} ₽</td>
+                        <td class="text-end">{{ "%.2f"|format(item.flexed if item.flexed is defined else item.planned) }} ₽</td>
                         <td class="text-end {% if item.variance > 0 %}text-danger{% elif item.variance < 0 %}text-success{% endif %}">{{ "%.2f"|format(item.variance) }} ₽</td>
                         <td class="text-end">
                             {% if item.planned %}
@@ -61,5 +96,33 @@
             </tbody>
         </table>
     </div>
+</div>
+
+<div class="surface p-4 mt-4">
+    <h5>Последние причины план-факт</h5>
+    {% if deviations %}
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Дата</th><th>Статья</th><th>План</th><th>Факт</th><th>Отклонение</th><th>%</th><th>Причина</th></tr>
+                </thead>
+                <tbody>
+                    {% for d in deviations %}
+                        <tr>
+                            <td>{{ d.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>{{ d.item_name }}</td>
+                            <td>{{ '%.2f'|format(d.planned_value) }}</td>
+                            <td>{{ '%.2f'|format(d.actual_value) }}</td>
+                            <td>{{ '%.2f'|format(d.deviation) }}</td>
+                            <td>{{ '%.2f'|format(d.deviation_pct) }}</td>
+                            <td>{{ d.reason }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="mb-0">Причины отклонений еще не добавлены.</p>
+    {% endif %}
 </div>
 {% endblock %}

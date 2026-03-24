@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Косвенные расходы | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<div class="surface p-4 mb-4">
+    <h1 class="h4 mb-3">Косвенные расходы</h1>
+    <form method="get" class="row g-3 mb-3">
+        <div class="col-lg-10">
+            <label class="form-label" for="period">Период</label>
+            <input class="form-control" id="period" name="period" type="month" value="{{ period }}">
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Показать</button>
+        </div>
+    </form>
+
+    <form method="post" class="row g-3 mb-4">
+        <div class="col-md-4"><label class="form-label">Категория</label><input type="text" name="category" class="form-control" required></div>
+        <div class="col-md-2"><label class="form-label">Сумма</label><input type="number" name="amount" step="0.01" class="form-control" required></div>
+        <div class="col-md-4"><label class="form-label">Описание</label><input type="text" name="description" class="form-control"></div>
+        <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100" type="submit">Добавить</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light"><tr><th>Категория</th><th>Сумма</th><th>Описание</th><th>Дата</th><th></th></tr></thead>
+            <tbody>
+                {% for item in items %}
+                    <tr>
+                        <td>{{ item.category }}</td>
+                        <td>{{ "%.2f"|format(item.amount) }} ₽</td>
+                        <td>{{ item.description }}</td>
+                        <td>{{ item.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td><form method="post" action="{{ url_for('finance.delete_indirect_expense', expense_id=item.id) }}" onsubmit="return confirm('Удалить?');"><button class="btn btn-sm btn-outline-danger">Удалить</button></form></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5" class="text-center">Нет записей</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

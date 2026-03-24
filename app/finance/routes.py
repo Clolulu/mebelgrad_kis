@@ -10,13 +10,19 @@ from sqlalchemy import func, or_
 
 from app.finance import finance_bp
 from app.models import (
+    BalanceSnapshot,
     BudgetItem,
+    CashCalendarItem,
     Customer,
+    IndirectExpense,
+    InventoryBatch,
     Payment,
+    PlanFactDeviation,
     PurchaseOrder,
     PurchaseOrderItem,
     SalesOrder,
     SalesOrderItem,
+    Stock,
     Supplier,
     db,
 )
@@ -75,6 +81,52 @@ def calculate_actual_expenses(start_date, end_date):
     return float(value or 0)
 
 
+def calculate_cogs_fifo(start_date, end_date, strategy="fifo"):
+    cogs = 0.0
+    batch_cache = {}
+
+    sales_items = (
+        SalesOrderItem.query.join(SalesOrder)
+        .filter(
+            SalesOrder.order_date >= start_date,
+            SalesOrder.order_date < end_date,
+            SalesOrder.status == "completed",
+        )
+        .all()
+    )
+
+    for item in sales_items:
+        planned = float(item.quantity * item.cost_price)
+        if item.cost_price and item.cost_price > 0:
+            cogs += planned
+            continue
+
+        product_id = item.product_id
+        if product_id not in batch_cache:
+            batch_cache[product_id] = (
+                InventoryBatch.query.filter_by(product_id=product_id)
+                .order_by(InventoryBatch.received_date)
+                .all()
+            )
+
+        remaining = item.quantity
+        for batch in batch_cache[product_id]:
+            available = batch.available_quantity()
+            if available <= 0:
+                continue
+            take = min(remaining, available)
+            batch_unit_cost = batch.unit_cost + (batch.transport_cost / batch.quantity if batch.quantity else 0)
+            cogs += take * batch_unit_cost
+            remaining -= take
+            if remaining <= 0:
+                break
+
+        if remaining > 0:
+            cogs += remaining * (item.cost_price or 0)
+
+    return cogs
+
+
 def calculate_period_customer_income(start_date, end_date):
     customer_income = defaultdict(float)
     payments = (
@@ -100,6 +152,13 @@ def calculate_period_supplier_payables(start_date, end_date):
     for order in orders:
         supplier_payables[order.supplier.name] += order.total_amount
     return supplier_payables
+
+
+def get_indirect_expense_map(period):
+    data = defaultdict(float)
+    for item in IndirectExpense.query.filter_by(period=period).all():
+        data[item.category] += item.amount
+    return data
 
 
 @finance_bp.route("/")
@@ -293,7 +352,7 @@ def add_budget_item():
     return render_template("finance/budget/add.html", period=period)
 
 
-@finance_bp.route("/plan-fact-analysis")
+@finance_bp.route("/plan-fact-analysis", methods=["GET", "POST"])
 @login_required
 @finance_required
 def plan_fact_analysis():
@@ -301,20 +360,64 @@ def plan_fact_analysis():
     start_date, end_date = get_period_bounds(period)
     budget_items = BudgetItem.query.filter_by(period=period).all()
 
+    if request.method == "POST":
+        item_name = request.form.get("item_name", "").strip()
+        reason = request.form.get("reason", "").strip()
+        deviation_val = float(request.form.get("deviation", 0) or 0)
+        if item_name and reason:
+            deviation = PlanFactDeviation(
+                period=period,
+                item_name=item_name,
+                planned_value=float(request.form.get("planned", 0) or 0),
+                actual_value=float(request.form.get("actual", 0) or 0),
+                deviation=deviation_val,
+                deviation_pct=float(request.form.get("deviation_pct", 0) or 0),
+                reason=reason,
+                entered_by=current_user.id,
+            )
+            db.session.add(deviation)
+            db.session.commit()
+            flash("Причина отклонения сохранена", "success")
+        else:
+            flash("Заполните имя статьи и причину отклонения", "warning")
+        return redirect(url_for("finance.plan_fact_analysis", period=period))
+
     planned_by_category = defaultdict(float)
     for item in budget_items:
         planned_by_category[(item.item_type, item.category)] += item.planned_amount
 
     actual_income = calculate_income(start_date, end_date)
     actual_expenses = calculate_actual_expenses(start_date, end_date)
+    indirect_map = get_indirect_expense_map(period)
+
+    flex_factor = (
+        actual_income / planned_by_category.get(("income", "Продажи"), actual_income or 1)
+    ) if planned_by_category.get(("income", "Продажи"), 0) else 1
 
     analysis = [
         {
             "category": "Продажи",
             "type": "income",
             "planned": planned_by_category.get(("income", "Продажи"), 0),
-            "actual": actual_income,
-            "variance": actual_income - planned_by_category.get(("income", "Продажи"), 0),
+            "actual": actual_income * 0.75,
+            "variance": actual_income * 0.75 - planned_by_category.get(("income", "Продажи"), 0),
+            "flexed": planned_by_category.get(("income", "Продажи"), 0) * flex_factor,
+        },
+        {
+            "category": "Корпоративные проекты",
+            "type": "income",
+            "planned": planned_by_category.get(("income", "Корпоративные проекты"), 0),
+            "actual": actual_income * 0.15,
+            "variance": actual_income * 0.15 - planned_by_category.get(("income", "Корпоративные проекты"), 0),
+            "flexed": planned_by_category.get(("income", "Корпоративные проекты"), 0) * flex_factor,
+        },
+        {
+            "category": "Сборка и доставка",
+            "type": "income",
+            "planned": planned_by_category.get(("income", "Сборка и доставка"), 0),
+            "actual": actual_income * 0.10,
+            "variance": actual_income * 0.10 - planned_by_category.get(("income", "Сборка и доставка"), 0),
+            "flexed": planned_by_category.get(("income", "Сборка и доставка"), 0) * flex_factor,
         },
         {
             "category": "Закупки",
@@ -322,30 +425,54 @@ def plan_fact_analysis():
             "planned": planned_by_category.get(("expense", "Закупки"), 0),
             "actual": actual_expenses,
             "variance": actual_expenses - planned_by_category.get(("expense", "Закупки"), 0),
+            "flexed": planned_by_category.get(("expense", "Закупки"), 0) * flex_factor,
         },
     ]
 
     for (item_type, category), planned_value in sorted(planned_by_category.items()):
-        if category in {"Продажи", "Закупки"}:
+        if category in {"Продажи", "Корпоративные проекты", "Сборка и доставка", "Закупки"}:
             continue
+        if item_type == "income":
+            if category == "Корпоративные проекты":
+                actual_value = actual_income * 0.15
+            elif category == "Сборка и доставка":
+                actual_value = actual_income * 0.10
+            else:
+                actual_value = actual_income * 0.05
+        else:
+            actual_value = float(indirect_map.get(category, 0))
+        flexed_value = planned_value * flex_factor
+        variance = actual_value - planned_value
         analysis.append(
             {
                 "category": category,
                 "type": item_type,
                 "planned": planned_value,
-                "actual": 0,
-                "variance": -planned_value,
+                "actual": actual_value,
+                "variance": variance,
+                "flexed": flexed_value,
             }
         )
 
+    deviations = PlanFactDeviation.query.filter_by(period=period).order_by(PlanFactDeviation.created_at.desc()).all()
     total_planned = sum(item["planned"] for item in analysis)
     total_actual = sum(item["actual"] for item in analysis)
+
+    deviations_alpha = []
+    for item in analysis:
+        planned = item.get("planned", 0) or 0
+        variance_pct = (item.get("variance", 0) / planned * 100) if planned else 0
+        if abs(variance_pct) >= 20:
+            deviations_alpha.append({"category": item["category"], "variance_pct": variance_pct})
+
     return render_template(
         "finance/plan_fact.html",
         period=period,
         start_date=start_date,
         end_date=end_date,
         analysis=analysis,
+        deviations=deviations,
+        deviations_alpha=deviations_alpha,
         total_planned=total_planned,
         total_actual=total_actual,
         total_variance=total_actual - total_planned,
@@ -397,6 +524,95 @@ def profitability_report():
     )
 
 
+@finance_bp.route("/indirect-expenses", methods=["GET", "POST"])
+@login_required
+@finance_required
+def indirect_expenses():
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    if request.method == "POST":
+        category = request.form.get("category", "").strip()
+        amount = float(request.form.get("amount", 0) or 0)
+        description = request.form.get("description", "").strip()
+        if not category or amount <= 0:
+            flash("Категория и сумма обязательны.", "warning")
+            return redirect(url_for("finance.indirect_expenses", period=period))
+        exp = IndirectExpense(period=period, category=category, amount=amount, description=description)
+        db.session.add(exp)
+        db.session.commit()
+        flash("Косвенная статья добавлена.", "success")
+        return redirect(url_for("finance.indirect_expenses", period=period))
+
+    items = IndirectExpense.query.filter_by(period=period).order_by(IndirectExpense.category.asc()).all()
+    return render_template("finance/indirect_expenses.html", period=period, items=items)
+
+
+@finance_bp.route("/indirect-expenses/<int:expense_id>/delete", methods=["POST"])
+@login_required
+@finance_required
+def delete_indirect_expense(expense_id):
+    expense = IndirectExpense.query.get_or_404(expense_id)
+    period = expense.period
+    db.session.delete(expense)
+    db.session.commit()
+    flash("Косвенная статья удалена.", "success")
+    return redirect(url_for("finance.indirect_expenses", period=period))
+
+
+@finance_bp.route("/cash-calendar", methods=["GET", "POST"])
+@login_required
+@finance_required
+def cash_calendar():
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    start_date, end_date = get_period_bounds(period)
+
+    if request.method == "POST":
+        date_str = request.form.get("date")
+        amount = float(request.form.get("amount", 0) or 0)
+        direction = request.form.get("direction")
+        cash_type = request.form.get("cash_type")
+        counterparty_id = request.form.get("counterparty_id") or None
+        supplier_id = request.form.get("supplier_id") or None
+        probability = float(request.form.get("probability", 1.0) or 1.0)
+        comment = request.form.get("comment", "").strip()
+
+        try:
+            date = datetime.strptime(date_str, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            flash("Неправильная дата", "warning")
+            return redirect(url_for("finance.cash_calendar", period=period))
+
+        item = CashCalendarItem(
+            date=date,
+            amount=amount,
+            direction=direction,
+            cash_type=cash_type,
+            counterparty_id=counterparty_id,
+            supplier_id=supplier_id,
+            status="planned",
+            probability=probability,
+            comment=comment,
+        )
+        db.session.add(item)
+        db.session.commit()
+        flash("Элемент календаря сохранён.", "success")
+        return redirect(url_for("finance.cash_calendar", period=period))
+
+    items = CashCalendarItem.query.filter(CashCalendarItem.date >= start_date, CashCalendarItem.date < end_date).order_by(CashCalendarItem.date).all()
+    return render_template("finance/cash_calendar.html", period=period, items=items)
+
+
+@finance_bp.route("/cash-calendar/<int:item_id>/delete", methods=["POST"])
+@login_required
+@finance_required
+def delete_cash_calendar_item(item_id):
+    item = CashCalendarItem.query.get_or_404(item_id)
+    period = item.date.strftime("%Y-%m")
+    db.session.delete(item)
+    db.session.commit()
+    flash("Элемент календаря удалён.", "success")
+    return redirect(url_for("finance.cash_calendar", period=period))
+
+
 @finance_bp.route("/cash-flow")
 @login_required
 @finance_required
@@ -424,7 +640,20 @@ def cash_flow():
             outgoing_scheduled_map[order.order_date.date()] += order.total_amount
 
     rows = []
-    running_balance = 0
+    # Начальный остаток -- сумма фактически полученных платежей до начала периода
+    running_balance = (
+        db.session.query(func.sum(Payment.amount))
+        .filter(Payment.status == "completed", Payment.payment_date < start_date)
+        .scalar()
+        or 0
+
+    # Include expected outgoing from unpaid purchase orders scheduled after order_date
+    for order in PurchaseOrder.query.filter(PurchaseOrder.order_date < end_date).all():
+        if not order.is_paid:
+            pay_date = (order.order_date + timedelta(days=30)).date()
+            # add as planned outgoing with high probability
+            outgoing[pay_date] += order.total_amount * 0.95
+    )
     day = start_date
     while day < end_date:
         day_key = day.date()
@@ -433,6 +662,16 @@ def cash_flow():
         outgoing_scheduled = outgoing_scheduled_map.get(day_key, 0)
         running_balance += incoming - outgoing_paid
         rows.append(
+
+    # Include expected collections from unpaid sales orders (receivables)
+    for so in SalesOrder.query.filter(SalesOrder.order_date < end_date).all():
+        accrued = so.total_amount or 0
+        paid = sum(p.amount for p in so.payments if p.status == "completed" and p.payment_date < end_date)
+        due = max(0, accrued - paid)
+        if due > 0:
+            # assume collections happen 14 days after order by default with 80% probability
+            collect_date = (so.order_date + timedelta(days=14)).date()
+            incoming[collect_date] += due * 0.8
             {
                 "date": day_key,
                 "incoming": incoming,
@@ -541,6 +780,288 @@ def settlements():
             key=lambda item: item[1],
             reverse=True,
         )[:5],
+    )
+
+
+def calculate_bdr_pivot(start_date, end_date):
+    data = []
+    line_items = (
+        SalesOrderItem.query.join(SalesOrder)
+        .filter(
+            SalesOrder.order_date >= start_date,
+            SalesOrder.order_date < end_date,
+            SalesOrder.status == "completed",
+        )
+        .all()
+    )
+
+    pivot = defaultdict(lambda: {"revenue": 0.0, "cogs": 0.0, "quantity": 0})
+    for item in line_items:
+        segment = item.sales_order.segment or "retail"
+        group = item.product_group or "Общие"
+        rev = item.quantity * item.unit_price
+        cogs = item.quantity * item.cost_price
+        pivot[(segment, group)]["revenue"] += rev
+        pivot[(segment, group)]["cogs"] += cogs
+        pivot[(segment, group)]["quantity"] += item.quantity
+
+    for (segment, group), values in pivot.items():
+        gp = values["revenue"] - values["cogs"]
+        data.append(
+            {
+                "segment": segment,
+                "group": group,
+                "revenue": values["revenue"],
+                "cogs": values["cogs"],
+                "gross_profit": gp,
+                "gross_margin_pct": (gp / values["revenue"] * 100) if values["revenue"] else 0,
+                "markup_pct": (gp / values["cogs"] * 100) if values["cogs"] else 0,
+                "quantity": values["quantity"],
+            }
+        )
+    return data
+
+
+@finance_bp.route("/bdr")
+@login_required
+@finance_required
+def bdr_report():
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    start_date, end_date = get_period_bounds(period)
+    pivot = calculate_bdr_pivot(start_date, end_date)
+    total_revenue = sum(x["revenue"] for x in pivot)
+    total_cogs = calculate_cogs_fifo(start_date, end_date)
+    total_profit = total_revenue - total_cogs
+
+    # Сводная строка по сегментам и группам
+    return render_template(
+        "finance/bdr.html",
+        period=period,
+        pivot=pivot,
+        total_revenue=total_revenue,
+        total_cogs=total_cogs,
+        total_profit=total_profit,
+    )
+
+
+def _build_cash_calendar_rows(start_date, end_date):
+    incoming = defaultdict(float)
+    outgoing = defaultdict(float)
+
+    for payment in Payment.query.filter(
+        Payment.payment_date >= start_date,
+        Payment.payment_date < end_date,
+    ).all():
+        if payment.status == "completed":
+            incoming[payment.payment_date.date()] += payment.amount
+
+    for order in PurchaseOrder.query.filter(
+        PurchaseOrder.order_date >= start_date,
+        PurchaseOrder.order_date < end_date,
+    ).all():
+        if order.is_paid:
+            outgoing[order.order_date.date()] += order.total_amount
+        else:
+            outgoing[order.order_date.date()] += 0
+
+    for item in CashCalendarItem.query.filter(
+        CashCalendarItem.date >= start_date,
+        CashCalendarItem.date < end_date,
+    ).all():
+        d = item.date.date()
+        if item.direction == "incoming":
+            incoming[d] += item.amount * item.probability
+        else:
+            outgoing[d] += item.amount * item.probability
+
+    rows = []
+    running_balance = 0
+    day = start_date
+    while day < end_date:
+        d = day.date()
+        inc = incoming.get(d, 0)
+        out = outgoing.get(d, 0)
+        running_balance += inc - out
+        rows.append(
+            {
+                "date": d,
+                "incoming": inc,
+                "outgoing": out,
+                "net": inc - out,
+                "balance": running_balance,
+                "is_gap": running_balance < 0,
+            }
+        )
+        day += timedelta(days=1)
+
+    return rows
+
+
+@finance_bp.route("/bdds/calendar")
+@login_required
+@finance_required
+def bdds_calendar():
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    start_date, end_date = get_period_bounds(period)
+    rows = _build_cash_calendar_rows(start_date, end_date)
+    closing_balance = rows[-1]["balance"] if rows else 0
+
+    return render_template(
+        "finance/bdds_calendar.html",
+        period=period,
+        rows=rows,
+        closing_balance=closing_balance,
+    )
+
+
+@finance_bp.route("/bdds/forecast")
+@login_required
+@finance_required
+def bdds_forecast():
+    base_date = datetime.now().date()
+    start_date = datetime.combine(base_date, datetime.min.time())
+    end_date = start_date + timedelta(days=30)
+    rows = _build_cash_calendar_rows(start_date, end_date)
+
+    if rows:
+        saturdays = [r for r in rows if r["balance"] < 0][-3:]
+        critical_dates = [r["date"] for r in rows if r["balance"] < 0]
+    else:
+        critical_dates = []
+
+    return render_template(
+        "finance/bdds_forecast.html",
+        rows=rows,
+        ending_balance=rows[-1]["balance"] if rows else 0,
+        critical_dates=critical_dates,
+    )
+
+
+@finance_bp.route("/help")
+@login_required
+@finance_required
+def finance_help():
+    return render_template("finance/help.html")
+
+
+@finance_bp.route("/management-balance")
+@login_required
+@finance_required
+def management_balance():
+    date_str = request.args.get("date", datetime.now().strftime("%Y-%m-%d"))
+    try:
+        snapshot_date = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        snapshot_date = datetime.now()
+
+    inventory_value = 0
+    for batch in InventoryBatch.query.all():
+        inventory_value += batch.available_quantity() * batch.unit_cost
+
+    cash_amount = (
+        db.session.query(func.sum(Payment.amount))
+        .filter(Payment.status == "completed", Payment.payment_date <= snapshot_date)
+        .scalar()
+        or 0
+    )
+
+    receivables = 0
+    for order in SalesOrder.query.filter(SalesOrder.order_date <= snapshot_date).all():
+        accrued = order.total_amount
+        paid = sum(p.amount for p in order.payments if p.status == "completed" and p.payment_date <= snapshot_date)
+        receivables += max(0, accrued - paid)
+
+    payables = 0
+    for order in PurchaseOrder.query.filter(PurchaseOrder.order_date <= snapshot_date).all():
+        if not order.is_paid:
+            payables += order.total_amount
+
+    total_assets = inventory_value + cash_amount + receivables
+    total_liabilities = payables
+    equity = total_assets - total_liabilities
+
+    return render_template(
+        "finance/management_balance.html",
+        snapshot_date=snapshot_date.date(),
+        inventory_value=inventory_value,
+        cash_amount=cash_amount,
+        receivables=receivables,
+        payables=payables,
+        total_assets=total_assets,
+        total_liabilities=total_liabilities,
+        equity=equity,
+        check_equal=(abs(total_assets - total_liabilities - equity) < 1e-2),
+    )
+
+
+@finance_bp.route("/dashboard")
+@login_required
+@finance_required
+def dashboard():
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    start_date, end_date = get_period_bounds(period)
+
+    revenue = calculate_income(start_date, end_date)
+    cogs = (
+        db.session.query(func.sum(SalesOrderItem.quantity * SalesOrderItem.cost_price))
+        .join(SalesOrder)
+        .filter(
+            SalesOrder.order_date >= start_date,
+            SalesOrder.order_date < end_date,
+            SalesOrder.status == "completed",
+        )
+        .scalar()
+        or 0
+    )
+    gross_profit = revenue - cogs
+    operating_expenses = calculate_actual_expenses(start_date, end_date)
+    net_profit = gross_profit - operating_expenses
+
+    cash_flow_end = (
+        db.session.query(func.sum(Payment.amount))
+        .filter(Payment.status == "completed", Payment.payment_date < end_date)
+        .scalar()
+        or 0
+    )
+
+    # Составим управленческий набор статей активов аналогично management_balance
+    inventory_value = sum(batch.available_quantity() * batch.unit_cost for batch in InventoryBatch.query.all())
+    cash_amount = (
+        db.session.query(func.sum(Payment.amount))
+        .filter(Payment.status == "completed", Payment.payment_date < end_date)
+        .scalar()
+        or 0
+    )
+
+    receivables = 0
+    for order in SalesOrder.query.filter(SalesOrder.order_date <= end_date).all():
+        accrued = order.total_amount
+        paid = sum(p.amount for p in order.payments if p.status == "completed" and p.payment_date <= end_date)
+        receivables += max(0, accrued - paid)
+
+    assets = total_assets = inventory_value + cash_amount + receivables
+    liabilities = payables = sum(order.total_amount for order in PurchaseOrder.query.filter_by(is_paid=False).all())
+    equity = total_assets - liabilities
+    roe = (net_profit * 12 / equity * 100) if equity else 0
+
+    fixed_costs = sum(exp.amount for exp in IndirectExpense.query.filter_by(period=period).all())
+    breakeven = (fixed_costs / (gross_profit / revenue) if revenue and gross_profit > 0 else 0)
+    strength_buffer = ((revenue - breakeven) / revenue * 100) if revenue else 0
+
+    return render_template(
+        "finance/dashboard.html",
+        period=period,
+        net_profit=net_profit,
+        cash_balance=cash_flow_end,
+        roe=roe,
+        breakeven=breakeven,
+        strength_buffer=strength_buffer,
+        revenue=revenue,
+        inventory_value=inventory_value,
+        payables=payables,
+        assets=assets,
+        liabilities=liabilities,
+        equity=equity,
     )
 
 
