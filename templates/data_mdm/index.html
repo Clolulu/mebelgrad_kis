@@ -26,6 +26,7 @@
         <div class="d-flex gap-2 flex-wrap">
             <a href="{{ url_for('mdm.quality_dashboard') }}" class="btn btn-primary">Открыть контроль качества</a>
             <a href="{{ url_for('mdm.stock_list') }}" class="btn btn-outline-dark">Остатки и резерв</a>
+            <a href="{{ url_for('mdm.audit_log') }}" class="btn btn-outline-dark">Журнал аудита</a>
             {% if current_user.is_admin or current_user.is_data_admin %}
                 <a href="{{ url_for('mdm.user_roles') }}" class="btn btn-outline-info">Настройки ролей MDM</a>
             {% endif %}
@@ -103,6 +104,15 @@
                             {% if current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
                                 <a href="{{ url_for('mdm.edit_company_profile') }}" class="btn btn-primary btn-sm">Редактировать</a>
                             {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Журнал аудита</div>
+                        <div class="small text-secondary mb-3">Хронология событий по мастер-данным: создание карточек, обновление профиля и движения складских остатков.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{{ url_for('mdm.audit_log') }}" class="btn btn-outline-dark btn-sm">Открыть журнал</a>
                         </div>
                     </div>
                 </div>

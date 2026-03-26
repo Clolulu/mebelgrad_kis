@@ -1,5 +1,7 @@
 from functools import wraps
 
+from datetime import datetime
+
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import or_
@@ -54,6 +56,113 @@ def mdm_editor_required(view):
         return view(*args, **kwargs)
 
     return wrapper
+
+
+def _format_audit_value(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.strftime("%d.%m.%Y %H:%M")
+    return value
+
+
+def _build_mdm_audit_entries():
+    entries = []
+
+    entity_specs = [
+        (
+            "Номенклатура",
+            Product.query.all(),
+            lambda item: item.name,
+            lambda item: item.sku,
+            "Создание карточки товара",
+            "products",
+        ),
+        (
+            "Клиенты",
+            Customer.query.all(),
+            lambda item: item.name,
+            lambda item: item.type,
+            "Создание карточки клиента",
+            "customers",
+        ),
+        (
+            "Поставщики",
+            Supplier.query.all(),
+            lambda item: item.name,
+            lambda item: item.inn,
+            "Создание карточки поставщика",
+            "suppliers",
+        ),
+        (
+            "Сотрудники",
+            Employee.query.all(),
+            lambda item: item.name,
+            lambda item: item.position,
+            "Создание карточки сотрудника",
+            "employees",
+        ),
+    ]
+
+    for entity_name, rows, title_getter, meta_getter, action, entity_key in entity_specs:
+        for row in rows:
+            entries.append(
+                {
+                    "entity": entity_name,
+                    "entity_key": entity_key,
+                    "action": action,
+                    "record_name": title_getter(row),
+                    "record_meta": _format_audit_value(meta_getter(row)),
+                    "timestamp": row.created_at,
+                    "timestamp_label": row.created_at.strftime("%d.%m.%Y %H:%M")
+                    if row.created_at
+                    else "н/д",
+                    "details": "Запись присутствует в мастер-данных.",
+                    "status": "success",
+                }
+            )
+
+    profile = CompanyProfile.query.first()
+    if profile:
+        entries.append(
+            {
+                "entity": "Профиль компании",
+                "entity_key": "company_profile",
+                "action": "Актуализация профиля организации",
+                "record_name": profile.short_name or profile.company_name,
+                "record_meta": profile.legal_form,
+                "timestamp": profile.updated_at or profile.created_at,
+                "timestamp_label": (
+                    (profile.updated_at or profile.created_at).strftime("%d.%m.%Y %H:%M")
+                    if (profile.updated_at or profile.created_at)
+                    else "н/д"
+                ),
+                "details": "Обновлены реквизиты, контакты или печатные атрибуты.",
+                "status": "warning",
+            }
+        )
+
+    for product in Product.query.all():
+        if product.stock and product.stock.last_updated:
+            entries.append(
+                {
+                    "entity": "Остатки",
+                    "entity_key": "stock",
+                    "action": "Обновление складского остатка",
+                    "record_name": product.name,
+                    "record_meta": product.sku,
+                    "timestamp": product.stock.last_updated,
+                    "timestamp_label": product.stock.last_updated.strftime("%d.%m.%Y %H:%M"),
+                    "details": (
+                        f"На складе: {product.qty_on_hand} ед., "
+                        f"в резерве: {product.qty_reserved} ед."
+                    ),
+                    "status": "info",
+                }
+            )
+
+    entries.sort(key=lambda item: item["timestamp"] or datetime.min, reverse=True)
+    return entries
 
 
 @mdm_bp.route("/")
@@ -175,6 +284,45 @@ def quality_dashboard():
         total_reserved=sum(product.qty_reserved for product in products),
         critical_count=len(critical_products),
         reserved_count=len(reserved_products),
+    )
+
+
+@mdm_bp.route("/audit-log")
+@login_required
+@mdm_readonly_required
+def audit_log():
+    entity = request.args.get("entity", "").strip()
+    q = request.args.get("q", "").strip().lower()
+
+    entries = _build_mdm_audit_entries()
+    if entity:
+        entries = [entry for entry in entries if entry["entity_key"] == entity]
+    if q:
+        entries = [
+            entry
+            for entry in entries
+            if q in (entry["record_name"] or "").lower()
+            or q in (entry["record_meta"] or "").lower()
+            or q in (entry["action"] or "").lower()
+            or q in (entry["details"] or "").lower()
+        ]
+
+    entity_options = [
+        ("products", "Номенклатура"),
+        ("customers", "Клиенты"),
+        ("suppliers", "Поставщики"),
+        ("employees", "Сотрудники"),
+        ("company_profile", "Профиль компании"),
+        ("stock", "Остатки"),
+    ]
+
+    return render_template(
+        "data_mdm/audit_log.html",
+        entries=entries[:150],
+        entity=entity,
+        q=request.args.get("q", "").strip(),
+        entity_options=entity_options,
+        total_entries=len(entries),
     )
 
 
