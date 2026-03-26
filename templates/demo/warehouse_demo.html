@@ -3,20 +3,388 @@
 {% block title %}Склад и закупки | КИС "МебельГрад"{% endblock %}
 
 {% block content %}
-<div class="surface p-4 p-lg-5">
-    <div class="text-uppercase text-secondary small">Демо-модуль</div>
-    <h1 class="h3 mb-3">Модуль управления складом и закупками</h1>
-    <p class="lead mb-3">
-        Данный модуль находится в стадии активной разработки и будет доступен в следующей версии КИС "МебельГрад".
-    </p>
-    <p>
-        В целевой реализации модуль будет покрывать планирование потребностей, работу с поставщиками,
-        приемку, размещение, адресное хранение, упаковку, отгрузку и аналитику движения ТМЦ.
-    </p>
-    <div class="row g-3 mt-2">
-        <div class="col-md-4"><div class="surface p-3 h-100">Закупки и поставщики</div></div>
-        <div class="col-md-4"><div class="surface p-3 h-100">WMS и адресное хранение</div></div>
-        <div class="col-md-4"><div class="surface p-3 h-100">Операции приемки и отгрузки</div></div>
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Модуль управления складом и закупками</div>
+            <h1 class="h3 mb-2">Модуль управления складом и закупками</h1>
+            <p class="mb-0">
+                Данный модуль находится в стадии активной разработки и будет доступен в следующей версии КИС "МебельГрад".
+                В целевой реализации модуль будет покрывать планирование потребностей, работу с поставщиками,
+                приемку, размещение, адресное хранение, упаковку, отгрузку и аналитику движения ТМЦ.
+            </p>
+            <div class="mt-2">
+                <strong>Роли пользователей модуля:</strong>
+                <span class="badge bg-primary text-white me-1">Менеджер по закупкам</span>
+                <span class="badge bg-secondary text-white me-1">Заведующий складом</span>
+                <span class="badge bg-success text-white me-1">Кладовщик</span>
+                <span class="badge bg-info text-white me-1">Комплектовщик</span>
+                <span class="badge bg-warning text-white me-1">Грузчик</span>
+                <span class="badge bg-danger text-white me-1">Руководитель</span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-primary" onclick="alert('Модуль в разработке')">Открыть демо-режим</button>
+            <button class="btn btn-outline-dark" onclick="alert('Документация в разработке')">Документация</button>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Заявок на закупку</div><div class="display-6">0</div><div class="small text-secondary">Активных: 0</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Приемок товара</div><div class="display-6">0</div><div class="small text-secondary">За сегодня: 0</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Комплектаций заказов</div><div class="display-6">0</div><div class="small text-secondary">В работе: 0</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Отгрузок</div><div class="display-6">0</div><div class="small text-secondary">Завершено: 0</div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-8">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Функциональные модули</div>
+            <h2 class="h4 mb-3">Операционные процессы склада и закупок</h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Формирование заявок на закупку</div>
+                        <div class="small text-secondary mb-3">Создание и управление заявками на закупку товаров у поставщиков.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-dark btn-sm" onclick="showModule('purchase-request')">Открыть модуль</button>
+                            <button class="btn btn-primary btn-sm" onclick="alert('Создание заявки')">Новая заявка</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Согласование закупки</div>
+                        <div class="small text-secondary mb-3">Процесс согласования и утверждения заявок на закупку.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-dark btn-sm" onclick="showModule('purchase-approval')">Открыть модуль</button>
+                            <button class="btn btn-outline-info btn-sm" onclick="alert('Список на согласование')">На согласовании</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Приёмка товара с ТСД</div>
+                        <div class="small text-secondary mb-3">Приемка поступивших товаров с использованием терминала сбора данных.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-dark btn-sm" onclick="showModule('tsd-receipt')">Открыть модуль</button>
+                            <button class="btn btn-success btn-sm" onclick="alert('Сканировать')">Сканировать</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Сверка с ТТН/УПД</div>
+                        <div class="small text-secondary mb-3">Сверка поступивших товаров с транспортными накладными и УПД.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-dark btn-sm" onclick="showModule('ttn-verification')">Открыть модуль</button>
+                            <button class="btn btn-warning btn-sm" onclick="alert('Проверить')">Проверить</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Оформление акта расхождений</div>
+                        <div class="small text-secondary mb-3">Создание актов о расхождениях при приемке товаров.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-dark btn-sm" onclick="showModule('discrepancy-act')">Открыть модуль</button>
+                            <button class="btn btn-danger btn-sm" onclick="alert('Создать акт')">Создать акт</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Оприходование товара</div>
+                        <div class="small text-secondary mb-3">Оприходование поступивших товаров на складские остатки.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-dark btn-sm" onclick="showModule('goods-receipt')">Открыть модуль</button>
+                            <button class="btn btn-primary btn-sm" onclick="alert('Оприходовать')">Оприходовать</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Управление остатками</div>
+                        <div class="small text-secondary mb-3">Мониторинг и управление складскими остатками товаров.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-dark btn-sm" onclick="showModule('inventory-management')">Открыть модуль</button>
+                            <button class="btn btn-info btn-sm" onclick="alert('Просмотр остатков')">Остатки</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Комплектация заказов</div>
+                        <div class="small text-secondary mb-3">Комплектация товаров по заказам клиентов.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-dark btn-sm" onclick="showModule('order-assembly')">Открыть модуль</button>
+                            <button class="btn btn-success btn-sm" onclick="alert('Комплектовать')">Комплектовать</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Отгрузка</div>
+                        <div class="small text-secondary mb-3">Управление процессом отгрузки товаров клиентам.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-dark btn-sm" onclick="showModule('shipment')">Открыть модуль</button>
+                            <button class="btn btn-warning btn-sm" onclick="alert('Отгрузить')">Отгрузить</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="fw-semibold mb-1">Инвентаризация</div>
+                        <div class="small text-secondary mb-3">Проведение инвентаризации складских запасов.</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-dark btn-sm" onclick="showModule('inventory')">Открыть модуль</button>
+                            <button class="btn btn-secondary btn-sm" onclick="alert('Начать инвентаризацию')">Инвентаризация</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Статус разработки</div>
+            <h2 class="h4 mb-3">Текущее состояние модуля</h2>
+            <div class="surface p-3 mb-3">
+                <div class="text-secondary small">Реализованных функций</div>
+                <div class="h3 mb-0">0%</div>
+            </div>
+            <div class="surface p-3 mb-3">
+                <div class="text-secondary small">Протестированных сценариев</div>
+                <div class="h3 mb-0">0</div>
+            </div>
+            <div class="surface p-3 mb-3">
+                <div class="text-secondary small">Документированных процессов</div>
+                <div class="h3 mb-0">10</div>
+            </div>
+            <div class="d-grid gap-2">
+                <button class="btn btn-primary" onclick="alert('Демо-режим')">Запустить демо</button>
+                <button class="btn btn-outline-dark" onclick="alert('ТЗ и требования')">ТЗ и требования</button>
+            </div>
+        </div>
     </div>
 </div>
+
+<div class="row g-4">
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Быстрые сценарии</div>
+            <h2 class="h4 mb-3">Повседневная работа складского персонала</h2>
+            <div class="surface p-3 mb-3">Приемка товара: сканирование штрих-кодов, сверка с документами, оприходование.</div>
+            <div class="surface p-3 mb-3">Комплектация заказов: подбор товаров по заказам, упаковка и подготовка к отгрузке.</div>
+            <div class="surface p-3 mb-3">Инвентаризация: периодический пересчет остатков и корректировка данных.</div>
+            <div class="surface p-3">Управление закупками: формирование заявок, согласование и контроль поставок.</div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Архитектура модуля</div>
+            <h2 class="h4 mb-3">Интеграция с другими контурами</h2>
+            <p class="text-secondary">
+                Складской модуль интегрируется с MDM для получения номенклатуры и контрагентов,
+                с финансовым контуром для учета затрат и с продажами для обработки заказов.
+                Поддерживает мобильные терминалы сбора данных и адресное хранение.
+            </p>
+            <div class="row g-3">
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Интеграций</div><div class="h4 mb-0">3</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Мобильных устройств</div><div class="h4 mb-0">ТСД</div></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальные окна для каждого модуля -->
+<div class="modal fade" id="moduleModal" tabindex="-1" aria-labelledby="moduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="moduleModalLabel">Модуль</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="moduleModalBody">
+                <!-- Содержимое модуля будет загружаться сюда -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showModule(moduleId) {
+    const modal = new bootstrap.Modal(document.getElementById('moduleModal'));
+    const modalTitle = document.getElementById('moduleModalLabel');
+    const modalBody = document.getElementById('moduleModalBody');
+
+    const modules = {
+        'purchase-request': {
+            title: 'Формирование заявок на закупку',
+            content: `
+                <div class="surface p-4">
+                    <p>Модуль для создания и управления заявками на закупку товаров.</p>
+                    <form>
+                        <div class="mb-3">
+                            <label for="product" class="form-label">Товар</label>
+                            <input type="text" class="form-control" id="product" placeholder="Введите название товара">
+                        </div>
+                        <div class="mb-3">
+                            <label for="quantity" class="form-label">Количество</label>
+                            <input type="number" class="form-control" id="quantity" placeholder="Введите количество">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Создать заявку</button>
+                    </form>
+                </div>
+            `
+        },
+        'purchase-approval': {
+            title: 'Согласование закупки',
+            content: `
+                <div class="surface p-4">
+                    <p>Модуль для согласования заявок на закупку.</p>
+                    <form>
+                        <div class="mb-3">
+                            <label for="approval-status" class="form-label">Статус согласования</label>
+                            <select class="form-select" id="approval-status">
+                                <option selected>Выберите статус</option>
+                                <option value="approved">Одобрено</option>
+                                <option value="rejected">Отклонено</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </form>
+                </div>
+            `
+        },
+        'tsd-receipt': {
+            title: 'Приёмка товара с ТСД',
+            content: `
+                <div class="surface p-4">
+                    <p>Модуль для приёмки товаров с использованием терминала сбора данных.</p>
+                    <form>
+                        <div class="mb-3">
+                            <label for="tsd-code" class="form-label">Код ТСД</label>
+                            <input type="text" class="form-control" id="tsd-code" placeholder="Сканируйте код">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Принять товар</button>
+                    </form>
+                </div>
+            `
+        },
+        'ttn-verification': {
+            title: 'Сверка с ТТН/УПД',
+            content: `
+                <div class="surface p-4">
+                    <p>Модуль для сверки поступивших товаров с транспортными накладными.</p>
+                    <form>
+                        <div class="mb-3">
+                            <label for="ttn-number" class="form-label">Номер ТТН/УПД</label>
+                            <input type="text" class="form-control" id="ttn-number" placeholder="Введите номер">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Проверить</button>
+                    </form>
+                </div>
+            `
+        },
+        'discrepancy-act': {
+            title: 'Оформление акта расхождений',
+            content: `
+                <div class="surface p-4">
+                    <p>Модуль для создания актов о расхождениях в поставках.</p>
+                    <form>
+                        <div class="mb-3">
+                            <label for="discrepancy-description" class="form-label">Описание расхождения</label>
+                            <textarea class="form-control" id="discrepancy-description" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Создать акт</button>
+                    </form>
+                </div>
+            `
+        },
+        'goods-receipt': {
+            title: 'Оприходование товара',
+            content: `
+                <div class="surface p-4">
+                    <p>Модуль для оприходования поступивших товаров на склад.</p>
+                    <form>
+                        <div class="mb-3">
+                            <label for="receipt-quantity" class="form-label">Количество</label>
+                            <input type="number" class="form-control" id="receipt-quantity" placeholder="Введите количество">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Оприходовать</button>
+                    </form>
+                </div>
+            `
+        },
+        'inventory-management': {
+            title: 'Управление остатками',
+            content: `
+                <div class="surface p-4">
+                    <p>Модуль для мониторинга и управления складскими остатками.</p>
+                    <form>
+                        <div class="mb-3">
+                            <label for="stock-level" class="form-label">Уровень остатков</label>
+                            <input type="number" class="form-control" id="stock-level" placeholder="Текущий уровень">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Обновить</button>
+                    </form>
+                </div>
+            `
+        },
+        'order-assembly': {
+            title: 'Комплектация заказов',
+            content: `
+                <div class="surface p-4">
+                    <p>Модуль для комплектации товаров по заказам.</p>
+                    <form>
+                        <div class="mb-3">
+                            <label for="order-number" class="form-label">Номер заказа</label>
+                            <input type="text" class="form-control" id="order-number" placeholder="Введите номер заказа">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Комплектовать</button>
+                    </form>
+                </div>
+            `
+        },
+        'shipment': {
+            title: 'Отгрузка',
+            content: `
+                <div class="surface p-4">
+                    <p>Модуль для управления процессом отгрузки товаров.</p>
+                    <form>
+                        <div class="mb-3">
+                            <label for="shipment-details" class="form-label">Детали отгрузки</label>
+                            <textarea class="form-control" id="shipment-details" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Отгрузить</button>
+                    </form>
+                </div>
+            `
+        },
+        'inventory': {
+            title: 'Инвентаризация',
+            content: `
+                <div class="surface p-4">
+                    <p>Модуль для проведения инвентаризации складских запасов.</p>
+                    <form>
+                        <div class="mb-3">
+                            <label for="inventory-date" class="form-label">Дата инвентаризации</label>
+                            <input type="date" class="form-control" id="inventory-date">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Начать инвентаризацию</button>
+                    </form>
+                </div>
+            `
+        }
+    };
+
+    if (modules[moduleId]) {
+        modalTitle.textContent = modules[moduleId].title;
+        modalBody.innerHTML = modules[moduleId].content;
+        modal.show();
+    }
+}
+</script>
 {% endblock %}
