@@ -1,7 +1,10 @@
+import re
+from datetime import datetime
+
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
+from sqlalchemy import event
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
 
 db = SQLAlchemy()
 
@@ -37,8 +40,8 @@ class Customer(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
-    phone = db.Column(db.String(20))
-    email = db.Column(db.String(120))
+    phone = db.Column(db.String(20), unique=True)
+    email = db.Column(db.String(120), unique=True)
     type = db.Column(db.String(50), default='individual')  # 'individual' or 'legal_entity'
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -56,9 +59,9 @@ class Supplier(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
-    phone = db.Column(db.String(20))
-    email = db.Column(db.String(120))
-    inn = db.Column(db.String(12))
+    phone = db.Column(db.String(20), unique=True)
+    email = db.Column(db.String(120), unique=True)
+    inn = db.Column(db.String(12), nullable=False, unique=True)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -76,8 +79,8 @@ class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     position = db.Column(db.String(100))
-    phone = db.Column(db.String(20))
-    email = db.Column(db.String(120))
+    phone = db.Column(db.String(20), unique=True)
+    email = db.Column(db.String(120), unique=True)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -371,3 +374,55 @@ class CompanyProfile(db.Model):
 
     def __repr__(self):
         return f'<CompanyProfile {self.short_name}>'
+
+
+class DuplicateAttempt(db.Model):
+    """Журнал попыток создания дубликатов в мастер-данных"""
+    __tablename__ = 'duplicate_attempts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    entity = db.Column(db.String(50), nullable=False)
+    attempted_record = db.Column(db.String(255))
+    attempted_data = db.Column(db.Text)
+    duplicate_fields = db.Column(db.String(255))
+    source = db.Column(db.String(100), default='web')
+    reason = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<DuplicateAttempt {self.entity} {self.duplicate_fields}>'
+
+
+def _normalize_phone_value(value):
+    if not value:
+        return None
+    digits = re.sub(r"\D", "", value)
+    if digits.startswith("8") and len(digits) == 11:
+        digits = "7" + digits[1:]
+    if not digits:
+        return None
+    return "+" + digits if not digits.startswith("+") else digits
+
+
+def _normalize_email_value(value):
+    if not value:
+        return None
+    return value.strip().lower() or None
+
+
+def _normalize_inn_value(value):
+    if not value:
+        return None
+    normalized = re.sub(r"\D", "", value)
+    return normalized or None
+
+
+@event.listens_for(db.session, "before_flush")
+def _normalize_mdm_fields(session, flush_context, instances):
+    for obj in list(session.new) + list(session.dirty):
+        if hasattr(obj, "phone"):
+            obj.phone = _normalize_phone_value(obj.phone)
+        if hasattr(obj, "email"):
+            obj.email = _normalize_email_value(obj.email)
+        if hasattr(obj, "inn"):
+            obj.inn = _normalize_inn_value(obj.inn)

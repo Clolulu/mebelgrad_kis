@@ -2,12 +2,23 @@ from functools import wraps
 
 from datetime import datetime
 
+import json
+import re
+
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import or_
+from sqlalchemy import and_, func, or_
 
 from app.data_mdm import mdm_bp
-from app.models import Customer, Employee, Product, Supplier, CompanyProfile, db
+from app.models import (
+    CompanyProfile,
+    Customer,
+    DuplicateAttempt,
+    Employee,
+    Product,
+    Supplier,
+    db,
+)
 
 
 def admin_required(view):
@@ -64,6 +75,96 @@ def _format_audit_value(value):
     if isinstance(value, datetime):
         return value.strftime("%d.%m.%Y %H:%M")
     return value
+
+
+def _normalize_phone(phone):
+    if not phone:
+        return None
+    digits = re.sub(r"\D", "", phone)
+    if digits.startswith("8") and len(digits) == 11:
+        digits = "7" + digits[1:]
+    if not digits:
+        return None
+    return "+" + digits
+
+
+def _normalize_email(email):
+    if not email:
+        return None
+    normalized = email.strip().lower()
+    return normalized if normalized else None
+
+
+def _normalize_inn(inn):
+    if not inn:
+        return None
+    normalized = re.sub(r"\D", "", inn)
+    return normalized if normalized else None
+
+
+def _validate_email(email):
+    if not email:
+        return True
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email))
+
+
+def _validate_phone(phone):
+    if not phone:
+        return True
+    digits = re.sub(r"\D", "", phone)
+    return 10 <= len(digits) <= 15
+
+
+def _validate_inn(inn):
+    if not inn:
+        return False
+    normalized = _normalize_inn(inn)
+    return len(normalized) in (10, 12)
+
+
+def _validate_sku(sku):
+    if not sku:
+        return False
+    return bool(re.match(r"^[A-Za-z0-9\-_.]+$", sku))
+
+
+def _log_duplicate_attempt(entity, attempted_record, attempted_data, duplicate_fields, reason, source="web"):
+    log = DuplicateAttempt(
+        entity=entity,
+        attempted_record=attempted_record,
+        attempted_data=json.dumps(attempted_data, ensure_ascii=False),
+        duplicate_fields=", ".join(duplicate_fields),
+        source=source,
+        reason=reason,
+    )
+    db.session.add(log)
+    db.session.commit()
+
+
+def _find_potential_duplicates(model, partial_values, exact_values):
+    filters = []
+    for field, value in partial_values.items():
+        if value:
+            filters.append(getattr(model, field).ilike(f"%{value}%"))
+    for field, value in exact_values.items():
+        if value:
+            filters.append(getattr(model, field) == value)
+    if not filters:
+        return []
+    return model.query.filter(or_(*filters)).all()
+
+
+def _entity_duplicate_exists(model, values, exclude_id=None):
+    filters = []
+    for field, value in values.items():
+        if value:
+            filters.append(getattr(model, field) == value)
+    if not filters:
+        return False
+    query = model.query.filter(or_(*filters))
+    if exclude_id:
+        query = query.filter(model.id != exclude_id)
+    return query.first() is not None
 
 
 def _build_mdm_audit_entries():
@@ -139,6 +240,21 @@ def _build_mdm_audit_entries():
                 ),
                 "details": "Обновлены реквизиты, контакты или печатные атрибуты.",
                 "status": "warning",
+            }
+        )
+
+    for attempt in DuplicateAttempt.query.order_by(DuplicateAttempt.created_at.desc()).limit(50).all():
+        entries.append(
+            {
+                "entity": "Контроль качества данных",
+                "entity_key": "duplicate_attempts",
+                "action": "Попытка создания дубликата",
+                "record_name": attempt.attempted_record,
+                "record_meta": attempt.duplicate_fields,
+                "timestamp": attempt.created_at,
+                "timestamp_label": attempt.created_at.strftime("%d.%m.%Y %H:%M") if attempt.created_at else "н/д",
+                "details": attempt.reason,
+                "status": "danger",
             }
         )
 
@@ -314,6 +430,7 @@ def audit_log():
         ("employees", "Сотрудники"),
         ("company_profile", "Профиль компании"),
         ("stock", "Остатки"),
+        ("duplicate_attempts", "Дубли / конфликтные записи"),
     ]
 
     return render_template(
@@ -373,15 +490,34 @@ def create_product():
             flash("Артикул и наименование обязательны для заполнения.", "danger")
             return redirect(url_for("mdm.create_product"))
 
-        if Product.query.filter_by(sku=sku).first():
+        if not _validate_sku(sku):
+            flash("Артикул товара должен состоять из букв, цифр, дефисов или точек.", "danger")
+            return redirect(url_for("mdm.create_product"))
+
+        if Product.query.filter(func.lower(Product.sku) == sku.lower()).first():
+            _log_duplicate_attempt(
+                "Product",
+                sku,
+                {"sku": sku, "name": name},
+                ["sku"],
+                "Попытка создания товара с существующим артикулом.",
+            )
             flash("Товар с таким артикулом уже существует.", "danger")
+            return redirect(url_for("mdm.create_product"))
+
+        try:
+            price = float(retail_price or 0)
+            if price < 0:
+                raise ValueError
+        except ValueError:
+            flash("Цена должна быть числом больше или равна нулю.", "danger")
             return redirect(url_for("mdm.create_product"))
 
         product = Product(
             sku=sku,
             name=name,
             unit=unit,
-            retail_price=float(retail_price or 0),
+            retail_price=price,
             is_active=request.form.get("is_active") == "on",
         )
         db.session.add(product)
@@ -406,7 +542,13 @@ def edit_product(product_id):
     if request.method == "POST":
         product.name = request.form.get("name", product.name).strip()
         product.unit = request.form.get("unit", product.unit)
-        product.retail_price = float(request.form.get("retail_price", product.retail_price) or 0)
+        try:
+            product.retail_price = float(request.form.get("retail_price", product.retail_price) or 0)
+            if product.retail_price < 0:
+                raise ValueError
+        except ValueError:
+            flash("Цена должна быть числом больше или равна нулю.", "danger")
+            return redirect(url_for("mdm.edit_product", product_id=product_id))
         product.is_active = request.form.get("is_active") == "on"
         db.session.commit()
 
@@ -465,15 +607,58 @@ def customers_list():
 def create_customer():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
+        phone = _normalize_phone(request.form.get("phone", "").strip())
+        email = _normalize_email(request.form.get("email", "").strip())
+        customer_type = request.form.get("type", "individual")
+
         if not name:
             flash("ФИО или наименование клиента обязательно.", "danger")
+            return redirect(url_for("mdm.create_customer"))
+        if not phone and not email:
+            flash("Укажите телефон или email клиента для уменьшения риска дубликатов.", "danger")
+            return redirect(url_for("mdm.create_customer"))
+        if not _validate_phone(phone) or not _validate_email(email):
+            flash("Проверьте корректность формата телефона и/или email.", "danger")
+            return redirect(url_for("mdm.create_customer"))
+
+        duplicate = Customer.query.filter(
+            or_(Customer.phone == phone, Customer.email == email)
+        ).first()
+        if duplicate:
+            _log_duplicate_attempt(
+                "Customer",
+                name,
+                {"name": name, "phone": phone, "email": email},
+                ["phone", "email"],
+                "Попытка создания клиента, совпадающего по телефону или email.",
+            )
+            flash("Клиент с таким телефоном или email уже существует.", "danger")
+            return redirect(url_for("mdm.create_customer"))
+
+        candidates = _find_potential_duplicates(
+            Customer,
+            {"name": name},
+            {"phone": phone, "email": email},
+        )
+        if candidates:
+            _log_duplicate_attempt(
+                "Customer",
+                name,
+                {"name": name, "phone": phone, "email": email},
+                ["name", "phone", "email"],
+                "Найдены потенциальные дубли клиента по имени и контакту.",
+            )
+            flash(
+                "Найдены похожие записи клиента. Проверьте данные, чтобы избежать дубликатов.",
+                "warning",
+            )
             return redirect(url_for("mdm.create_customer"))
 
         customer = Customer(
             name=name,
-            phone=request.form.get("phone", "").strip(),
-            email=request.form.get("email", "").strip(),
-            type=request.form.get("type", "individual"),
+            phone=phone,
+            email=email,
+            type=customer_type,
             is_active=request.form.get("is_active") == "on",
         )
         db.session.add(customer)
@@ -492,9 +677,56 @@ def edit_customer(customer_id):
     customer = Customer.query.get_or_404(customer_id)
 
     if request.method == "POST":
-        customer.name = request.form.get("name", customer.name).strip()
-        customer.phone = request.form.get("phone", customer.phone).strip()
-        customer.email = request.form.get("email", customer.email).strip()
+        name = request.form.get("name", customer.name).strip()
+        phone = _normalize_phone(request.form.get("phone", customer.phone).strip())
+        email = _normalize_email(request.form.get("email", customer.email).strip())
+
+        if not name:
+            flash("ФИО или наименование клиента обязательно.", "danger")
+            return redirect(url_for("mdm.edit_customer", customer_id=customer_id))
+        if not phone and not email:
+            flash("Укажите телефон или email клиента для уменьшения риска дубликатов.", "danger")
+            return redirect(url_for("mdm.edit_customer", customer_id=customer_id))
+        if not _validate_phone(phone) or not _validate_email(email):
+            flash("Проверьте корректность формата телефона и/или email.", "danger")
+            return redirect(url_for("mdm.edit_customer", customer_id=customer_id))
+
+        duplicate = Customer.query.filter(
+            or_(Customer.phone == phone, Customer.email == email)
+        ).filter(Customer.id != customer.id).first()
+        if duplicate:
+            _log_duplicate_attempt(
+                "Customer",
+                name,
+                {"name": name, "phone": phone, "email": email},
+                ["phone", "email"],
+                "Попытка изменения клиента на существующую запись.",
+            )
+            flash("Другой клиент уже использует этот телефон или email.", "danger")
+            return redirect(url_for("mdm.edit_customer", customer_id=customer_id))
+
+        candidates = _find_potential_duplicates(
+            Customer,
+            {"name": name},
+            {"phone": phone, "email": email},
+        )
+        if any(candidate.id != customer.id for candidate in candidates):
+            _log_duplicate_attempt(
+                "Customer",
+                name,
+                {"name": name, "phone": phone, "email": email},
+                ["name", "phone", "email"],
+                "Найдены потенциальные дубли клиента при редактировании.",
+            )
+            flash(
+                "Найдены похожие записи клиента. Проверьте данные, чтобы избежать дубликатов.",
+                "warning",
+            )
+            return redirect(url_for("mdm.edit_customer", customer_id=customer_id))
+
+        customer.name = name
+        customer.phone = phone
+        customer.email = email
         customer.type = request.form.get("type", customer.type)
         customer.is_active = request.form.get("is_active") == "on"
         db.session.commit()
@@ -550,15 +782,61 @@ def suppliers_list():
 def create_supplier():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
+        phone = _normalize_phone(request.form.get("phone", "").strip())
+        email = _normalize_email(request.form.get("email", "").strip())
+        inn = _normalize_inn(request.form.get("inn", "").strip())
+
         if not name:
             flash("Наименование поставщика обязательно.", "danger")
+            return redirect(url_for("mdm.create_supplier"))
+        if not inn or not _validate_inn(inn):
+            flash("ИНН поставщика обязателен и должен содержать 10 или 12 цифр.", "danger")
+            return redirect(url_for("mdm.create_supplier"))
+        if not phone and not email:
+            flash("Укажите телефон или email поставщика для уменьшения риска дубликатов.", "danger")
+            return redirect(url_for("mdm.create_supplier"))
+        if not _validate_phone(phone) or not _validate_email(email):
+            flash("Проверьте корректность формата телефона и/или email.", "danger")
+            return redirect(url_for("mdm.create_supplier"))
+
+        duplicate = Supplier.query.filter(
+            or_(Supplier.inn == inn, Supplier.phone == phone, Supplier.email == email)
+        ).first()
+        if duplicate:
+            _log_duplicate_attempt(
+                "Supplier",
+                name,
+                {"name": name, "phone": phone, "email": email, "inn": inn},
+                ["inn", "phone", "email"],
+                "Попытка создания поставщика с существующими ключевыми реквизитами.",
+            )
+            flash("Поставщик с такими реквизитами уже существует.", "danger")
+            return redirect(url_for("mdm.create_supplier"))
+
+        candidates = _find_potential_duplicates(
+            Supplier,
+            {"name": name},
+            {"phone": phone, "email": email, "inn": inn},
+        )
+        if candidates:
+            _log_duplicate_attempt(
+                "Supplier",
+                name,
+                {"name": name, "phone": phone, "email": email, "inn": inn},
+                ["name", "phone", "email", "inn"],
+                "Найдены потенциальные дубли поставщика по наименованию и контактам.",
+            )
+            flash(
+                "Найдены похожие записи поставщика. Проверьте данные, чтобы избежать дубликатов.",
+                "warning",
+            )
             return redirect(url_for("mdm.create_supplier"))
 
         supplier = Supplier(
             name=name,
-            phone=request.form.get("phone", "").strip(),
-            email=request.form.get("email", "").strip(),
-            inn=request.form.get("inn", "").strip(),
+            phone=phone,
+            email=email,
+            inn=inn,
             is_active=request.form.get("is_active") == "on",
         )
         db.session.add(supplier)
@@ -577,10 +855,61 @@ def edit_supplier(supplier_id):
     supplier = Supplier.query.get_or_404(supplier_id)
 
     if request.method == "POST":
-        supplier.name = request.form.get("name", supplier.name).strip()
-        supplier.phone = request.form.get("phone", supplier.phone).strip()
-        supplier.email = request.form.get("email", supplier.email).strip()
-        supplier.inn = request.form.get("inn", supplier.inn).strip()
+        name = request.form.get("name", supplier.name).strip()
+        phone = _normalize_phone(request.form.get("phone", supplier.phone).strip())
+        email = _normalize_email(request.form.get("email", supplier.email).strip())
+        inn = _normalize_inn(request.form.get("inn", supplier.inn).strip())
+
+        if not name:
+            flash("Наименование поставщика обязательно.", "danger")
+            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
+        if not inn or not _validate_inn(inn):
+            flash("ИНН поставщика обязателен и должен содержать 10 или 12 цифр.", "danger")
+            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
+        if not phone and not email:
+            flash("Укажите телефон или email поставщика для уменьшения риска дубликатов.", "danger")
+            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
+        if not _validate_phone(phone) or not _validate_email(email):
+            flash("Проверьте корректность формата телефона и/или email.", "danger")
+            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
+
+        duplicate = Supplier.query.filter(
+            or_(Supplier.inn == inn, Supplier.phone == phone, Supplier.email == email)
+        ).filter(Supplier.id != supplier.id).first()
+        if duplicate:
+            _log_duplicate_attempt(
+                "Supplier",
+                name,
+                {"name": name, "phone": phone, "email": email, "inn": inn},
+                ["inn", "phone", "email"],
+                "Попытка изменения поставщика на существующую запись.",
+            )
+            flash("Другой поставщик уже использует такой ИНН, телефон или email.", "danger")
+            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
+
+        candidates = _find_potential_duplicates(
+            Supplier,
+            {"name": name},
+            {"phone": phone, "email": email, "inn": inn},
+        )
+        if any(candidate.id != supplier.id for candidate in candidates):
+            _log_duplicate_attempt(
+                "Supplier",
+                name,
+                {"name": name, "phone": phone, "email": email, "inn": inn},
+                ["name", "phone", "email", "inn"],
+                "Найдены потенциальные дубли поставщика при редактировании.",
+            )
+            flash(
+                "Найдены похожие записи поставщика. Проверьте данные, чтобы избежать дубликатов.",
+                "warning",
+            )
+            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
+
+        supplier.name = name
+        supplier.phone = phone
+        supplier.email = email
+        supplier.inn = inn
         supplier.is_active = request.form.get("is_active") == "on"
         db.session.commit()
 
@@ -639,15 +968,56 @@ def employees_list():
 def create_employee():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
+        phone = _normalize_phone(request.form.get("phone", "").strip())
+        email = _normalize_email(request.form.get("email", "").strip())
+        position = request.form.get("role", request.form.get("position", "")).strip()
+
         if not name:
             flash("ФИО сотрудника обязательно.", "danger")
+            return redirect(url_for("mdm.create_employee"))
+        if not phone and not email:
+            flash("Укажите телефон или email сотрудника для уменьшения риска дубликатов.", "danger")
+            return redirect(url_for("mdm.create_employee"))
+        if not _validate_phone(phone) or not _validate_email(email):
+            flash("Проверьте корректность формата телефона и/или email.", "danger")
+            return redirect(url_for("mdm.create_employee"))
+
+        duplicate = Employee.query.filter(or_(Employee.phone == phone, Employee.email == email)).first()
+        if duplicate:
+            _log_duplicate_attempt(
+                "Employee",
+                name,
+                {"name": name, "phone": phone, "email": email},
+                ["phone", "email"],
+                "Попытка создания сотрудника с существующим телефоном или email.",
+            )
+            flash("Сотрудник с таким телефоном или email уже существует.", "danger")
+            return redirect(url_for("mdm.create_employee"))
+
+        candidates = _find_potential_duplicates(
+            Employee,
+            {"name": name},
+            {"phone": phone, "email": email},
+        )
+        if candidates:
+            _log_duplicate_attempt(
+                "Employee",
+                name,
+                {"name": name, "phone": phone, "email": email},
+                ["name", "phone", "email"],
+                "Найдены потенциальные дубли сотрудника по имени и контакту.",
+            )
+            flash(
+                "Найдены похожие записи сотрудника. Проверьте данные, чтобы избежать дубликатов.",
+                "warning",
+            )
             return redirect(url_for("mdm.create_employee"))
 
         employee = Employee(
             name=name,
-            position=request.form.get("role", request.form.get("position", "")).strip(),
-            phone=request.form.get("phone", "").strip(),
-            email=request.form.get("email", "").strip(),
+            position=position,
+            phone=phone,
+            email=email,
             is_active=request.form.get("is_active") == "on",
         )
         db.session.add(employee)
@@ -666,12 +1036,58 @@ def edit_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
 
     if request.method == "POST":
-        employee.name = request.form.get("name", employee.name).strip()
-        employee.position = request.form.get(
+        name = request.form.get("name", employee.name).strip()
+        position = request.form.get(
             "role", request.form.get("position", employee.position)
         ).strip()
-        employee.phone = request.form.get("phone", employee.phone).strip()
-        employee.email = request.form.get("email", employee.email).strip()
+        phone = _normalize_phone(request.form.get("phone", employee.phone).strip())
+        email = _normalize_email(request.form.get("email", employee.email).strip())
+
+        if not name:
+            flash("ФИО сотрудника обязательно.", "danger")
+            return redirect(url_for("mdm.edit_employee", employee_id=employee_id))
+        if not phone and not email:
+            flash("Укажите телефон или email сотрудника для уменьшения риска дубликатов.", "danger")
+            return redirect(url_for("mdm.edit_employee", employee_id=employee_id))
+        if not _validate_phone(phone) or not _validate_email(email):
+            flash("Проверьте корректность формата телефона и/или email.", "danger")
+            return redirect(url_for("mdm.edit_employee", employee_id=employee_id))
+
+        duplicate = Employee.query.filter(or_(Employee.phone == phone, Employee.email == email)).filter(Employee.id != employee.id).first()
+        if duplicate:
+            _log_duplicate_attempt(
+                "Employee",
+                name,
+                {"name": name, "phone": phone, "email": email},
+                ["phone", "email"],
+                "Попытка изменения сотрудника на существующую запись.",
+            )
+            flash("Другой сотрудник уже использует этот телефон или email.", "danger")
+            return redirect(url_for("mdm.edit_employee", employee_id=employee_id))
+
+        candidates = _find_potential_duplicates(
+            Employee,
+            {"name": name},
+            {"phone": phone, "email": email},
+        )
+        if any(candidate.id != employee.id for candidate in candidates):
+            _log_duplicate_attempt(
+                "Employee",
+                name,
+                {"name": name, "phone": phone, "email": email},
+                ["name", "phone", "email"],
+                "Найдены потенциальные дубли сотрудника при редактировании.",
+            )
+            flash(
+                "Найдены похожие записи сотрудника. Проверьте данные, чтобы избежать дубликатов.",
+                "warning",
+            )
+            return redirect(url_for("mdm.edit_employee", employee_id=employee_id))
+
+        employee.name = name
+        employee.position = position
+        employee.phone = phone
+        employee.email = email
         employee.is_active = request.form.get("is_active") == "on"
         db.session.commit()
 
