@@ -728,13 +728,26 @@ def seed_database():
             ceo="Кузьмин Андрей Сергеевич",
             ceo_position=None,
             ceo_signature_url=None,
-            signature_url="https://i.imgur.com/signature.png",
+            signature_url="https://upload.wikimedia.org/wikipedia/commons/2/2c/GalkinAI-signature.png",
             chief_accountant_name=None,
             chief_accountant_signature_url=None,
-            seal_url="https://i.imgur.com/seal.png",
-            logo_url="https://i.imgur.com/logo.png",
+            seal_url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQAM2ekfbi4aBiiUKUq6NJLKjJAorMhwJiTqQ&s",
+            logo_url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQqjBb3N-5K12RjxM-PFGwrzRDeXoYRWvH9Ww&s",
             print_footer="Документ изготовлен автоматически и действителен без подписи и печати в соответствии с законодательством РФ об индивидуальных предпринимателях.",
         )
         db.session.add(company)
+    else:
+        updated = False
+        if company.logo_url == "https://i.imgur.com/logo.png":
+            company.logo_url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQqjBb3N-5K12RjxM-PFGwrzRDeXoYRWvH9Ww&s"
+            updated = True
+        if company.seal_url == "https://i.imgur.com/seal.png":
+            company.seal_url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQAM2ekfbi4aBiiUKUq6NJLKjJAorMhwJiTqQ&s"
+            updated = True
+        if company.signature_url == "https://i.imgur.com/signature.png":
+            company.signature_url = "https://upload.wikimedia.org/wikipedia/commons/2/2c/GalkinAI-signature.png"
+            updated = True
+        if updated:
+            db.session.add(company)
 
     db.session.commit()

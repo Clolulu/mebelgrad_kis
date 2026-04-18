@@ -24,7 +24,7 @@
                     <h5 class="mb-0">Редактирование профиля компании</h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST">
+                    <form method="POST" action="{{ url_for('mdm.edit_company_profile') }}">
                         <div class="row">
                             <div class="col-md-6">
                                 <h6>Основная информация</h6>
