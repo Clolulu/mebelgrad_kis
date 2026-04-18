@@ -116,7 +116,7 @@
                 <a href="{{ url_for('finance.plan_fact_analysis') }}" class="btn btn-outline-dark">План-фактный анализ</a>
                 <a href="{{ url_for('finance.budget') }}" class="btn btn-outline-dark">Бюджетные статьи</a>
             </div>
-            <form method="post" action="{{ url_for('finance.export_1c') }}" class="surface p-3">
+            <form method="post" action="{{ url_for('finance.export_1c') }}" class="surface p-3 mb-3">
                 <label class="form-label" for="period">Выгрузка обменных данных</label>
                 <div class="input-group">
                     <input class="form-control" id="period" name="period" value="{{ current_period }}">
@@ -126,6 +126,19 @@
                     Формируется файл обмена по продажам и поступлениям за выбранный период.
                 </div>
             </form>
+            <div class="surface p-3">
+                <div class="text-uppercase text-secondary small mb-2">PDF-отчеты</div>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('finance.dashboard_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF дашборд</a>
+                    <a href="{{ url_for('finance.plan_fact_analysis_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF план-факт</a>
+                    <a href="{{ url_for('finance.budget_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF бюджет</a>
+                    <a href="{{ url_for('finance.bdr_report_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF БДР</a>
+                    <a href="{{ url_for('finance.cash_flow_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF кассовый отчет</a>
+                    <a href="{{ url_for('finance.management_balance_print', date=current_period ~ '-01', show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF управление баланс</a>
+                    <a href="{{ url_for('finance.settlements_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF взаиморасчеты</a>
+                    <a href="{{ url_for('finance.bdds_forecast_print', show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF прогноз 30 дней</a>
+                </div>
+            </div>
         </div>
     </div>
 </div>
