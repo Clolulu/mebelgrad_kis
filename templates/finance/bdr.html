@@ -4,6 +4,18 @@
 
 {% block content %}
 <div class="surface p-4">
+  <form method="get" class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
+    <div>
+      <label for="period" class="form-label mb-1">Период</label>
+      <input id="period" name="period" type="month" class="form-control" value="{{ period }}">
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary" type="submit">Показать</button>
+      <a href="{{ url_for('finance.bdr_report_print', period=period) }}" class="btn btn-outline-primary" target="_blank">
+        <i class="bi bi-printer"></i> Печать
+      </a>
+    </div>
+  </form>
   <h1 class="h4 mb-3">Бюджет доходов и расходов (БДР)</h1>
   <p class="text-secondary">Период: {{ period }}</p>
   <div class="row g-4 mb-3">

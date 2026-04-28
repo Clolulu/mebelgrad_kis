@@ -1,9 +1,16 @@
 import io
 import json
+import os
+import re
+import urllib.request
 from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import wraps
+from types import SimpleNamespace
 
+from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches
 from flask import flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import func, or_
@@ -27,6 +34,651 @@ from app.models import (
     Supplier,
     db,
 )
+
+
+def get_company_profile():
+    company = CompanyProfile.query.first()
+    if company:
+        return company
+    return SimpleNamespace(
+        company_name="Мебельград",
+        short_name="Мебельград",
+        legal_form="ООО",
+        inn="1234567890",
+        kpp="123456789",
+        ogrn="1234567890123",
+        okved="31.01",
+        tax_system="ОСН",
+        employees_count=50,
+        legal_address="г. Москва, ул. Примерная, д. 1",
+        actual_address="г. Москва, ул. Примерная, д. 1",
+        phone="+7 (495) 123-45-67",
+        email="info@mebelgrad.ru",
+        website="www.mebelgrad.ru",
+        bank_name="Сбербанк",
+        bank_bik="044525225",
+        correspondent_account="30101810400000000225",
+        settlement_account="40702810000000001234",
+        ceo="Иванов Иван Иванович",
+        ceo_position="Генеральный директор",
+        ceo_signature_url="/static/images/signature.png",
+        signature_url="/static/images/signature.png",
+        chief_accountant_name="Петрова Петрова Петровна",
+        chief_accountant_signature_url="/static/images/signature.png",
+        seal_url="/static/images/seal.png",
+        logo_url="/static/images/logo.png",
+        print_footer="Отчет сформирован автоматически",
+    )
+
+
+def resolve_local_static_paths(html):
+    static_root = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "static")
+    )
+    static_root = static_root.replace("\\", "/")
+
+    def replace_src(match):
+        attr, quote, path = match.groups()
+        return f'{attr}={quote}file:///{static_root}/{path}{quote}'
+
+    html = re.sub(
+        r'(src|href)=(["\'])/static/([^"\']+)\2',
+        replace_src,
+        html,
+        flags=re.IGNORECASE,
+    )
+    html = re.sub(
+        r'url\((["\']?)/static/([^"\')]+)(["\']?)\)',
+        lambda m: f'url({m.group(1)}file:///{static_root}/{m.group(2)}{m.group(3)})',
+        html,
+        flags=re.IGNORECASE,
+    )
+    return html
+
+
+def format_currency(value):
+    try:
+        return f"{value:,.2f}".replace(",", " ").replace(".", ",")
+    except Exception:
+        return str(value)
+
+
+def format_percent(value):
+    try:
+        return f"{value:.2f}%".replace('.', ',')
+    except Exception:
+        return str(value)
+
+
+def format_value(value):
+    if isinstance(value, bool):
+        return "Да" if value else "Нет"
+    if isinstance(value, (int, float)):
+        return format_currency(value)
+    return str(value)
+
+
+def create_docx_document(title, company=None, period=None, snapshot_date=None, now=None):
+    doc = Document()
+
+    default_logo_url = (
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQqjBb3N-5K12RjxM-PFGwrzRDeXoYRWvH9Ww&s"
+    )
+    logo_bytes = None
+    logo_path = None
+
+    logo_url = None
+    if company and getattr(company, 'logo_url', None):
+        logo_url = company.logo_url
+    if not logo_url:
+        logo_url = default_logo_url
+
+    if logo_url.startswith('http'):
+        try:
+            request_obj = urllib.request.Request(
+                logo_url,
+                headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                                  '(KHTML, like Gecko) Chrome/115.0 Safari/537.36'
+                },
+            )
+            with urllib.request.urlopen(request_obj, timeout=8) as response:
+                logo_bytes = response.read()
+        except Exception:
+            logo_bytes = None
+    else:
+        static_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'static'))
+        logo_path = os.path.join(static_root, logo_url.lstrip('/'))
+        if not os.path.exists(logo_path):
+            logo_path = None
+
+    if logo_bytes is None and logo_path is None:
+        try:
+            request_obj = urllib.request.Request(
+                default_logo_url,
+                headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                                  '(KHTML, like Gecko) Chrome/115.0 Safari/537.36'
+                },
+            )
+            with urllib.request.urlopen(request_obj, timeout=8) as response:
+                logo_bytes = response.read()
+        except Exception:
+            logo_bytes = None
+
+    if logo_bytes is not None or logo_path is not None:
+        section = doc.sections[0]
+        section.different_first_page_header_footer = True
+        header = section.first_page_header
+        header_paragraph = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+        run = header_paragraph.add_run()
+        if logo_bytes is not None:
+            run.add_picture(io.BytesIO(logo_bytes), width=Inches(2.5))
+        else:
+            run.add_picture(logo_path, width=Inches(2.5))
+        header_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    doc.add_heading(title, level=0)
+    if company:
+        table = doc.add_table(rows=1, cols=2)
+        table.style = "Table Grid"
+        hdr = table.rows[0].cells
+        hdr[0].text = "Компания"
+        hdr[1].text = company.company_name or ""
+
+        rows = [
+            ("Краткое название", company.short_name),
+            ("Юридическая форма", company.legal_form),
+            ("ИНН/КПП", f"{company.inn or ''} / {company.kpp or ''}".strip()),
+            ("ОГРН", company.ogrn),
+            ("Адрес", company.legal_address),
+            ("Телефон", company.phone),
+            ("Email", company.email),
+        ]
+        for label, value in rows:
+            if value:
+                row = table.add_row().cells
+                row[0].text = label
+                row[1].text = str(value)
+        doc.add_paragraph()
+
+    if period:
+        doc.add_paragraph(f"Период: {period}")
+    if snapshot_date:
+        doc.add_paragraph(f"Дата среза: {snapshot_date}")
+
+    doc.add_paragraph()
+
+    if now:
+        footer = doc.sections[0].footer
+        footer_paragraph = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+        footer_paragraph.text = f"Формирование: {now.strftime('%Y-%m-%d %H:%M')}"
+        footer_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+    return doc
+
+
+def add_key_value_section(doc, title, items):
+    doc.add_heading(title, level=1)
+    table = doc.add_table(rows=1, cols=2)
+    table.style = "Table Grid"
+    hdr = table.rows[0].cells
+    hdr[0].text = "Показатель"
+    hdr[1].text = "Значение"
+    for label, value in items:
+        row = table.add_row().cells
+        row[0].text = label
+        row[1].text = format_value(value)
+    doc.add_paragraph()
+
+
+def add_table(doc, title, headers, rows):
+    doc.add_heading(title, level=1)
+    table = doc.add_table(rows=1, cols=len(headers))
+    table.style = "Table Grid"
+    for idx, header in enumerate(headers):
+        table.rows[0].cells[idx].text = header
+    for row in rows:
+        cells = table.add_row().cells
+        for idx, value in enumerate(row):
+            cells[idx].text = format_value(value)
+    doc.add_paragraph()
+
+
+def add_signatures_section(doc, company, show_seal, show_signatures):
+    if not show_signatures and not show_seal:
+        return
+    doc.add_heading("Подписи и подтверждения", level=1)
+    if company and company.ceo_position and company.ceo:
+        doc.add_paragraph(f"{company.ceo_position}: {company.ceo}")
+    elif company and company.ceo:
+        doc.add_paragraph(f"Руководитель: {company.ceo}")
+    if company and company.chief_accountant_name:
+        doc.add_paragraph(f"Главный бухгалтер: {company.chief_accountant_name}")
+    if show_seal:
+        doc.add_paragraph("Печать: ________________________________")
+    if show_signatures:
+        doc.add_paragraph("Подпись: ______________________________")
+    doc.add_paragraph()
+
+
+def save_docx_response(doc, filename):
+    output = io.BytesIO()
+    doc.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+def build_dashboard_docx(
+    company,
+    period,
+    revenue,
+    cogs,
+    gross_profit,
+    operating_expenses,
+    net_profit,
+    inventory_value,
+    cash_amount,
+    receivables,
+    assets,
+    liabilities,
+    equity,
+    roe,
+    breakeven,
+    strength_buffer,
+    show_seal,
+    show_signatures,
+    now,
+):
+    doc = create_docx_document("Финансовый дашборд", company, period, now=now)
+    add_key_value_section(
+        doc,
+        "Ключевые показатели",
+        [
+            ("Выручка", revenue),
+            ("Себестоимость продаж", cogs),
+            ("Валовая прибыль", gross_profit),
+            ("Операционные расходы", operating_expenses),
+            ("Чистая прибыль", net_profit),
+            ("Запасы", inventory_value),
+            ("Денежные средства", cash_amount),
+            ("Дебиторская задолженность", receivables),
+            ("Итого активы", assets),
+            ("Итого обязательства", liabilities),
+            ("Собственный капитал", equity),
+            ("ROE", format_percent(roe)),
+            ("Точка безубыточности", breakeven),
+            ("Запас прочности", format_percent(strength_buffer)),
+        ],
+    )
+    add_signatures_section(doc, company, show_seal, show_signatures)
+    filename = f"{period}_dashboard_{now.strftime('%Y%m%d')}.docx"
+    return save_docx_response(doc, filename)
+
+
+def build_management_balance_docx(
+    company,
+    snapshot_date,
+    inventory_value,
+    cash_amount,
+    receivables,
+    payables,
+    total_assets,
+    total_liabilities,
+    equity,
+    check_equal,
+    show_seal,
+    show_signatures,
+    now,
+):
+    doc = create_docx_document("Управленческий баланс", company, snapshot_date=snapshot_date, now=now)
+    add_key_value_section(
+        doc,
+        "Структура баланса",
+        [
+            ("Запасы", inventory_value),
+            ("Денежные средства", cash_amount),
+            ("Дебиторская задолженность", receivables),
+            ("Итого активы", total_assets),
+            ("Кредиторская задолженность", payables),
+            ("Собственный капитал", equity),
+        ],
+    )
+    doc.add_paragraph(f"Баланс совпадает: {'Да' if check_equal else 'Нет'}")
+    add_signatures_section(doc, company, show_seal, show_signatures)
+    filename = f"management_balance_{snapshot_date.strftime('%Y%m%d')}.docx"
+    return save_docx_response(doc, filename)
+
+
+def build_plan_fact_analysis_docx(
+    company,
+    period,
+    analysis,
+    deviations,
+    deviations_alpha,
+    total_planned,
+    total_actual,
+    total_variance,
+    cash_gap,
+    show_seal,
+    show_signatures,
+    now,
+):
+    doc = create_docx_document("План-факт анализ", company, period, now=now)
+    add_key_value_section(
+        doc,
+        "Итоги по периоду",
+        [
+            ("План total", total_planned),
+            ("Факт total", total_actual),
+            ("Отклонение", total_variance),
+            ("Денежный разрыв", cash_gap),
+        ],
+    )
+    add_table(
+        doc,
+        "Анализ по категориям",
+        ["Категория", "Тип", "План", "Факт", "Отклонение", "Сглажено"],
+        [
+            [
+                item["category"],
+                item["type"],
+                item["planned"],
+                item["actual"],
+                item["variance"],
+                item["flexed"],
+            ]
+            for item in analysis
+        ],
+    )
+    if deviations_alpha:
+        doc.add_heading("Крупные отклонения", level=1)
+        for item in deviations_alpha:
+            doc.add_paragraph(
+                f"{item['category']}: {format_percent(item['variance_pct'])}"
+            )
+        doc.add_paragraph()
+    if deviations:
+        doc.add_heading("Комментарии к отклонениям", level=1)
+        for item in deviations:
+            doc.add_paragraph(f"{item.category}: {getattr(item, 'description', '')}")
+    add_signatures_section(doc, company, show_seal, show_signatures)
+    filename = f"{period}_plan_fact_{now.strftime('%Y%m%d')}.docx"
+    return save_docx_response(doc, filename)
+
+
+def build_cash_flow_docx(
+    company,
+    period,
+    active_rows,
+    total_incoming,
+    total_outgoing_paid,
+    total_outgoing_scheduled,
+    closing_balance,
+    show_seal,
+    show_signatures,
+    now,
+):
+    doc = create_docx_document("Кассовый отчет", company, period, now=now)
+    add_key_value_section(
+        doc,
+        "Итоги за период",
+        [
+            ("Итого поступлений", total_incoming),
+            ("Итого оплаченных расходов", total_outgoing_paid),
+            ("Итого запланированных расходов", total_outgoing_scheduled),
+            ("Закрывающий баланс", closing_balance),
+        ],
+    )
+    if active_rows:
+        add_table(
+            doc,
+            "Движение денежных средств по дням",
+            [
+                "Дата",
+                "Поступления",
+                "Оплачено",
+                "Запланировано",
+                "Чистый поток",
+                "Проектный разрыв",
+                "Баланс",
+            ],
+            [
+                [
+                    row["date"].strftime("%Y-%m-%d"),
+                    row["incoming"],
+                    row["outgoing_paid"],
+                    row["outgoing_scheduled"],
+                    row["net_actual"],
+                    row["projected_gap"],
+                    row["running_balance"],
+                ]
+                for row in active_rows
+            ],
+        )
+    else:
+        doc.add_paragraph("Нет операций за выбранный период.")
+    add_signatures_section(doc, company, show_seal, show_signatures)
+    filename = f"{period}_cash_flow_{now.strftime('%Y%m%d')}.docx"
+    return save_docx_response(doc, filename)
+
+
+def build_bdds_forecast_docx(
+    company,
+    rows,
+    ending_balance,
+    critical_dates,
+    show_seal,
+    show_signatures,
+    now,
+):
+    doc = create_docx_document("Прогноз денежных потоков на 30 дней", company, now=now)
+    add_key_value_section(
+        doc,
+        "Ключевые параметры",
+        [
+            ("Конечный баланс", ending_balance),
+            ("Критические даты", ", ".join(d.strftime("%Y-%m-%d") for d in critical_dates) if critical_dates else "Нет"),
+        ],
+    )
+    if rows:
+        add_table(
+            doc,
+            "Прогноз движения денежных средств",
+            ["Дата", "Поступления", "Выплаты", "Чистый поток", "Баланс"],
+            [
+                [
+                    row["date"].strftime("%Y-%m-%d"),
+                    row["incoming"],
+                    row["outgoing"],
+                    row["net"],
+                    row["balance"],
+                ]
+                for row in rows
+            ],
+        )
+    else:
+        doc.add_paragraph("Нет данных для прогноза за 30 дней.")
+    add_signatures_section(doc, company, show_seal, show_signatures)
+    filename = f"bdds_forecast_{now.strftime('%Y%m%d')}.docx"
+    return save_docx_response(doc, filename)
+
+
+def build_settlements_docx(
+    company,
+    period,
+    customer_rows,
+    supplier_rows,
+    total_customer_billed,
+    total_customer_paid,
+    total_supplier_accrued,
+    total_supplier_paid,
+    top_customer_income,
+    top_supplier_payables,
+    show_seal,
+    show_signatures,
+    now,
+):
+    doc = create_docx_document("Взаиморасчеты", company, period, now=now)
+    add_key_value_section(
+        doc,
+        "Итоги по расчетам",
+        [
+            ("Всего начислено клиентам", total_customer_billed),
+            ("Всего оплачено клиентами", total_customer_paid),
+            ("Всего начислено поставщикам", total_supplier_accrued),
+            ("Всего оплачено поставщикам", total_supplier_paid),
+        ],
+    )
+    if customer_rows:
+        add_table(
+            doc,
+            "Расчеты по клиентам",
+            ["Контрагент", "Тип", "Заказы", "Начислено", "Оплачено", "Долг"],
+            [
+                [
+                    row["name"],
+                    row["type"],
+                    row["orders_count"],
+                    row["billed"],
+                    row["paid"],
+                    row["debt"],
+                ]
+                for row in customer_rows
+            ],
+        )
+    if supplier_rows:
+        add_table(
+            doc,
+            "Расчеты по поставщикам",
+            ["Контрагент", "Заказы", "Начислено", "Оплачено", "К выплате"],
+            [
+                [
+                    row["name"],
+                    row["orders_count"],
+                    row["accrued"],
+                    row["paid"],
+                    row["payable"],
+                ]
+                for row in supplier_rows
+            ],
+        )
+    if top_customer_income:
+        add_table(
+            doc,
+            "Топ клиентов по выручке",
+            ["Контрагент", "Выручка"],
+            [[name, amount] for name, amount in top_customer_income],
+        )
+    if top_supplier_payables:
+        add_table(
+            doc,
+            "Топ поставщиков по задолженности",
+            ["Контрагент", "Задолженность"],
+            [[name, amount] for name, amount in top_supplier_payables],
+        )
+    add_signatures_section(doc, company, show_seal, show_signatures)
+    filename = f"{period}_settlements_{now.strftime('%Y%m%d')}.docx"
+    return save_docx_response(doc, filename)
+
+
+def build_budget_docx(
+    company,
+    period,
+    income_items,
+    expense_items,
+    total_income_plan,
+    total_expense_plan,
+    planned_balance,
+    show_seal,
+    show_signatures,
+    now,
+):
+    doc = create_docx_document("Бюджет доходов и расходов", company, period, now=now)
+    add_key_value_section(
+        doc,
+        "Итоги бюджета",
+        [
+            ("План доходов", total_income_plan),
+            ("План расходов", total_expense_plan),
+            ("Плановый остаток", planned_balance),
+        ],
+    )
+    if income_items:
+        add_table(
+            doc,
+            "Доходы",
+            ["Категория", "План"],
+            [[item.category, item.planned_amount] for item in income_items],
+        )
+    if expense_items:
+        add_table(
+            doc,
+            "Расходы",
+            ["Категория", "План"],
+            [[item.category, item.planned_amount] for item in expense_items],
+        )
+    add_signatures_section(doc, company, show_seal, show_signatures)
+    filename = f"{period}_budget_{now.strftime('%Y%m%d')}.docx"
+    return save_docx_response(doc, filename)
+
+
+def build_bdr_docx(
+    company,
+    period,
+    pivot,
+    total_revenue,
+    total_cogs,
+    total_profit,
+    show_seal,
+    show_signatures,
+    now,
+):
+    doc = create_docx_document("Анализ рентабельности (БДР)", company, period, now=now)
+    add_key_value_section(
+        doc,
+        "Итоги сегментов",
+        [
+            ("Выручка", total_revenue),
+            ("Себестоимость", total_cogs),
+            ("Прибыль", total_profit),
+        ],
+    )
+    add_table(
+        doc,
+        "Показатели по сегментам",
+        [
+            "Сегмент",
+            "Группа",
+            "Выручка",
+            "Себестоимость",
+            "Валовая прибыль",
+            "Валовая маржа",
+            "Наценка",
+            "Количество",
+        ],
+        [
+            [
+                item["segment"],
+                item["group"],
+                item["revenue"],
+                item["cogs"],
+                item["gross_profit"],
+                format_percent(item["gross_margin_pct"]),
+                format_percent(item["markup_pct"]),
+                item["quantity"],
+            ]
+            for item in pivot
+        ],
+    )
+    add_signatures_section(doc, company, show_seal, show_signatures)
+    filename = f"{period}_bdr_{now.strftime('%Y%m%d')}.docx"
+    return save_docx_response(doc, filename)
 
 
 def finance_required(view):
@@ -921,13 +1573,16 @@ def bdds_calendar():
 @login_required
 @finance_required
 def bdds_forecast():
-    base_date = datetime.now().date()
-    start_date = datetime.combine(base_date, datetime.min.time())
+    date_str = request.args.get("start_date", datetime.now().strftime("%Y-%m-%d"))
+    try:
+        start_date = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        start_date = datetime.now()
+    start_date = datetime.combine(start_date.date(), datetime.min.time())
     end_date = start_date + timedelta(days=30)
     rows = _build_cash_calendar_rows(start_date, end_date)
 
     if rows:
-        saturdays = [r for r in rows if r["balance"] < 0][-3:]
         critical_dates = [r["date"] for r in rows if r["balance"] < 0]
     else:
         critical_dates = []
@@ -935,6 +1590,8 @@ def bdds_forecast():
     return render_template(
         "finance/bdds_forecast.html",
         rows=rows,
+        start_date=start_date.date().isoformat(),
+        end_date=end_date.date().isoformat(),
         ending_balance=rows[-1]["balance"] if rows else 0,
         critical_dates=critical_dates,
     )
@@ -1198,22 +1855,23 @@ def dashboard_print():
     
     company = CompanyProfile.query.first()
     
-    return render_template(
-        "finance/print/dashboard_print.html",
+    return build_dashboard_docx(
         company=company,
         period=period,
-        net_profit=net_profit,
-        cash_balance=cash_amount,
-        roe=roe,
-        breakeven=breakeven,
-        strength_buffer=strength_buffer,
         revenue=revenue,
+        cogs=cogs,
+        gross_profit=gross_profit,
+        operating_expenses=operating_expenses,
+        net_profit=net_profit,
         inventory_value=inventory_value,
-        cash_balance_detail=cash_amount,
-        payables=payables,
+        cash_amount=cash_amount,
+        receivables=receivables,
         assets=assets,
         liabilities=liabilities,
         equity=equity,
+        roe=roe,
+        breakeven=breakeven,
+        strength_buffer=strength_buffer,
         show_seal=show_seal,
         show_signatures=show_signatures,
         now=datetime.now(),
@@ -1262,8 +1920,7 @@ def management_balance_print():
     
     company = CompanyProfile.query.first()
     
-    return render_template(
-        "finance/print/management_balance_print.html",
+    return build_management_balance_docx(
         company=company,
         snapshot_date=snapshot_date.date(),
         inventory_value=inventory_value,
@@ -1377,12 +2034,9 @@ def plan_fact_analysis_print():
     
     company = CompanyProfile.query.first()
     
-    return render_template(
-        "finance/print/plan_fact_print.html",
+    return build_plan_fact_analysis_docx(
         company=company,
         period=period,
-        start_date=start_date,
-        end_date=end_date,
         analysis=analysis,
         deviations=deviations,
         deviations_alpha=deviations_alpha,
@@ -1456,11 +2110,9 @@ def cash_flow_print():
     
     company = CompanyProfile.query.first()
     
-    return render_template(
-        "finance/print/cash_flow_print.html",
+    return build_cash_flow_docx(
         company=company,
         period=period,
-        rows=rows,
         active_rows=active_rows,
         total_incoming=sum(row["incoming"] for row in rows),
         total_outgoing_paid=sum(row["outgoing_paid"] for row in rows),
@@ -1477,24 +2129,26 @@ def cash_flow_print():
 @finance_required
 def bdds_forecast_print():
     """Печать прогноза денежных потоков"""
+    start_date_str = request.args.get("start_date", datetime.now().strftime("%Y-%m-%d"))
     show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
     show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
-    
-    base_date = datetime.now().date()
-    start_date = datetime.combine(base_date, datetime.min.time())
+
+    try:
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+    except ValueError:
+        start_date = datetime.now()
+    start_date = datetime.combine(start_date.date(), datetime.min.time())
     end_date = start_date + timedelta(days=30)
     rows = _build_cash_calendar_rows(start_date, end_date)
-    
+
     if rows:
-        saturdays = [r for r in rows if r["balance"] < 0][-3:]
         critical_dates = [r["date"] for r in rows if r["balance"] < 0]
     else:
         critical_dates = []
-    
+
     company = CompanyProfile.query.first()
-    
-    return render_template(
-        "finance/print/bdds_forecast_print.html",
+
+    return build_bdds_forecast_docx(
         company=company,
         rows=rows,
         ending_balance=rows[-1]["balance"] if rows else 0,
@@ -1570,8 +2224,7 @@ def settlements_print():
     
     company = CompanyProfile.query.first()
     
-    return render_template(
-        "finance/print/settlements_print.html",
+    return build_settlements_docx(
         company=company,
         period=period,
         customer_rows=customer_rows,
@@ -1617,8 +2270,7 @@ def budget_print():
     
     company = CompanyProfile.query.first()
     
-    return render_template(
-        "finance/print/budget_print.html",
+    return build_budget_docx(
         company=company,
         period=period,
         income_items=income_items,
@@ -1649,8 +2301,7 @@ def bdr_report_print():
     
     company = CompanyProfile.query.first()
     
-    return render_template(
-        "finance/print/bdr_print.html",
+    return build_bdr_docx(
         company=company,
         period=period,
         pivot=pivot,

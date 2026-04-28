@@ -4,13 +4,22 @@
 
 {% block content %}
 <div class="surface p-4 mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-0">Прогноз движения денежных средств на 30 дней</h1>
-        <a href="{{ url_for('finance.bdds_forecast_print') }}" class="btn btn-sm btn-outline-primary" target="_blank">
-            <i class="bi bi-printer"></i> Печать
-        </a>
-    </div>
-    <p class="text-secondary">Период: от {{ rows[0].date if rows else '—' }} до {{ rows[-1].date if rows else '—' }}</p>
+    <form method="get" class="row gx-3 gy-2 align-items-end mb-3">
+        <div class="col-auto">
+            <label for="start_date" class="form-label mb-1">Начало периода</label>
+            <input class="form-control" id="start_date" name="start_date" type="date" value="{{ start_date }}">
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary" type="submit">Показать</button>
+        </div>
+        <div class="col-auto ms-auto">
+            <a href="{{ url_for('finance.bdds_forecast_print', start_date=start_date) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                <i class="bi bi-printer"></i> Печать
+            </a>
+        </div>
+    </form>
+    <h1 class="h4 mb-3">Прогноз движения денежных средств на 30 дней</h1>
+    <p class="text-secondary">Период: от {{ start_date }} до {{ end_date }}</p>
     <p class="mb-2">Ожидаемый остаток: <strong>{{ "%.2f"|format(ending_balance) }} ₽</strong></p>
 
     {% if ending_balance <= 0 %}

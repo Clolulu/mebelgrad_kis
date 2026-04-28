@@ -42,6 +42,7 @@
                     <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">Входящие платежи</div>
                         <div class="small text-secondary mb-3">Реестр оплат от клиентов с фильтрами по периоду, заказу и фискальному номеру.</div>
+                        <div class="small text-secondary mb-3">Финансист проверяет приходные документы, контролирует поступления и сверяет фактические кассовые поступления с планом.</div>
                         <a href="{{ url_for('finance.incoming_payments') }}" class="btn btn-outline-dark btn-sm">Открыть реестр</a>
                     </div>
                 </div>
@@ -49,6 +50,7 @@
                     <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">Исходящие заявки на оплату</div>
                         <div class="small text-secondary mb-3">Контроль заказов поставщикам, статусов оплаты и ожидаемых кассовых выплат.</div>
+                        <div class="small text-secondary mb-3">Финансист согласовывает и утверждает заявки на финансирование, проверяет наличие источников оплаты.</div>
                         <a href="{{ url_for('finance.outgoing_payments') }}" class="btn btn-outline-dark btn-sm">Открыть реестр</a>
                     </div>
                 </div>
@@ -56,6 +58,7 @@
                     <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">Бюджетирование</div>
                         <div class="small text-secondary mb-3">Плановые доходы и расходы по статьям, периодам и управленческим категориям.</div>
+                        <div class="small text-secondary mb-3">Формирование годовой и месячной сметы БДДС, контроль исполнения статей бюджета движения денежных средств.</div>
                         <a href="{{ url_for('finance.budget') }}" class="btn btn-outline-dark btn-sm">Открыть бюджет</a>
                     </div>
                 </div>
@@ -63,6 +66,7 @@
                     <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">План-фактный анализ</div>
                         <div class="small text-secondary mb-3">Сравнение факта по продажам и закупкам с бюджетными ориентирами периода.</div>
+                        <div class="small text-secondary mb-3">Анализ отклонений бюджета и оперативное выявление статей, требующих корректировки.</div>
                         <a href="{{ url_for('finance.plan_fact_analysis') }}" class="btn btn-outline-dark btn-sm">Открыть анализ</a>
                     </div>
                 </div>
@@ -70,6 +74,7 @@
                     <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">Календарь денежных средств</div>
                         <div class="small text-secondary mb-3">Дневной разрез поступлений, фактических выплат и ожидаемых кассовых разрывов.</div>
+                        <div class="small text-secondary mb-3">Ведение оперативного кассового плана по статьям БДДС и контроль ежедневных остатков.</div>
                         <a href="{{ url_for('finance.bdds_calendar') }}" class="btn btn-outline-dark btn-sm">Открыть календарь</a>
                         <a href="{{ url_for('finance.bdds_forecast') }}" class="btn btn-outline-dark btn-sm mt-2">Прогноз на 30 дней</a>
                     </div>
@@ -78,6 +83,7 @@
                     <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">БДР по сегментам</div>
                         <div class="small text-secondary mb-3">Валовая прибыль и маржинальность по товарным группам и каналам.</div>
+                        <div class="small text-secondary mb-3">Контроль прибыли на сегменты, согласование договоров и ценообразования по курируемым статьям.</div>
                         <a href="{{ url_for('finance.bdr_report') }}" class="btn btn-outline-dark btn-sm">Открыть БДР</a>
                     </div>
                 </div>
@@ -85,6 +91,7 @@
                     <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">Управленческий баланс</div>
                         <div class="small text-secondary mb-3">Баланс активов и обязательств на любую дату.</div>
+                        <div class="small text-secondary mb-3">Проверка ликвидности, дебиторки и кредиторки перед согласованием финансовых планов.</div>
                         <a href="{{ url_for('finance.management_balance') }}" class="btn btn-outline-dark btn-sm">Открыть баланс</a>
                     </div>
                 </div>
@@ -92,6 +99,7 @@
                     <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">Executive Dashboard</div>
                         <div class="small text-secondary mb-3">Основные KPI и финансовые индикаторы для владельца.</div>
+                        <div class="small text-secondary mb-3">Сформируйте управленческий отчет по выбранному периоду и контролируйте ключевые финансовые допуски.</div>
                         <a href="{{ url_for('finance.dashboard') }}" class="btn btn-outline-dark btn-sm">Открыть дашборд</a>
                         <a href="{{ url_for('finance.finance_help') }}" class="btn btn-outline-dark btn-sm mt-2">Открыть методичку</a>
                     </div>
@@ -100,6 +108,7 @@
                     <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">Взаиморасчеты</div>
                         <div class="small text-secondary mb-3">Аналитика по заказам клиентов, задолженности и кредиторской нагрузке по поставщикам.</div>
+                        <div class="small text-secondary mb-3">Проверка взаимных требований, контроль расчетов по договорам и обеспеченность финансированием.</div>
                         <a href="{{ url_for('finance.settlements') }}" class="btn btn-outline-dark btn-sm">Открыть расчеты</a>
                     </div>
                 </div>
@@ -127,16 +136,17 @@
                 </div>
             </form>
             <div class="surface p-3">
-                <div class="text-uppercase text-secondary small mb-2">PDF-отчеты</div>
+                <div class="text-uppercase text-secondary small mb-2">DOCX-отчеты</div>
+                <div class="small text-secondary mb-3">Нажмите кнопку, выберите период и сформируйте отчет по актуальному периоду управления финансами.</div>
                 <div class="d-grid gap-2">
-                    <a href="{{ url_for('finance.dashboard_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF дашборд</a>
-                    <a href="{{ url_for('finance.plan_fact_analysis_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF план-факт</a>
-                    <a href="{{ url_for('finance.budget_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF бюджет</a>
-                    <a href="{{ url_for('finance.bdr_report_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF БДР</a>
-                    <a href="{{ url_for('finance.cash_flow_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF кассовый отчет</a>
-                    <a href="{{ url_for('finance.management_balance_print', date=current_period ~ '-01', show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF управление баланс</a>
-                    <a href="{{ url_for('finance.settlements_print', period=current_period, show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF взаиморасчеты</a>
-                    <a href="{{ url_for('finance.bdds_forecast_print', show_seal=1, show_signatures=1) }}" target="_blank" class="btn btn-outline-dark btn-sm">PDF прогноз 30 дней</a>
+                    <button type="button" data-report-url="{{ url_for('finance.dashboard_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX дашборд</button>
+                    <button type="button" data-report-url="{{ url_for('finance.plan_fact_analysis_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX план-факт</button>
+                    <button type="button" data-report-url="{{ url_for('finance.budget_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX бюджет</button>
+                    <button type="button" data-report-url="{{ url_for('finance.bdr_report_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX БДР</button>
+                    <button type="button" data-report-url="{{ url_for('finance.cash_flow_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX кассовый отчет</button>
+                    <button type="button" data-report-url="{{ url_for('finance.management_balance_print') }}" data-mode="date" data-default-value="{{ current_period ~ '-01' }}" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX управление баланс</button>
+                    <button type="button" data-report-url="{{ url_for('finance.settlements_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX взаиморасчеты</button>
+                    <button type="button" data-report-url="{{ url_for('finance.bdds_forecast_print') }}" data-mode="start_date" data-default-value="{{ current_period ~ '-01' }}" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX прогноз 30 дней</button>
                 </div>
             </div>
         </div>
@@ -194,5 +204,92 @@
             </div>
         </div>
     </div>
+        </div>
+    </div>
 </div>
+
+<div class="modal fade" id="docxPeriodModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Выберите период отчета</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <form id="docxPeriodForm" class="modal-body">
+                <input type="hidden" id="docxReportUrl">
+                <input type="hidden" id="docxMode">
+                <div class="mb-3" id="docxPeriodGroup">
+                    <label for="docxPeriodInput" class="form-label">Период</label>
+                    <input id="docxPeriodInput" type="month" class="form-control" value="{{ current_period }}">
+                </div>
+                <div class="mb-3 d-none" id="docxDateGroup">
+                    <label for="docxDateInput" class="form-label">Дата отчета</label>
+                    <input id="docxDateInput" type="date" class="form-control" value="{{ current_period ~ '-01' }}">
+                </div>
+                <div class="mb-3 d-none" id="docxStartDateGroup">
+                    <label for="docxStartDateInput" class="form-label">Начало периода</label>
+                    <input id="docxStartDateInput" type="date" class="form-control" value="{{ current_period ~ '-01' }}">
+                </div>
+            </form>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" id="docxSubmitButton" class="btn btn-primary">Сформировать DOCX</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const periodModal = new bootstrap.Modal(document.getElementById('docxPeriodModal'));
+    const reportUrlInput = document.getElementById('docxReportUrl');
+    const modeInput = document.getElementById('docxMode');
+    const periodGroup = document.getElementById('docxPeriodGroup');
+    const dateGroup = document.getElementById('docxDateGroup');
+    const startDateGroup = document.getElementById('docxStartDateGroup');
+    const periodInput = document.getElementById('docxPeriodInput');
+    const dateInput = document.getElementById('docxDateInput');
+    const startDateInput = document.getElementById('docxStartDateInput');
+
+    document.querySelectorAll('.docx-report-btn').forEach(button => {
+        button.addEventListener('click', event => {
+            const reportUrl = button.getAttribute('data-report-url');
+            const mode = button.getAttribute('data-mode');
+            const defaultValue = button.getAttribute('data-default-value');
+            reportUrlInput.value = reportUrl;
+            modeInput.value = mode;
+            periodGroup.classList.toggle('d-none', mode !== 'period');
+            dateGroup.classList.toggle('d-none', mode !== 'date');
+            startDateGroup.classList.toggle('d-none', mode !== 'start_date');
+            if (defaultValue) {
+                if (mode === 'date') {
+                    dateInput.value = defaultValue;
+                } else if (mode === 'start_date') {
+                    startDateInput.value = defaultValue;
+                }
+            }
+            periodModal.show();
+        });
+    });
+
+    document.getElementById('docxSubmitButton').addEventListener('click', () => {
+        const reportUrl = reportUrlInput.value;
+        const mode = modeInput.value;
+        let href = reportUrl;
+        if (mode === 'date') {
+            const dateValue = dateInput.value;
+            href += `?date=${encodeURIComponent(dateValue)}&show_seal=1&show_signatures=1`;
+        } else if (mode === 'start_date') {
+            const startValue = startDateInput.value;
+            href += `?start_date=${encodeURIComponent(startValue)}&show_seal=1&show_signatures=1`;
+        } else {
+            const periodValue = periodInput.value;
+            href += `?period=${encodeURIComponent(periodValue)}&show_seal=1&show_signatures=1`;
+        }
+        window.open(href, '_blank');
+        periodModal.hide();
+    });
+</script>
 {% endblock %}

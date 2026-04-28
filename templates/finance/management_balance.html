@@ -4,12 +4,20 @@
 
 {% block content %}
 <div class="surface p-4">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Управленческий баланс на {{ snapshot_date }}</h1>
-    <a href="{{ url_for('finance.management_balance_print', date=snapshot_date.strftime('%Y-%m-%d')) }}" class="btn btn-sm btn-outline-primary" target="_blank">
-      <i class="bi bi-printer"></i> Печать
-    </a>
-  </div>
+  <form method="get" class="row gx-3 gy-2 align-items-end mb-3">
+    <div class="col-auto">
+      <label for="date" class="form-label mb-1">Дата</label>
+      <input id="date" name="date" type="date" class="form-control" value="{{ snapshot_date }}">
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-primary" type="submit">Показать</button>
+    </div>
+    <div class="col-auto ms-auto">
+      <a href="{{ url_for('finance.management_balance_print', date=snapshot_date.strftime('%Y-%m-%d')) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+        <i class="bi bi-printer"></i> Печать
+      </a>
+    </div>
+  </form>
   <div class="row gy-3">
     <div class="col-md-3"><div class="surface p-3"><div class="text-secondary">Запасы</div><div class="h5">{{ "%.2f"|format(inventory_value) }} ₽</div></div></div>
     <div class="col-md-3"><div class="surface p-3"><div class="text-secondary">Денежные средства</div><div class="h5">{{ "%.2f"|format(cash_amount) }} ₽</div></div></div>

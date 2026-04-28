@@ -20,8 +20,8 @@
             {% endif %}
         </div>
         <div class="signature-line">_________________</div>
-        <div class="signature-name">{{ company.ceo_name }}</div>
-        <div class="signature-position">{{ company.ceo_position }}</div>
+        <div class="signature-name">{{ company.ceo }}</div>
+        <div class="signature-position">{{ company.ceo_position or 'Генеральный директор' }}</div>
     </div>
     
     <div class="signature">
@@ -41,6 +41,12 @@
     <div class="signature" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
         <img src="{{ company.seal_url }}" alt="Печать" style="max-width: 120px; max-height: 120px; opacity: 0.5;">
         <div style="font-size: 11px; color: #666; margin-top: 10px;">М.П.</div>
+    </div>
+    {% endif %}
+
+    {% if show_seal and company.seal_url %}
+    <div class="seal-overlay">
+        <img src="{{ company.seal_url }}" alt="Печать" />
     </div>
     {% endif %}
 </div>
