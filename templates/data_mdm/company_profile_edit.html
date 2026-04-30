@@ -24,7 +24,7 @@
                     <h5 class="mb-0">Редактирование профиля компании</h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST" action="{{ url_for('mdm.edit_company_profile') }}">
+                    <form id="company_profile_form" method="POST" action="{{ url_for('mdm.edit_company_profile') }}" novalidate>
                         <div class="row">
                             <div class="col-md-6">
                                 <h6>Основная информация</h6>
@@ -93,7 +93,7 @@
                                 <h6>Контакты и банки</h6>
                                 <div class="mb-3">
                                     <label for="website" class="form-label">Сайт</label>
-                                    <input type="url" class="form-control" id="website" name="website" value="{{ profile.website }}">
+                                    <input type="text" class="form-control" id="website" name="website" value="{{ profile.website }}" placeholder="https://...">
                                 </div>
                                 <div class="mb-3">
                                     <label for="bank_name" class="form-label">Банк</label>
@@ -114,30 +114,27 @@
                                 <h6>Визуальные элементы</h6>
                                 <div class="mb-3">
                                     <label for="logo_url" class="form-label">URL логотипа</label>
-                                    <input type="url" class="form-control" id="logo_url" name="logo_url" value="{{ profile.logo_url }}">
-                                    {% if profile.logo_url %}
+                                    <input type="text" class="form-control" id="logo_url" name="logo_url" value="{{ profile.logo_url }}" placeholder="https://example.com/logo.png">
                                     <div class="mt-2">
-                                        <img src="{{ profile.logo_url }}" alt="Логотип" class="img-fluid" style="max-height: 100px;">
+                                        <img id="logo_preview" src="{{ profile.logo_url or '' }}" alt="Логотип" class="img-fluid" style="max-height: 100px; {% if not profile.logo_url %}display:none;{% endif %}">
+                                        <div id="logo_preview_empty" class="text-secondary small" style="{% if profile.logo_url %}display:none;{% endif %}">Превью появится после вставки URL логотипа.</div>
                                     </div>
-                                    {% endif %}
                                 </div>
                                 <div class="mb-3">
                                     <label for="seal_url" class="form-label">URL печати</label>
-                                    <input type="url" class="form-control" id="seal_url" name="seal_url" value="{{ profile.seal_url }}">
-                                    {% if profile.seal_url %}
+                                    <input type="text" class="form-control" id="seal_url" name="seal_url" value="{{ profile.seal_url }}" placeholder="https://example.com/seal.png">
                                     <div class="mt-2">
-                                        <img src="{{ profile.seal_url }}" alt="Печать" class="img-fluid" style="max-height: 100px;">
+                                        <img id="seal_preview" src="{{ profile.seal_url or '' }}" alt="Печать" class="img-fluid" style="max-height: 100px; {% if not profile.seal_url %}display:none;{% endif %}">
+                                        <div id="seal_preview_empty" class="text-secondary small" style="{% if profile.seal_url %}display:none;{% endif %}">Превью печати появится после вставки URL.</div>
                                     </div>
-                                    {% endif %}
                                 </div>
                                 <div class="mb-3">
                                     <label for="signature_url" class="form-label">URL подписи</label>
-                                    <input type="url" class="form-control" id="signature_url" name="signature_url" value="{{ profile.signature_url }}">
-                                    {% if profile.signature_url %}
+                                    <input type="text" class="form-control" id="signature_url" name="signature_url" value="{{ profile.signature_url }}" placeholder="https://example.com/signature.png">
                                     <div class="mt-2">
-                                        <img src="{{ profile.signature_url }}" alt="Подпись" class="img-fluid" style="max-height: 100px;">
+                                        <img id="signature_preview" src="{{ profile.signature_url or '' }}" alt="Подпись" class="img-fluid" style="max-height: 100px; {% if not profile.signature_url %}display:none;{% endif %}">
+                                        <div id="signature_preview_empty" class="text-secondary small" style="{% if profile.signature_url %}display:none;{% endif %}">Превью подписи появится после вставки URL.</div>
                                     </div>
-                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -155,6 +152,37 @@
 </div>
 
 <script>
+function updateProfilePreview(inputId, imageId, emptyId) {
+    const input = document.getElementById(inputId);
+    const image = document.getElementById(imageId);
+    const empty = document.getElementById(emptyId);
+
+    function refresh() {
+        const url = input.value.trim();
+        if (url) {
+            image.src = url;
+            image.style.display = 'block';
+            empty.style.display = 'none';
+        } else {
+            image.style.display = 'none';
+            empty.textContent = 'Превью появится после вставки URL.';
+            empty.style.display = 'block';
+        }
+    }
+
+    input.addEventListener('input', refresh);
+    image.addEventListener('error', function() {
+        image.style.display = 'none';
+        empty.textContent = 'Неверный URL или изображение недоступно.';
+        empty.style.display = 'block';
+    });
+    image.addEventListener('load', function() {
+        empty.style.display = 'none';
+    });
+
+    refresh();
+}
+
 document.getElementById('legal_form').addEventListener('change', function() {
     const kppField = document.getElementById('kpp_field');
     const ceoPositionField = document.getElementById('ceo_position_field');
@@ -175,5 +203,15 @@ document.getElementById('legal_form').addEventListener('change', function() {
         ceoLabel.textContent = 'Руководитель *';
     }
 });
+
+updateProfilePreview('logo_url', 'logo_preview', 'logo_preview_empty');
+updateProfilePreview('seal_url', 'seal_preview', 'seal_preview_empty');
+updateProfilePreview('signature_url', 'signature_preview', 'signature_preview_empty');
+
+// Инициализируем отображение правильных полей при загрузке страницы.
+const legalFormSelect = document.getElementById('legal_form');
+if (legalFormSelect) {
+    legalFormSelect.dispatchEvent(new Event('change'));
+}
 </script>
 {% endblock %}

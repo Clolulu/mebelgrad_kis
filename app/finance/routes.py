@@ -909,6 +909,8 @@ def outgoing_payments():
     page = request.args.get("page", 1, type=int)
     q = request.args.get("q", "").strip()
     status = request.args.get("status", "").strip()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
 
     query = PurchaseOrder.query.join(Supplier)
     if q:
@@ -922,6 +924,18 @@ def outgoing_payments():
         query = query.filter(PurchaseOrder.is_paid.is_(True))
     elif status == "unpaid":
         query = query.filter(PurchaseOrder.is_paid.is_(False))
+    if date_from:
+        try:
+            query = query.filter(PurchaseOrder.order_date >= datetime.strptime(date_from, "%Y-%m-%d"))
+        except ValueError:
+            flash("Некорректная дата начала периода.", "warning")
+    if date_to:
+        try:
+            query = query.filter(
+                PurchaseOrder.order_date < datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            )
+        except ValueError:
+            flash("Некорректная дата окончания периода.", "warning")
 
     purchase_orders = query.order_by(PurchaseOrder.order_date.desc()).paginate(page=page, per_page=20)
     filtered = query.all()
@@ -930,6 +944,8 @@ def outgoing_payments():
         purchase_orders=purchase_orders,
         q=q,
         status=status,
+        date_from=date_from,
+        date_to=date_to,
         pending_amount=sum(order.total_amount for order in filtered if not order.is_paid),
         paid_amount=sum(order.total_amount for order in filtered if order.is_paid),
         pending_count=sum(1 for order in filtered if not order.is_paid),

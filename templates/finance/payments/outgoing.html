@@ -16,10 +16,27 @@
 </div>
 
 <div class="surface p-4 mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between mb-3 gap-3">
+        <div>
+            <div class="text-secondary small">Период и фильтры задают набор заявок к оплате.</div>
+            <div class="text-secondary small">Отчет печатается для выбранного набора заявок.</div>
+        </div>
+        <button class="btn btn-outline-secondary" type="button" onclick="window.print()">
+            <i class="bi bi-printer"></i> Печать отчета
+        </button>
+    </div>
     <form method="get" class="row g-3">
-        <div class="col-lg-8">
+        <div class="col-lg-4">
             <label class="form-label" for="q">Поиск</label>
             <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Номер заказа или поставщик">
+        </div>
+        <div class="col-lg-2">
+            <label class="form-label" for="date_from">Дата с</label>
+            <input class="form-control" id="date_from" name="date_from" type="date" value="{{ date_from }}">
+        </div>
+        <div class="col-lg-2">
+            <label class="form-label" for="date_to">Дата по</label>
+            <input class="form-control" id="date_to" name="date_to" type="date" value="{{ date_to }}">
         </div>
         <div class="col-lg-2">
             <label class="form-label" for="status">Оплата</label>

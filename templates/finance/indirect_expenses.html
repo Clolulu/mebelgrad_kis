@@ -4,7 +4,15 @@
 
 {% block content %}
 <div class="surface p-4 mb-4">
-    <h1 class="h4 mb-3">Косвенные расходы</h1>
+    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between mb-3 gap-3">
+        <div>
+            <h1 class="h4 mb-1">Косвенные расходы</h1>
+            <div class="text-secondary small">Период показывает расходы по статьям БДДС, которые помогают строить месячный и годовой бюджет.</div>
+        </div>
+        <button class="btn btn-outline-secondary" type="button" onclick="window.print()">
+            <i class="bi bi-printer"></i> Печать отчета
+        </button>
+    </div>
     <form method="get" class="row g-3 mb-3">
         <div class="col-lg-10">
             <label class="form-label" for="period">Период</label>

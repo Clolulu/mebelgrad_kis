@@ -119,7 +119,15 @@ def register_blueprints(app):
 def register_routes(app):
     @app.context_processor
     def inject_layout_context():
-        return {"current_year": datetime.now().year}
+        company_profile = None
+        try:
+            company_profile = CompanyProfile.query.first()
+        except Exception:
+            company_profile = None
+        return {
+            "current_year": datetime.now().year,
+            "company_profile": company_profile,
+        }
 
     @app.route("/")
     def index():

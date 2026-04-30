@@ -61,7 +61,7 @@
             <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
                 <div>
                     <div class="text-uppercase text-secondary small">Рабочий модуль</div>
-                    <h2 class="h4 mb-1">Управление данными</h2>
+                    <h2 class="h4 mb-1"><a href="{{ url_for('mdm.index') }}" class="text-decoration-none text-reset">Управление данными</a></h2>
                 </div>
                 <span class="badge text-bg-dark">Ключевой контур</span>
             </div>
@@ -97,14 +97,14 @@
             <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
                 <div>
                     <div class="text-uppercase text-secondary small">Рабочий модуль</div>
-                    <h2 class="h4 mb-1">Планирование и управление финансами</h2>
+                    <h2 class="h4 mb-1"><a href="{{ url_for('finance.index') }}" class="text-decoration-none text-reset">Планирование и управление финансами</a></h2>
                 </div>
                 <span class="badge text-bg-success">Финансовый центр</span>
             </div>
             <p class="text-secondary">
                 Модуль охватывает казначейство, бюджетирование, план-фактный анализ, отчет о прибыли,
                 реестр взаиморасчетов и выгрузку проведенных документов в учетный контур.
-                Демонстрационные данные охватывают первый квартал 2026 года до 19 марта.
+                Рабочие данные доступны в текущем финансовом контуре, включая данные до 31 мая 2026 года.
             </p>
             <div class="row g-3 mb-3">
                 <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Платежный контроль</div><div class="small text-secondary">Входящие оплаты, исходящие заявки, статусы и задолженность.</div></div></div>
@@ -126,6 +126,48 @@
                     <span class="badge text-bg-secondary">Доступ бухгалтерии и администратору</span>
                 {% endif %}
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                    <div class="text-uppercase text-secondary small">Рабочий модуль</div>
+                    <h2 class="h4 mb-1"><a href="{{ url_for('warehouse_demo.demo') }}" class="text-decoration-none text-reset">Управление складом и закупками</a></h2>
+                </div>
+                <span class="badge text-bg-info">Рабочий модуль</span>
+            </div>
+            <p class="text-secondary">
+                Складской контур поддерживает процессы поступления, хранения и перемещения товаров.
+                Модуль интегрирован с мастер-данными и показывает реальные остатки и приемку закупок.
+            </p>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Остатки</div><div class="small text-secondary">Актуальные складские остатки по товарам и позициям.</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Поступления</div><div class="small text-secondary">План и фактически принятые закупки на склад.</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Перемещения</div><div class="small text-secondary">Внутренние перемещения между складами и филиалами.</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Закупки</div><div class="small text-secondary">Контроль заказов поставщикам и статусы приемки.</div></div></div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ url_for('warehouse_demo.demo') }}" class="btn btn-primary btn-sm">Открыть склад</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                    <div class="text-uppercase text-secondary small">Рабочий модуль</div>
+                    <h2 class="h4 mb-1"><a href="{{ url_for('sales_demo.demo') }}" class="text-decoration-none text-reset">Управление продажами, заказами и доставкой</a></h2>
+                </div>
+                <span class="badge text-bg-secondary">Скоро будет</span>
+            </div>
+            <p class="text-secondary mb-0">
+                Этот модуль находится в разработке и скоро будет доступен как полноценный рабочий контур.
+                В нём появятся управление заказами, доставка, обработка оплаты и управление продажами.
+            </p>
         </div>
     </div>
 </div>
@@ -152,8 +194,9 @@
             <div class="text-uppercase text-secondary small mb-2">Дорожная карта</div>
             <h2 class="h4 mb-3">Остальные контуры сохранены как демо</h2>
             <p class="text-secondary">
-                Модули склада, закупок, продаж и доставки оставлены отдельными демонстрационными контурами.
-                Они присутствуют в навигации, но рабочая нагрузка текущей версии сосредоточена на качестве данных
+                Модуль управления складом и закупками уже доступен и работает как полноценный контур.
+                Модуль управления продажами, заказами и доставкой пока остаётся демонстрационным — скоро будет полностью доступен.
+                Тем временем основная рабочая нагрузка текущей версии сосредоточена на качестве данных
                 и финансово-управленческой аналитике.
             </p>
             <div class="d-flex gap-2 flex-wrap">

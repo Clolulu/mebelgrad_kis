@@ -78,8 +78,15 @@
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('index') }}">
-                <span class="brand-mark">МГ</span>
-                <span>КИС "МебельГрад"</span>
+                {% if company_profile and company_profile.logo_url %}
+                    <div class="d-flex flex-column align-items-center">
+                        <img src="{{ company_profile.logo_url }}" alt="Логотип {{ company_profile.company_name }}" style="max-height:40px; width:auto; object-fit:contain; display:block;">
+                        <span class="small mt-1 text-white-75">КИС "МебельГрад"</span>
+                    </div>
+                {% else %}
+                    <span class="brand-mark">МГ</span>
+                    <span>КИС "МебельГрад"</span>
+                {% endif %}
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
                 <span class="navbar-toggler-icon"></span>
