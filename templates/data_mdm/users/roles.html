@@ -1,39 +1,49 @@
 {% extends "base.html" %}
 
-{% block title %}Роли MDM | КИС "МебельГрад"{% endblock %}
+{% block title %}Настройка прав доступа | КИС "МебельГрад"{% endblock %}
 
 {% block content %}
 <section class="hero-strip">
     <div>
-        <div class="text-uppercase text-secondary small">Управление данными / Роли</div>
-        <h1 class="h3 mb-2">Настройка прав доступа к MDM</h1>
-        <p class="mb-0">Установите для пользователя доступ к просмотру, редактированию и администрированию справочников.</p>
+        <div class="text-uppercase text-secondary small">Управление данными / Настройка прав доступа</div>
+        <h1 class="h3 mb-2">Настройка прав доступа</h1>
+        <p class="mb-0">Назначьте каждой роли права на просмотр и редактирование модулей.</p>
     </div>
 </section>
 
 <form method="post" class="surface p-4">
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Пользователь</th>
-                <th>admin</th>
-                <th>MDM admin</th>
-                <th>MDM editor</th>
-                <th>MDM viewer</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for user in users %}
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
                 <tr>
-                    <td>{{ user.username }}</td>
-                    <td>{{ 'Да' if user.is_admin else 'Нет' }}</td>
-                    <td><input type="checkbox" name="data_admin_{{ user.id }}" {% if user.is_data_admin %}checked{% endif %}></td>
-                    <td><input type="checkbox" name="data_editor_{{ user.id }}" {% if user.is_data_editor %}checked{% endif %}></td>
-                    <td><input type="checkbox" name="data_viewer_{{ user.id }}" {% if user.is_data_viewer %}checked{% endif %}></td>
+                    <th>Роль</th>
+                    <th>Просмотр MDM</th>
+                    <th>Редактирование MDM</th>
+                    <th>Просмотр финансов</th>
+                    <th>Редактирование финансов</th>
+                    <th>Просмотр склада</th>
+                    <th>Редактирование склада</th>
+                    <th>Просмотр продаж</th>
+                    <th>Редактирование продаж</th>
                 </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                {% for role in roles %}
+                    <tr>
+                        <td>{{ role.label }}</td>
+                        <td class="text-center"><input class="form-check-input" type="checkbox" name="can_view_mdm_{{ role.role_name }}" {% if role.can_view_mdm %}checked{% endif %}></td>
+                        <td class="text-center"><input class="form-check-input" type="checkbox" name="can_edit_mdm_{{ role.role_name }}" {% if role.can_edit_mdm %}checked{% endif %}></td>
+                        <td class="text-center"><input class="form-check-input" type="checkbox" name="can_view_finance_{{ role.role_name }}" {% if role.can_view_finance %}checked{% endif %}></td>
+                        <td class="text-center"><input class="form-check-input" type="checkbox" name="can_edit_finance_{{ role.role_name }}" {% if role.can_edit_finance %}checked{% endif %}></td>
+                        <td class="text-center"><input class="form-check-input" type="checkbox" name="can_view_warehouse_{{ role.role_name }}" {% if role.can_view_warehouse %}checked{% endif %}></td>
+                        <td class="text-center"><input class="form-check-input" type="checkbox" name="can_edit_warehouse_{{ role.role_name }}" {% if role.can_edit_warehouse %}checked{% endif %}></td>
+                        <td class="text-center"><input class="form-check-input" type="checkbox" name="can_view_sales_{{ role.role_name }}" {% if role.can_view_sales %}checked{% endif %}></td>
+                        <td class="text-center"><input class="form-check-input" type="checkbox" name="can_edit_sales_{{ role.role_name }}" {% if role.can_edit_sales %}checked{% endif %}></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     <button type="submit" class="btn btn-primary">Сохранить права</button>
 </form>
 {% endblock %}

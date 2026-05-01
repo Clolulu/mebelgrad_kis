@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование пользователя | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div>
+        <div class="text-uppercase text-secondary small">Управление данными / Пользователи</div>
+        <h1 class="h3 mb-2">Редактирование пользователя</h1>
+        <p class="mb-0">Обновите данные пользователя: {{ user.username }}</p>
+    </div>
+</section>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="surface p-4">
+            <form method="post" class="vstack gap-3">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label" for="username">Имя</label>
+                        <input class="form-control" id="username" name="username" value="{{ user.username }}" disabled>
+                        <small class="text-secondary">Имя не может быть изменено</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="email">Email</label>
+                        <input class="form-control" id="email" name="email" type="email" value="{{ user.email }}" required>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="phone">Телефон</label>
+                        <input class="form-control" id="phone" name="phone" type="tel" value="{{ user.phone }}" required>
+                    </div>
+                </div>
+
+                <div class="border-top pt-3">
+                    <h5 class="mb-3">Изменение пароля</h5>
+                    <small class="text-secondary d-block mb-2">Оставьте поля пустыми, если не хотите менять пароль</small>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label" for="password">Новый пароль</label>
+                            <input class="form-control" id="password" name="password" type="password">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="password_repeat">Повторите пароль</label>
+                            <input class="form-control" id="password_repeat" name="password_repeat" type="password">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-top pt-3">
+                    <h5 class="mb-3">Роли пользователя</h5>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" id="role_admin" name="role_admin" type="checkbox" {% if user.role_admin %}checked{% endif %}>
+                        <label class="form-check-label" for="role_admin">
+                            <strong>Админ</strong> - Полный доступ к системе
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" id="role_financier" name="role_financier" type="checkbox" {% if user.role_financier %}checked{% endif %}>
+                        <label class="form-check-label" for="role_financier">
+                            <strong>Финансист</strong> - Управление финансами и платежами
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" id="role_warehouse" name="role_warehouse" type="checkbox" {% if user.role_warehouse %}checked{% endif %}>
+                        <label class="form-check-label" for="role_warehouse">
+                            <strong>Кладовщик</strong> - Управление складом и остатками
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" id="role_seller" name="role_seller" type="checkbox" {% if user.role_seller %}checked{% endif %}>
+                        <label class="form-check-label" for="role_seller">
+                            <strong>Продавец</strong> - Оформление продаж и заказов
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-check">
+                    <input class="form-check-input" id="is_active" name="is_active" type="checkbox" {% if user.is_active %}checked{% endif %}>
+                    <label class="form-check-label" for="is_active">Активный аккаунт</label>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">Сохранить изменения</button>
+                    <a href="{{ url_for('mdm.users_list') }}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

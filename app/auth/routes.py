@@ -12,13 +12,13 @@ def login():
         return redirect(url_for("index"))
 
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         remember = request.form.get("remember") == "on"
 
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter_by(email=email).first()
         if user is None or not user.check_password(password):
-            flash("Неверное имя пользователя или пароль.", "danger")
+            flash("Неверный email или пароль.", "danger")
             return redirect(url_for("auth.login"))
 
         if not user.is_active:
@@ -89,10 +89,10 @@ def logout():
 @auth_bp.route("/api/login", methods=["POST"])
 def api_login():
     payload = request.get_json(silent=True) or {}
-    username = payload.get("username", "").strip()
+    email = payload.get("email", "").strip().lower()
     password = payload.get("password", "")
 
-    user = User.query.filter_by(username=username).first()
+    user = User.query.filter_by(email=email).first()
     if user is None or not user.check_password(password):
         return jsonify({"message": "Invalid credentials"}), 401
 

@@ -10,7 +10,7 @@
             <h1 class="h3 mb-2">Единый клиентский реестр</h1>
             <p class="mb-0">Физические и юридические лица, используемые в продажах, договорах, платежах и аналитике.</p>
         </div>
-        {% set can_edit = current_user.is_admin or current_user.is_data_admin or current_user.is_data_editor %}
+        {% set can_edit = current_user.can_edit_mdm %}
         {% if can_edit %}
             <a href="{{ url_for('mdm.create_customer') }}" class="btn btn-primary">Создать карточку клиента</a>
         {% else %}

@@ -72,7 +72,7 @@
             </p>
             <div class="row g-3 mb-3">
                 <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Номенклатура</div><div class="small text-secondary">Товары, единицы измерения, цены, активность, остатки и резерв.</div></div></div>
-                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Контрагенты и сотрудники</div><div class="small text-secondary">Единые карточки клиентов, поставщиков и кадрового справочника.</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Контрагенты и пользователи</div><div class="small text-secondary">Единые карточки клиентов, поставщиков и учетных записей доступа.</div></div></div>
                 <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Контроль качества данных</div><div class="small text-secondary">Полнота контактов, критические остатки, неактивные записи и разрез по единицам хранения.</div></div></div>
                 <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Операционный срез</div><div class="small text-secondary">Обзор доступного товарного остатка для согласованной работы с другими контурами.</div></div></div>
             </div>
@@ -82,7 +82,7 @@
                     <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-dark btn-sm">Номенклатура</a>
                     <a href="{{ url_for('mdm.customers_list') }}" class="btn btn-outline-dark btn-sm">Клиенты</a>
                     <a href="{{ url_for('mdm.suppliers_list') }}" class="btn btn-outline-dark btn-sm">Поставщики</a>
-                    <a href="{{ url_for('mdm.employees_list') }}" class="btn btn-outline-dark btn-sm">Сотрудники</a>
+                    <a href="{{ url_for('mdm.users_list') }}" class="btn btn-outline-dark btn-sm">Пользователи</a>
                     <a href="{{ url_for('mdm.stock_list') }}" class="btn btn-outline-dark btn-sm">Остатки</a>
                     <a href="{{ url_for('mdm.quality_dashboard') }}" class="btn btn-outline-dark btn-sm">Качество данных</a>
                 {% else %}

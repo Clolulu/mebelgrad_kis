@@ -13,8 +13,8 @@
             </div>
             <form method="post" class="vstack gap-3">
                 <div>
-                    <label class="form-label" for="username">Логин</label>
-                    <input class="form-control" id="username" name="username" required autofocus>
+                    <label class="form-label" for="email">Email</label>
+                    <input class="form-control" id="email" name="email" type="email" required autofocus>
                 </div>
                 <div>
                     <label class="form-label" for="password">Пароль</label>
@@ -30,8 +30,8 @@
 
         <div class="surface p-4 mt-3">
             <h2 class="h6">Демо-учетные записи</h2>
-            <div class="small">Администратор: <code>admin / admin123</code></div>
-            <div class="small">Бухгалтер: <code>finance / finance123</code></div>
+            <div class="small">Администратор: <code>admin@mebelgrad.local / admin123</code></div>
+            <div class="small">Бухгалтер: <code>finance@mebelgrad.local / finance123</code></div>
             {% if first_admin_available %}
                 <a href="{{ url_for('auth.register') }}" class="btn btn-link px-0 mt-2">Создать первого администратора</a>
             {% endif %}
