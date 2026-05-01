@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Cash Flow и БДДС | КИС "МебельГрад"{% endblock %}
+{% block title %}Движение денежных средств и БДДС | КИС "МебельГрад"{% endblock %}
 
 {% block content %}
 <section class="hero-strip">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
         <div>
             <div class="text-uppercase text-secondary small">Финансы / Казначейство</div>
-            <h1 class="h3 mb-2">Cash Flow и БДДС</h1>
-            <p class="mb-0">{{ method_note }} P&amp;L на отдельной странице считается по начислению.</p>
+            <h1 class="h3 mb-2">Движение денежных средств и БДДС</h1>
+            <p class="mb-0">{{ method_note }} Отчет о прибылях и убытках на отдельной странице считается по начислению.</p>
         </div>
         <form method="get" class="d-flex gap-2">
             <input class="form-control" name="period" type="month" value="{{ period }}" style="max-width: 11rem;">

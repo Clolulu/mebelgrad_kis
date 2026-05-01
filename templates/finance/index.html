@@ -8,12 +8,12 @@
         <div>
             <div class="text-uppercase text-secondary small mb-2">Финансы / учебное демо</div>
             <h1 class="h3 mb-2">Рабочее место финансиста</h1>
-            <p class="mb-0">БДДС, платежный календарь, P&amp;L по начислению, управленческий баланс, бюджетирование и demo-интеграции. Данные симулируются локально, реальные банки и гос.сервисы не вызываются.</p>
+            <p class="mb-0">БДДС, платежный календарь, отчет о прибылях и убытках по начислению, управленческий баланс, бюджетирование и демо-интеграции. Данные симулируются локально, реальные банки и гос.сервисы не вызываются.</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <a href="{{ url_for('finance.dashboard') }}" class="btn btn-primary">Dashboard</a>
+            <a href="{{ url_for('finance.dashboard') }}" class="btn btn-primary">Дашборд</a>
             <a href="{{ url_for('finance.payment_requests') }}" class="btn btn-primary">Платежные заявки</a>
-            <a href="{{ url_for('finance.integrations') }}" class="btn btn-outline-dark">Интеграции demo</a>
+            <a href="{{ url_for('finance.integrations') }}" class="btn btn-outline-dark">Демо-интеграции</a>
             <a href="{{ url_for('finance.finance_help') }}" class="btn btn-outline-dark">Справка</a>
         </div>
     </div>
@@ -24,7 +24,7 @@
     <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Кассовый разрыв</div><div class="h5 mb-0">{% if cash_gap_date %}{{ cash_gap_date.strftime("%d.%m.%Y") }}{% else %}нет{% endif %}</div></div></div>
     <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Дебиторка</div><div class="h4 mb-0">{{ "%.0f"|format(receivables) }} руб.</div></div></div>
     <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Кредиторка</div><div class="h4 mb-0">{{ "%.0f"|format(payables) }} руб.</div></div></div>
-    <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Net Profit</div><div class="h4 mb-0 {% if net_profit < 0 %}text-danger{% endif %}">{{ "%.0f"|format(net_profit) }} руб.</div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Чистая прибыль</div><div class="h4 mb-0 {% if net_profit < 0 %}text-danger{% endif %}">{{ "%.0f"|format(net_profit) }} руб.</div></div></div>
     <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Бюджет, откл.</div><div class="h4 mb-0 {% if budget_variance_pct >= 20 or budget_variance_pct <= -20 %}text-danger{% elif budget_variance_pct >= 10 or budget_variance_pct <= -10 %}text-warning{% endif %}">{{ "%.1f"|format(budget_variance_pct) }}%</div></div></div>
 </div>
 
@@ -32,7 +32,7 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <div class="text-uppercase text-secondary small">Финансовые разделы</div>
-            <div class="fw-semibold">БДДС, взаиморасчеты, БДР, dashboard и справка</div>
+            <div class="fw-semibold">БДДС, взаиморасчеты, БДР, дашборд и справка</div>
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <a href="{{ url_for('finance.bdds_forecast') }}" class="btn btn-outline-dark btn-sm">
@@ -45,7 +45,7 @@
                 <i class="bi bi-bar-chart"></i> БДР
             </a>
             <a href="{{ url_for('finance.dashboard') }}" class="btn btn-outline-dark btn-sm">
-                <i class="bi bi-speedometer2"></i> Dashboard
+                <i class="bi bi-speedometer2"></i> Дашборд
             </a>
             <a href="{{ url_for('finance.finance_help') }}" class="btn btn-outline-dark btn-sm">
                 <i class="bi bi-question-circle"></i> Справка
@@ -58,10 +58,10 @@
     <div class="col-md-6 col-xl-4">
         <div class="surface p-4 h-100">
             <div class="text-uppercase text-secondary small mb-2">Казначейство</div>
-            <h2 class="h5">Cash Flow и платежный календарь</h2>
+            <h2 class="h5">Движение денежных средств и платежный календарь</h2>
             <p class="text-secondary">Факт по счетам, БДДС по группам, план/факт входящих и исходящих платежей.</p>
             <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ url_for('finance.cash_flow') }}" class="btn btn-outline-dark btn-sm">Cash Flow</a>
+                <a href="{{ url_for('finance.cash_flow') }}" class="btn btn-outline-dark btn-sm">Движение денег</a>
                 <a href="{{ url_for('finance.bdds_calendar') }}" class="btn btn-outline-dark btn-sm">Календарь</a>
                 <a href="{{ url_for('finance.bdds_forecast') }}" class="btn btn-outline-dark btn-sm">Прогноз БДДС</a>
             </div>
@@ -69,11 +69,11 @@
     </div>
     <div class="col-md-6 col-xl-4">
         <div class="surface p-4 h-100">
-            <div class="text-uppercase text-secondary small mb-2">P&amp;L</div>
+            <div class="text-uppercase text-secondary small mb-2">Отчет</div>
             <h2 class="h5">Прибыль по начислению</h2>
-            <p class="text-secondary">Выручка из выполненных заказов, COGS по cost_price/FIFO, OPEX и учебный налог УСН 6%.</p>
+            <p class="text-secondary">Выручка из выполненных заказов, себестоимость по cost_price/FIFO, операционные расходы и учебный налог УСН 6%.</p>
             <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ url_for('finance.profitability_report') }}" class="btn btn-outline-dark btn-sm">Открыть P&amp;L</a>
+                <a href="{{ url_for('finance.profitability_report') }}" class="btn btn-outline-dark btn-sm">Открыть отчет</a>
                 <a href="{{ url_for('finance.bdr_report') }}" class="btn btn-outline-dark btn-sm">БДР</a>
             </div>
         </div>
@@ -93,7 +93,7 @@
         <div class="surface p-4 h-100">
             <div class="text-uppercase text-secondary small mb-2">Бюджет</div>
             <h2 class="h5">Сценарии и годовой план</h2>
-            <p class="text-secondary">Base, optimistic, stress, утверждение demo и помесячная разбивка.</p>
+            <p class="text-secondary">Базовый, оптимистичный, стрессовый сценарии, утверждение демо и помесячная разбивка.</p>
             <a href="{{ url_for('finance.budget') }}" class="btn btn-outline-dark btn-sm">Открыть бюджет</a>
         </div>
     </div>
@@ -107,9 +107,9 @@
     </div>
     <div class="col-md-6 col-xl-4">
         <div class="surface p-4 h-100">
-            <div class="text-uppercase text-secondary small mb-2">Demo-интеграции</div>
-            <h2 class="h5">Банк, 1C, ФНС mock</h2>
-            <p class="text-secondary">Импорт CSV или генерация локальных данных, защита дублей по external_ref.</p>
+            <div class="text-uppercase text-secondary small mb-2">Демо-интеграции</div>
+            <h2 class="h5">Банк, 1С, ФНС макет</h2>
+            <p class="text-secondary">Импорт CSV или генерация локальных данных, защита дублей по внешнему идентификатору.</p>
             <a href="{{ url_for('finance.integrations') }}" class="btn btn-outline-dark btn-sm">Открыть интеграции</a>
         </div>
     </div>
@@ -119,7 +119,7 @@
     <div class="col-xl-7">
         <div class="surface p-4 h-100">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 class="h5 mb-0">Динамика Cash Flow</h2>
+                <h2 class="h5 mb-0">Динамика денежных потоков</h2>
                 <span class="text-secondary small">{{ current_period }}</span>
             </div>
             <div class="table-responsive">
@@ -143,14 +143,14 @@
         <div class="surface p-4 h-100">
             <h2 class="h5 mb-3">Быстрые действия</h2>
             <div class="d-grid gap-2">
-                <a href="{{ url_for('finance.dashboard') }}" class="btn btn-outline-dark">Финансовый dashboard</a>
+                <a href="{{ url_for('finance.dashboard') }}" class="btn btn-outline-dark">Финансовый дашборд</a>
                 <a href="{{ url_for('finance.bdds_forecast') }}" class="btn btn-outline-dark">Прогноз БДДС</a>
                 <a href="{{ url_for('finance.settlements') }}" class="btn btn-outline-dark">Взаиморасчеты</a>
                 <a href="{{ url_for('finance.bdr_report') }}" class="btn btn-outline-dark">БДР</a>
                 <a href="{{ url_for('finance.incoming_payments') }}" class="btn btn-outline-dark">Входящие оплаты</a>
                 <a href="{{ url_for('finance.outgoing_payments') }}" class="btn btn-outline-dark">Закупки к оплате</a>
-                <a href="{{ url_for('finance.profitability_report_print', period=current_period) }}" class="btn btn-outline-dark" target="_blank">Скачать P&amp;L DOCX</a>
-                <a href="{{ url_for('finance.cash_flow_print', period=current_period) }}" class="btn btn-outline-dark" target="_blank">Скачать Cash Flow DOCX</a>
+                <a href="{{ url_for('finance.profitability_report_print', period=current_period) }}" class="btn btn-outline-dark" target="_blank">Скачать DOCX отчета</a>
+                <a href="{{ url_for('finance.cash_flow_print', period=current_period) }}" class="btn btn-outline-dark" target="_blank">Скачать DOCX БДДС</a>
                 <a href="{{ url_for('finance.finance_help') }}" class="btn btn-outline-dark">Справка по финансам</a>
             </div>
         </div>

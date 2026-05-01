@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Финансовый dashboard | КИС "МебельГрад"{% endblock %}
+{% block title %}Финансовый дашборд | КИС "МебельГрад"{% endblock %}
 
 {% block content %}
 <section class="hero-strip">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
         <div>
             <div class="text-uppercase text-secondary small">Финансы / KPI</div>
-            <h1 class="h3 mb-2">Финансовый dashboard</h1>
+            <h1 class="h3 mb-2">Финансовый дашборд</h1>
             <p class="mb-0">Сводка для учебного рабочего места финансиста: прибыль, деньги, баланс, бюджет и риск кассового разрыва.</p>
         </div>
         <form method="get" class="d-flex gap-2">
@@ -19,15 +19,15 @@
 </section>
 
 {% if net_profit < 0 %}
-<div class="alert alert-warning">Операционный результат отрицательный: {{ "%.0f"|format(net_profit) }} руб. Проверьте OPEX, маржу и план-факт.</div>
+<div class="alert alert-warning">Операционный результат отрицательный: {{ "%.0f"|format(net_profit) }} руб. Проверьте операционные расходы, маржу и план-факт.</div>
 {% endif %}
 {% if cash_gap_date %}
 <div class="alert alert-danger">Прогнозируется кассовый разрыв: {{ cash_gap_date.strftime("%d.%m.%Y") }}.</div>
 {% endif %}
 
 <div class="row g-3 mb-4">
-    <div class="col-md-6 col-xl-3"><div class="surface p-3"><div class="text-secondary small">Revenue</div><div class="h4 mb-0">{{ "%.0f"|format(revenue) }} руб.</div></div></div>
-    <div class="col-md-6 col-xl-3"><div class="surface p-3"><div class="text-secondary small">Net Profit</div><div class="h4 mb-0 {% if net_profit < 0 %}text-danger{% endif %}">{{ "%.0f"|format(net_profit) }} руб.</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3"><div class="text-secondary small">Выручка</div><div class="h4 mb-0">{{ "%.0f"|format(revenue) }} руб.</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="surface p-3"><div class="text-secondary small">Чистая прибыль</div><div class="h4 mb-0 {% if net_profit < 0 %}text-danger{% endif %}">{{ "%.0f"|format(net_profit) }} руб.</div></div></div>
     <div class="col-md-6 col-xl-3"><div class="surface p-3"><div class="text-secondary small">Деньги</div><div class="h4 mb-0">{{ "%.0f"|format(cash_balance) }} руб.</div></div></div>
     <div class="col-md-6 col-xl-3"><div class="surface p-3"><div class="text-secondary small">Бюджетное отклонение</div><div class="h4 mb-0">{{ "%.1f"|format(budget_variance_pct) }}%</div></div></div>
 </div>

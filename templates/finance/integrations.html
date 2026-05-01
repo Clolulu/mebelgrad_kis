@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Demo-интеграции | КИС "МебельГрад"{% endblock %}
+{% block title %}Демо-интеграции | КИС "МебельГрад"{% endblock %}
 
 {% block content %}
 <section class="hero-strip">
     <div>
-        <div class="text-uppercase text-secondary small">Финансы / Demo-интеграции</div>
-        <h1 class="h3 mb-2">Банк, 1C и ФНС mock</h1>
+        <div class="text-uppercase text-secondary small">Финансы / Демо-интеграции</div>
+        <h1 class="h3 mb-2">Банк, 1С и ФНС макет</h1>
         <p class="mb-0">{{ demo_note }}</p>
     </div>
 </section>
@@ -16,15 +16,15 @@
         <div class="surface p-4 h-100">
             <h2 class="h5 mb-3">Импорт банковской выписки</h2>
             <form method="post" action="{{ url_for('finance.import_bank_demo') }}" enctype="multipart/form-data">
-                <label class="form-label" for="bank_file">CSV: date, account, amount, direction, counterparty, purpose, external_ref</label>
+                <label class="form-label" for="bank_file">CSV с колонками: date, account, amount, direction, counterparty, purpose, внешний_идентификатор</label>
                 <input class="form-control mb-3" id="bank_file" name="bank_file" type="file" accept=".csv">
-                <button class="btn btn-primary" type="submit">Импортировать CSV или demo-выписку</button>
+                <button class="btn btn-primary" type="submit">Импортировать CSV или демо-выписку</button>
             </form>
         </div>
     </div>
     <div class="col-lg-6">
         <div class="surface p-4 h-100">
-            <h2 class="h5 mb-3">Импорт 1C demo</h2>
+            <h2 class="h5 mb-3">Импорт 1С демо</h2>
             <form method="post" action="{{ url_for('finance.import_1c_demo') }}" class="row g-3">
                 <div class="col-md-8">
                     <label class="form-label" for="period">Период</label>
@@ -39,14 +39,14 @@
 </div>
 
 <div class="surface p-4 mb-4">
-    <h2 class="h5 mb-3">Проверка контрагента в ФНС mock</h2>
+    <h2 class="h5 mb-3">Проверка контрагента в ФНС макет</h2>
     <form method="post" action="{{ url_for('finance.check_fns_demo') }}" class="row g-3 align-items-end">
         <div class="col-md-9">
             <label class="form-label" for="counterparty">Контрагент или ИНН</label>
             <input class="form-control" id="counterparty" name="counterparty" placeholder="ООО Северный офис">
         </div>
         <div class="col-md-3">
-            <button class="btn btn-outline-dark w-100" type="submit">Проверить demo</button>
+            <button class="btn btn-outline-dark w-100" type="submit">Проверить демо</button>
         </div>
     </form>
     {% if fns_result %}
@@ -57,10 +57,10 @@
 </div>
 
 <div class="surface p-0 overflow-hidden">
-    <div class="p-3 border-bottom fw-semibold">Последние CashTransaction</div>
+    <div class="p-3 border-bottom fw-semibold">Последние транзакции</div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-            <thead class="table-light"><tr><th>Дата</th><th>Счет</th><th>Направление</th><th>Статья</th><th class="text-end">Сумма</th><th>Источник</th><th>External ref</th></tr></thead>
+            <thead class="table-light"><tr><th>Дата</th><th>Счет</th><th>Направление</th><th>Статья</th><th class="text-end">Сумма</th><th>Источник</th><th>Внешний идентификатор</th></tr></thead>
             <tbody>
                 {% for tx in recent_transactions %}
                     <tr>

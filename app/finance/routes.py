@@ -16,8 +16,10 @@ try:
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Inches
-except ImportError:
+    docx_import_error = None
+except ImportError as exc:
     Document = None
+    docx_import_error = exc
     WD_ALIGN_PARAGRAPH = SimpleNamespace(CENTER=1, RIGHT=2)
 
     def Inches(value):
@@ -141,6 +143,11 @@ def format_value(value):
 
 
 def create_docx_document(title, company=None, period=None, snapshot_date=None, now=None):
+    if Document is None:
+        raise RuntimeError(
+            "python-docx не установлен или импорт не удался. "
+            f"Запустите приложение через правильное Python-окружение и установите пакет python-docx. {docx_import_error}"
+        )
     doc = Document()
 
     default_logo_url = DEFAULT_LOGO_URL
@@ -1264,20 +1271,20 @@ def profitability_report_print():
     show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
     pnl = finance_services.calculate_pnl(period)
     company = CompanyProfile.query.first()
-    doc = create_docx_document("P&L по начислению", company, period, now=datetime.now())
+    doc = create_docx_document("Отчет по начислению", company, period, now=datetime.now())
     add_key_value_section(
         doc,
         "Отчет о прибылях и убытках",
         [
-            ("Revenue", pnl["revenue"]),
-            ("COGS", pnl["cogs"]),
-            ("Gross Profit", pnl["gross_profit"]),
-            ("OPEX", pnl["operating_expenses"]),
-            ("Operating Profit", pnl["operating_profit"]),
-            ("Tax demo УСН 6%", pnl["usn_tax"]),
-            ("Net Profit", pnl["net_profit"]),
-            ("Gross margin", format_percent(pnl["gross_margin_pct"])),
-            ("Net margin", format_percent(pnl["net_margin_pct"])),
+            ("Выручка", pnl["revenue"]),
+            ("Себестоимость", pnl["cogs"]),
+            ("Валовая прибыль", pnl["gross_profit"]),
+            ("Операционные расходы", pnl["operating_expenses"]),
+            ("Операционная прибыль", pnl["operating_profit"]),
+            ("Налог УСН 6%", pnl["usn_tax"]),
+            ("Чистая прибыль", pnl["net_profit"]),
+            ("Валовая маржа", format_percent(pnl["gross_margin_pct"])),
+            ("Чистая маржа", format_percent(pnl["net_margin_pct"])),
         ],
     )
     doc.add_paragraph(pnl["method_note"])
@@ -1957,7 +1964,7 @@ def integrations():
         recent_transactions=recent_transactions,
         accounts=CashAccount.query.order_by(CashAccount.name.asc()).all(),
         fns_result=fns_result,
-        demo_note="Все обмены работают только с локальными demo/mock-данными. Реальные API банков, ФНС, ЦБ, Госуслуг и 1С не вызываются.",
+        demo_note="Все обмены работают только с локальными демонстрационными данными. Реальные API банков, ФНС, ЦБ, Госуслуг и 1С не вызываются.",
     )
 
 
