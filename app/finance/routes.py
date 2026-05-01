@@ -8,23 +8,40 @@ from datetime import datetime, timedelta
 from functools import wraps
 from types import SimpleNamespace
 
-from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Inches
 from flask import flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import func, or_
 
+try:
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Inches
+except ImportError:
+    Document = None
+    WD_ALIGN_PARAGRAPH = SimpleNamespace(CENTER=1, RIGHT=2)
+
+    def Inches(value):
+        return value
+
 from app.finance import finance_bp
+from app.finance import services as finance_services
 from app.models import (
     BalanceSnapshot,
+    BudgetLine,
     BudgetItem,
+    BudgetScenario,
+    CashAccount,
     CashCalendarItem,
+    CashTransaction,
     CompanyProfile,
     Customer,
+    FinanceArticle,
+    FixedAsset,
     IndirectExpense,
     InventoryBatch,
+    Loan,
     Payment,
+    PaymentRequest,
     PlanFactDeviation,
     PurchaseOrder,
     PurchaseOrderItem,
@@ -34,6 +51,11 @@ from app.models import (
     Supplier,
     db,
 )
+
+
+DEFAULT_SEAL_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQAM2ekfbi4aBiiUKUq6NJLKjJAorMhwJiTqQ&s"
+DEFAULT_SIGNATURE_URL = "https://upload.wikimedia.org/wikipedia/commons/2/2c/GalkinAI-signature.png"
+DEFAULT_LOGO_URL = "https://alaci.kz/wp-content/uploads/2022/03/logo-mebelgrad-e1646908558844.png"
 
 
 def get_company_profile():
@@ -61,12 +83,12 @@ def get_company_profile():
         settlement_account="40702810000000001234",
         ceo="Иванов Иван Иванович",
         ceo_position="Генеральный директор",
-        ceo_signature_url="/static/images/signature.png",
-        signature_url="/static/images/signature.png",
+        ceo_signature_url=DEFAULT_SIGNATURE_URL,
+        signature_url=DEFAULT_SIGNATURE_URL,
         chief_accountant_name="Петрова Петрова Петровна",
-        chief_accountant_signature_url="/static/images/signature.png",
-        seal_url="/static/images/seal.png",
-        logo_url="/static/images/logo.png",
+        chief_accountant_signature_url=DEFAULT_SIGNATURE_URL,
+        seal_url=DEFAULT_SEAL_URL,
+        logo_url=DEFAULT_LOGO_URL,
         print_footer="Отчет сформирован автоматически",
     )
 
@@ -121,9 +143,7 @@ def format_value(value):
 def create_docx_document(title, company=None, period=None, snapshot_date=None, now=None):
     doc = Document()
 
-    default_logo_url = (
-        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQqjBb3N-5K12RjxM-PFGwrzRDeXoYRWvH9Ww&s"
-    )
+    default_logo_url = DEFAULT_LOGO_URL
     logo_bytes = None
     logo_path = None
 
@@ -148,7 +168,10 @@ def create_docx_document(title, company=None, period=None, snapshot_date=None, n
             logo_bytes = None
     else:
         static_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'static'))
-        logo_path = os.path.join(static_root, logo_url.lstrip('/'))
+        logo_rel_path = logo_url.lstrip('/')
+        if logo_rel_path.startswith('static/'):
+            logo_rel_path = logo_rel_path[len('static/'):]
+        logo_path = os.path.join(static_root, logo_rel_path)
         if not os.path.exists(logo_path):
             logo_path = None
 
@@ -335,6 +358,10 @@ def build_management_balance_docx(
     show_seal,
     show_signatures,
     now,
+    fixed_assets=0,
+    loans=0,
+    assets_structure=None,
+    liabilities_structure=None,
 ):
     doc = create_docx_document("Управленческий баланс", company, snapshot_date=snapshot_date, now=now)
     add_key_value_section(
@@ -350,6 +377,29 @@ def build_management_balance_docx(
         ],
     )
     doc.add_paragraph(f"Баланс совпадает: {'Да' if check_equal else 'Нет'}")
+    if fixed_assets or loans:
+        add_key_value_section(
+            doc,
+            "Дополнительные статьи",
+            [
+                ("Основные средства", fixed_assets),
+                ("Займы и кредиты", loans),
+            ],
+        )
+    if assets_structure:
+        add_table(
+            doc,
+            "Структура активов",
+            ["Статья", "Сумма", "Доля"],
+            [[row["name"], row["amount"], format_percent(row["pct"])] for row in assets_structure],
+        )
+    if liabilities_structure:
+        add_table(
+            doc,
+            "Структура пассивов",
+            ["Статья", "Сумма", "Доля"],
+            [[row["name"], row["amount"], format_percent(row["pct"])] for row in liabilities_structure],
+        )
     add_signatures_section(doc, company, show_seal, show_signatures)
     filename = f"management_balance_{snapshot_date.strftime('%Y%m%d')}.docx"
     return save_docx_response(doc, filename)
@@ -423,6 +473,7 @@ def build_cash_flow_docx(
     show_seal,
     show_signatures,
     now,
+    group_rows=None,
 ):
     doc = create_docx_document("Кассовый отчет", company, period, now=now)
     add_key_value_section(
@@ -435,6 +486,16 @@ def build_cash_flow_docx(
             ("Закрывающий баланс", closing_balance),
         ],
     )
+    if group_rows:
+        add_table(
+            doc,
+            "Группировка БДДС",
+            ["Группа", "Поступления", "Выплаты", "Чистый поток"],
+            [
+                [row["label"], row["incoming"], row["outgoing"], row["net"]]
+                for row in group_rows
+            ],
+        )
     if active_rows:
         add_table(
             doc,
@@ -698,14 +759,7 @@ def finance_required(view):
 
 
 def get_period_bounds(period):
-    try:
-        start_date = datetime.strptime(period, "%Y-%m")
-    except ValueError:
-        start_date = datetime.now().replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        )
-    end_date = (start_date + timedelta(days=32)).replace(day=1)
-    return start_date, end_date
+    return finance_services.get_period_bounds(period)
 
 
 def calculate_income(start_date, end_date):
@@ -735,49 +789,7 @@ def calculate_actual_expenses(start_date, end_date):
 
 
 def calculate_cogs_fifo(start_date, end_date, strategy="fifo"):
-    cogs = 0.0
-    batch_cache = {}
-
-    sales_items = (
-        SalesOrderItem.query.join(SalesOrder)
-        .filter(
-            SalesOrder.order_date >= start_date,
-            SalesOrder.order_date < end_date,
-            SalesOrder.status == "completed",
-        )
-        .all()
-    )
-
-    for item in sales_items:
-        planned = float(item.quantity * item.cost_price)
-        if item.cost_price and item.cost_price > 0:
-            cogs += planned
-            continue
-
-        product_id = item.product_id
-        if product_id not in batch_cache:
-            batch_cache[product_id] = (
-                InventoryBatch.query.filter_by(product_id=product_id)
-                .order_by(InventoryBatch.received_date)
-                .all()
-            )
-
-        remaining = item.quantity
-        for batch in batch_cache[product_id]:
-            available = batch.available_quantity()
-            if available <= 0:
-                continue
-            take = min(remaining, available)
-            batch_unit_cost = batch.unit_cost + (batch.transport_cost / batch.quantity if batch.quantity else 0)
-            cogs += take * batch_unit_cost
-            remaining -= take
-            if remaining <= 0:
-                break
-
-        if remaining > 0:
-            cogs += remaining * (item.cost_price or 0)
-
-    return cogs
+    return finance_services.calculate_cogs_fifo(start_date, end_date, strategy=strategy)
 
 
 def calculate_period_customer_income(start_date, end_date):
@@ -819,16 +831,17 @@ def get_indirect_expense_map(period):
 @finance_required
 def index():
     current_period = datetime.now().strftime("%Y-%m")
-    start_date, end_date = get_period_bounds(current_period)
-    total_income = calculate_income(start_date, end_date)
-    total_expenses = calculate_actual_expenses(start_date, end_date)
-    current_liquidity = total_income - total_expenses
+    dashboard_data = finance_services.build_dashboard(current_period)
+    cash_flow_data = finance_services.build_cash_flow_report(current_period)
+    total_income = cash_flow_data["total_incoming"]
+    total_expenses = cash_flow_data["total_outgoing_paid"]
+    current_liquidity = cash_flow_data["closing_balance"]
 
     period_rows = []
     for period in ["2026-01", "2026-02", "2026-03"]:
-        period_start, period_end = get_period_bounds(period)
-        income = calculate_income(period_start, period_end)
-        expenses = calculate_actual_expenses(period_start, period_end)
+        report = finance_services.build_cash_flow_report(period)
+        income = report["total_incoming"]
+        expenses = report["total_outgoing_paid"]
         period_rows.append(
             {
                 "period": period,
@@ -855,6 +868,12 @@ def index():
         period_rows=period_rows,
         unpaid_purchase_orders=unpaid_purchase_orders,
         unpaid_purchase_amount=unpaid_purchase_amount,
+        cash_balance=dashboard_data["cash_balance"],
+        cash_gap_date=dashboard_data["cash_gap_date"],
+        receivables=dashboard_data["receivables"],
+        payables=dashboard_data["payables"],
+        net_profit=dashboard_data["net_profit"],
+        budget_variance_pct=dashboard_data["budget_variance_pct"],
     )
 
 
@@ -959,6 +978,25 @@ def mark_purchase_order_paid(po_id):
     purchase_order = PurchaseOrder.query.get_or_404(po_id)
     purchase_order.is_paid = True
     purchase_order.status = "completed"
+    account = finance_services.get_default_cash_account(create=True)
+    article = finance_services.get_finance_article("Закупки", "operational", "cogs", create=True)
+    external_ref = f"purchase_order:{purchase_order.id}"
+    if CashTransaction.query.filter_by(external_ref=external_ref).first() is None:
+        db.session.add(
+            CashTransaction(
+                account_id=account.id,
+                date=datetime.now(),
+                amount=float(purchase_order.total_amount or 0),
+                direction="outgoing",
+                article_id=article.id,
+                supplier_id=purchase_order.supplier_id,
+                counterparty=purchase_order.supplier.name if purchase_order.supplier else "",
+                source="purchase",
+                status="executed",
+                description=f"Оплата заказа поставщику {purchase_order.order_number}",
+                external_ref=external_ref,
+            )
+        )
     db.session.commit()
     flash(
         f"Заказ поставщику {purchase_order.order_number} отмечен как оплаченный.",
@@ -972,6 +1010,9 @@ def mark_purchase_order_paid(po_id):
 @finance_required
 def budget():
     period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    year = request.args.get("year", period[:4], type=int)
+    scenario_id = request.args.get("scenario_id", type=int)
+    budget_data = finance_services.build_budget_report(year=year, scenario_id=scenario_id)
     items = (
         BudgetItem.query.filter_by(period=period)
         .order_by(BudgetItem.item_type, BudgetItem.category)
@@ -991,6 +1032,14 @@ def budget():
         total_income_plan=total_income_plan,
         total_expense_plan=total_expense_plan,
         planned_balance=total_income_plan - total_expense_plan,
+        year=year,
+        budget_data=budget_data,
+        scenarios=budget_data["scenarios"],
+        selected_scenario=budget_data["selected_scenario"],
+        months=budget_data["months"],
+        budget_matrix=budget_data["matrix"],
+        totals_by_month=budget_data["totals_by_month"],
+        plan_fact_rows=budget_data["plan_fact_rows"],
     )
 
 
@@ -1050,6 +1099,12 @@ def plan_fact_analysis():
         else:
             flash("Заполните имя статьи и причину отклонения", "warning")
         return redirect(url_for("finance.plan_fact_analysis", period=period))
+
+    plan_fact_data = finance_services.build_plan_fact_report(period)
+    return render_template(
+        "finance/plan_fact.html",
+        **plan_fact_data,
+    )
 
     planned_by_category = defaultdict(float)
     for item in budget_items:
@@ -1154,6 +1209,13 @@ def plan_fact_analysis():
 @finance_required
 def profitability_report():
     period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    pnl = finance_services.calculate_pnl(period)
+    return render_template(
+        "finance/profitability.html",
+        **pnl,
+        cogs_note=pnl["method_note"],
+    )
+
     start_date, end_date = get_period_bounds(period)
 
     revenue = calculate_income(start_date, end_date)
@@ -1191,6 +1253,36 @@ def profitability_report():
         net_margin_pct=(net_profit / revenue * 100) if revenue else 0,
         cogs_note="Для MVP себестоимость фиксируется в момент продажи в поле cost_price.",
     )
+
+
+@finance_bp.route("/profitability-report/print")
+@login_required
+@finance_required
+def profitability_report_print():
+    period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
+    show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
+    pnl = finance_services.calculate_pnl(period)
+    company = CompanyProfile.query.first()
+    doc = create_docx_document("P&L по начислению", company, period, now=datetime.now())
+    add_key_value_section(
+        doc,
+        "Отчет о прибылях и убытках",
+        [
+            ("Revenue", pnl["revenue"]),
+            ("COGS", pnl["cogs"]),
+            ("Gross Profit", pnl["gross_profit"]),
+            ("OPEX", pnl["operating_expenses"]),
+            ("Operating Profit", pnl["operating_profit"]),
+            ("Tax demo УСН 6%", pnl["usn_tax"]),
+            ("Net Profit", pnl["net_profit"]),
+            ("Gross margin", format_percent(pnl["gross_margin_pct"])),
+            ("Net margin", format_percent(pnl["net_margin_pct"])),
+        ],
+    )
+    doc.add_paragraph(pnl["method_note"])
+    add_signatures_section(doc, company, show_seal, show_signatures)
+    return save_docx_response(doc, f"{period}_pnl_accrual_{datetime.now().strftime('%Y%m%d')}.docx")
 
 
 @finance_bp.route("/indirect-expenses", methods=["GET", "POST"])
@@ -1287,6 +1379,12 @@ def delete_cash_calendar_item(item_id):
 @finance_required
 def cash_flow():
     period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    cash_flow_data = finance_services.build_cash_flow_report(period)
+    return render_template(
+        "finance/cash_flow.html",
+        **cash_flow_data,
+    )
+
     start_date, end_date = get_period_bounds(period)
 
     incoming_map = defaultdict(float)
@@ -1491,6 +1589,22 @@ def bdr_report():
 
 
 def _build_cash_calendar_rows(start_date, end_date):
+    calendar = finance_services.build_cash_calendar_report(
+        start_date,
+        days=max((end_date - start_date).days, 1),
+    )
+    return [
+        {
+            "date": row["date"],
+            "incoming": row["actual_incoming"] + row["planned_incoming"],
+            "outgoing": row["actual_outgoing"] + row["planned_outgoing"],
+            "net": row["net_actual"] + row["net_planned"],
+            "balance": row["projected_balance"],
+            "is_gap": row["projected_balance"] < 0,
+        }
+        for row in calendar["rows"]
+    ]
+
     incoming = defaultdict(float)
     outgoing = defaultdict(float)
 
@@ -1629,6 +1743,11 @@ def management_balance():
         snapshot_date = datetime.strptime(date_str, "%Y-%m-%d")
     except ValueError:
         snapshot_date = datetime.now()
+    balance_data = finance_services.calculate_management_balance(snapshot_date)
+    return render_template(
+        "finance/management_balance.html",
+        **balance_data,
+    )
 
     inventory_value = 0
     for batch in InventoryBatch.query.all():
@@ -1675,6 +1794,12 @@ def management_balance():
 @finance_required
 def dashboard():
     period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    dashboard_data = finance_services.build_dashboard(period)
+    return render_template(
+        "finance/dashboard.html",
+        **dashboard_data,
+    )
+
     start_date, end_date = get_period_bounds(period)
 
     revenue = calculate_income(start_date, end_date)
@@ -1815,6 +1940,124 @@ def export_1c():
     )
 
 
+@finance_bp.route("/integrations")
+@login_required
+@finance_required
+def integrations():
+    fns_result = None
+    if request.args.get("counterparty"):
+        fns_result = finance_services.mock_fns_check(request.args.get("counterparty"))
+    recent_transactions = (
+        CashTransaction.query.order_by(CashTransaction.date.desc(), CashTransaction.id.desc())
+        .limit(20)
+        .all()
+    )
+    return render_template(
+        "finance/integrations.html",
+        recent_transactions=recent_transactions,
+        accounts=CashAccount.query.order_by(CashAccount.name.asc()).all(),
+        fns_result=fns_result,
+        demo_note="Все обмены работают только с локальными demo/mock-данными. Реальные API банков, ФНС, ЦБ, Госуслуг и 1С не вызываются.",
+    )
+
+
+@finance_bp.route("/integrations/import-bank-demo", methods=["POST"])
+@login_required
+@finance_required
+def import_bank_demo():
+    result = finance_services.import_bank_demo(request.files.get("bank_file"))
+    flash(
+        f"Демо-выписка обработана: импортировано {result['imported']}, пропущено дублей {result['skipped']}.",
+        "success",
+    )
+    return redirect(url_for("finance.integrations"))
+
+
+@finance_bp.route("/integrations/import-1c-demo", methods=["POST"])
+@login_required
+@finance_required
+def import_1c_demo():
+    period = request.form.get("period", datetime.now().strftime("%Y-%m"))
+    result = finance_services.import_1c_demo(period)
+    flash(
+        f"Демо-обмен 1C за {period}: импортировано {result['imported']}, пропущено дублей {result['skipped']}.",
+        "success",
+    )
+    return redirect(url_for("finance.integrations"))
+
+
+@finance_bp.route("/integrations/check-fns-demo", methods=["POST"])
+@login_required
+@finance_required
+def check_fns_demo():
+    counterparty = request.form.get("counterparty", "")
+    return redirect(url_for("finance.integrations", counterparty=counterparty))
+
+
+@finance_bp.route("/payment-requests")
+@login_required
+@finance_required
+def payment_requests():
+    requests = (
+        PaymentRequest.query.order_by(PaymentRequest.due_date.asc(), PaymentRequest.id.desc())
+        .all()
+    )
+    return render_template(
+        "finance/payment_requests.html",
+        requests=requests,
+        total_pending=sum(item.amount for item in requests if item.status in {"pending", "approved"}),
+        total_paid=sum(item.amount for item in requests if item.status == "paid"),
+    )
+
+
+@finance_bp.route("/payment-requests/create-demo", methods=["POST"])
+@login_required
+@finance_required
+def create_demo_payment_request():
+    request_item = finance_services.create_demo_payment_request(current_user.id)
+    flash(f"Демо-заявка #{request_item.id} создана и отправлена на согласование.", "success")
+    return redirect(url_for("finance.payment_requests"))
+
+
+@finance_bp.route("/payment-requests/<int:request_id>/approve", methods=["POST"])
+@login_required
+@finance_required
+def approve_payment_request(request_id):
+    request_item = PaymentRequest.query.get_or_404(request_id)
+    request_item.status = "approved"
+    request_item.approved_by = current_user.id
+    request_item.approved_at = datetime.now()
+    db.session.commit()
+    flash(f"Заявка #{request_item.id} согласована.", "success")
+    return redirect(url_for("finance.payment_requests"))
+
+
+@finance_bp.route("/payment-requests/<int:request_id>/reject", methods=["POST"])
+@login_required
+@finance_required
+def reject_payment_request(request_id):
+    request_item = PaymentRequest.query.get_or_404(request_id)
+    request_item.status = "rejected"
+    request_item.approved_by = current_user.id
+    request_item.approved_at = datetime.now()
+    db.session.commit()
+    flash(f"Заявка #{request_item.id} отклонена.", "warning")
+    return redirect(url_for("finance.payment_requests"))
+
+
+@finance_bp.route("/payment-requests/<int:request_id>/mark-paid", methods=["POST"])
+@login_required
+@finance_required
+def mark_payment_request_paid(request_id):
+    request_item = PaymentRequest.query.get_or_404(request_id)
+    finance_services.mark_payment_request_paid(request_item, current_user.id)
+    flash(
+        f"Заявка #{request_item.id} отмечена оплаченной. Создана учебная CashTransaction, банковские API не вызывались.",
+        "success",
+    )
+    return redirect(url_for("finance.payment_requests"))
+
+
 # ============================================================================
 # PRINT ENDPOINTS / ПЕЧАТЬ ОТЧЁТОВ
 # ============================================================================
@@ -1907,6 +2150,27 @@ def management_balance_print():
         snapshot_date = datetime.strptime(date_str, "%Y-%m-%d")
     except ValueError:
         snapshot_date = datetime.now()
+    balance_data = finance_services.calculate_management_balance(snapshot_date)
+    company = CompanyProfile.query.first()
+    return build_management_balance_docx(
+        company=company,
+        snapshot_date=balance_data["snapshot_date"],
+        inventory_value=balance_data["inventory_value"],
+        cash_amount=balance_data["cash_amount"],
+        receivables=balance_data["receivables"],
+        payables=balance_data["payables"],
+        total_assets=balance_data["total_assets"],
+        total_liabilities=balance_data["total_liabilities"],
+        equity=balance_data["equity"],
+        check_equal=balance_data["check_equal"],
+        show_seal=show_seal,
+        show_signatures=show_signatures,
+        now=datetime.now(),
+        fixed_assets=balance_data["fixed_assets"],
+        loans=balance_data["loans"],
+        assets_structure=balance_data["assets_structure"],
+        liabilities_structure=balance_data["liabilities_structure"],
+    )
     
     inventory_value = 0
     for batch in InventoryBatch.query.all():
@@ -2072,6 +2336,23 @@ def plan_fact_analysis_print():
 def cash_flow_print():
     """Печать отчета о кассовых потоках"""
     period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    cash_flow_data = finance_services.build_cash_flow_report(period)
+    show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
+    show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
+    company = CompanyProfile.query.first()
+    return build_cash_flow_docx(
+        company=company,
+        period=period,
+        active_rows=cash_flow_data["active_rows"],
+        total_incoming=cash_flow_data["total_incoming"],
+        total_outgoing_paid=cash_flow_data["total_outgoing_paid"],
+        total_outgoing_scheduled=cash_flow_data["total_outgoing_scheduled"],
+        closing_balance=cash_flow_data["closing_balance"],
+        show_seal=show_seal,
+        show_signatures=show_signatures,
+        now=datetime.now(),
+        group_rows=cash_flow_data["group_rows"],
+    )
     show_seal = request.args.get("show_seal", "1") in ["1", "true", "on"]
     show_signatures = request.args.get("show_signatures", "1") in ["1", "true", "on"]
     

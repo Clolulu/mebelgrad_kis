@@ -323,6 +323,188 @@ class PlanFactDeviation(db.Model):
         return f'<PlanFactDeviation {self.period} {self.item_name}: {self.deviation}>'
 
 
+class CashAccount(db.Model):
+    """Cash/bank account used by the finance workplace."""
+    __tablename__ = 'cash_accounts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, unique=True)
+    account_type = db.Column(db.String(20), default='bank')  # bank/cash/demo
+    bank_name = db.Column(db.String(255))
+    account_number = db.Column(db.String(64))
+    currency = db.Column(db.String(3), default='RUB')
+    opening_balance = db.Column(db.Float, default=0.0)
+    opening_date = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+
+    transactions = db.relationship(
+        'CashTransaction',
+        backref='account',
+        lazy=True,
+        cascade='all, delete-orphan',
+    )
+
+    def __repr__(self):
+        return f'<CashAccount {self.name}: {self.currency}>'
+
+
+class FinanceArticle(db.Model):
+    """Finance article shared by cash flow, P&L and budgets."""
+    __tablename__ = 'finance_articles'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, unique=True)
+    report_type = db.Column(db.String(20), default='both')  # bdds/bdr/both
+    cash_flow_group = db.Column(db.String(20), default='operational')
+    pnl_group = db.Column(db.String(20), default='other')
+    is_active = db.Column(db.Boolean, default=True)
+
+    def __repr__(self):
+        return f'<FinanceArticle {self.name}>'
+
+
+class CashTransaction(db.Model):
+    """Actual or planned cash movement imported from demo sources or entered manually."""
+    __tablename__ = 'cash_transactions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('cash_accounts.id'), nullable=False)
+    date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    amount = db.Column(db.Float, nullable=False)
+    direction = db.Column(db.String(20), nullable=False)  # incoming/outgoing
+    article_id = db.Column(db.Integer, db.ForeignKey('finance_articles.id'))
+    counterparty = db.Column(db.String(255))
+    customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'))
+    supplier_id = db.Column(db.Integer, db.ForeignKey('suppliers.id'))
+    source = db.Column(db.String(30), default='manual')  # manual/demo_bank/1c/sales/purchase
+    status = db.Column(db.String(20), default='executed')  # planned/confirmed/executed/cancelled
+    description = db.Column(db.String(255))
+    external_ref = db.Column(db.String(120), unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    article = db.relationship('FinanceArticle', backref='cash_transactions')
+    customer = db.relationship('Customer', backref='cash_transactions')
+    supplier = db.relationship('Supplier', backref='cash_transactions')
+
+    def signed_amount(self):
+        return self.amount if self.direction == 'incoming' else -self.amount
+
+    def __repr__(self):
+        return f'<CashTransaction {self.date.date()} {self.direction} {self.amount}>'
+
+
+class FixedAsset(db.Model):
+    """Simplified management accounting fixed asset."""
+    __tablename__ = 'fixed_assets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(160), nullable=False, unique=True)
+    purchase_date = db.Column(db.DateTime, nullable=False)
+    initial_cost = db.Column(db.Float, nullable=False, default=0.0)
+    accumulated_depreciation = db.Column(db.Float, default=0.0)
+    category = db.Column(db.String(100))
+    is_active = db.Column(db.Boolean, default=True)
+
+    @property
+    def carrying_amount(self):
+        return max((self.initial_cost or 0) - (self.accumulated_depreciation or 0), 0)
+
+    def __repr__(self):
+        return f'<FixedAsset {self.name}: {self.carrying_amount}>'
+
+
+class Loan(db.Model):
+    """Demo loan/liability for management balance."""
+    __tablename__ = 'loans'
+
+    id = db.Column(db.Integer, primary_key=True)
+    lender = db.Column(db.String(160), nullable=False, unique=True)
+    principal = db.Column(db.Float, nullable=False, default=0.0)
+    rate = db.Column(db.Float, default=0.0)
+    start_date = db.Column(db.DateTime, nullable=False)
+    due_date = db.Column(db.DateTime, nullable=False)
+    outstanding_amount = db.Column(db.Float, nullable=False, default=0.0)
+    is_active = db.Column(db.Boolean, default=True)
+
+    def __repr__(self):
+        return f'<Loan {self.lender}: {self.outstanding_amount}>'
+
+
+class BudgetScenario(db.Model):
+    """Annual budget scenario with a demo approval status."""
+    __tablename__ = 'budget_scenarios'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), default='draft')  # draft/approved/archived
+    version = db.Column(db.Integer, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    lines = db.relationship(
+        'BudgetLine',
+        backref='scenario',
+        lazy=True,
+        cascade='all, delete-orphan',
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint('name', 'year', 'version', name='uq_budget_scenario_version'),
+    )
+
+    def __repr__(self):
+        return f'<BudgetScenario {self.name} {self.year} v{self.version}>'
+
+
+class BudgetLine(db.Model):
+    """Monthly budget line by finance article."""
+    __tablename__ = 'budget_lines'
+
+    id = db.Column(db.Integer, primary_key=True)
+    scenario_id = db.Column(db.Integer, db.ForeignKey('budget_scenarios.id'), nullable=False)
+    period = db.Column(db.String(20), nullable=False)
+    article_id = db.Column(db.Integer, db.ForeignKey('finance_articles.id'))
+    category = db.Column(db.String(120))
+    amount = db.Column(db.Float, nullable=False, default=0.0)
+    department = db.Column(db.String(100))
+    owner = db.Column(db.String(100))
+
+    article = db.relationship('FinanceArticle', backref='budget_lines')
+
+    def __repr__(self):
+        return f'<BudgetLine {self.period} {self.category}: {self.amount}>'
+
+
+class PaymentRequest(db.Model):
+    """Demo payment request workflow, without real banking operations."""
+    __tablename__ = 'payment_requests'
+
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+    due_date = db.Column(db.DateTime, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    direction = db.Column(db.String(20), default='outgoing')
+    article_id = db.Column(db.Integer, db.ForeignKey('finance_articles.id'))
+    supplier_id = db.Column(db.Integer, db.ForeignKey('suppliers.id'))
+    customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'))
+    status = db.Column(db.String(20), default='draft')  # draft/pending/approved/rejected/paid
+    priority = db.Column(db.String(20), default='normal')
+    comment = db.Column(db.String(255))
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    approved_at = db.Column(db.DateTime)
+
+    article = db.relationship('FinanceArticle', backref='payment_requests')
+    supplier = db.relationship('Supplier', backref='payment_requests')
+    customer = db.relationship('Customer', backref='payment_requests')
+    creator = db.relationship('User', foreign_keys=[created_by], backref='created_payment_requests')
+    approver = db.relationship('User', foreign_keys=[approved_by], backref='approved_payment_requests')
+
+    def __repr__(self):
+        return f'<PaymentRequest {self.id}: {self.status} {self.amount}>'
+
+
 class CompanyProfile(db.Model):
     """Реквизиты организации для печати отчётов"""
     __tablename__ = 'company_profile'

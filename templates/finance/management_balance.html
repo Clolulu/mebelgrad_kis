@@ -3,34 +3,62 @@
 {% block title %}Управленческий баланс | КИС "МебельГрад"{% endblock %}
 
 {% block content %}
-<div class="surface p-4">
-  <form method="get" class="row gx-3 gy-2 align-items-end mb-3">
-    <div class="col-auto">
-      <label for="date" class="form-label mb-1">Дата</label>
-      <input id="date" name="date" type="date" class="form-control" value="{{ snapshot_date }}">
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Финансы / Баланс</div>
+            <h1 class="h3 mb-2">Управленческий баланс</h1>
+            <p class="mb-0">{{ method_note }}</p>
+        </div>
+        <form method="get" class="d-flex gap-2">
+            <input class="form-control" name="date" type="date" value="{{ snapshot_date.strftime('%Y-%m-%d') }}">
+            <button class="btn btn-primary" type="submit">Показать</button>
+            <a href="{{ url_for('finance.management_balance_print', date=snapshot_date.strftime('%Y-%m-%d')) }}" class="btn btn-outline-dark" target="_blank">DOCX</a>
+        </form>
     </div>
-    <div class="col-auto">
-      <button class="btn btn-primary" type="submit">Показать</button>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Активы</div><div class="h4 mb-0">{{ "%.0f"|format(total_assets) }} руб.</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Обязательства</div><div class="h4 mb-0">{{ "%.0f"|format(total_liabilities) }} руб.</div></div></div>
+    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Капитал</div><div class="h4 mb-0">{{ "%.0f"|format(equity) }} руб.</div></div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="surface p-0 overflow-hidden">
+            <div class="p-3 border-bottom fw-semibold">Активы</div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light"><tr><th>Статья</th><th class="text-end">Сумма</th><th class="text-end">Доля</th></tr></thead>
+                    <tbody>
+                        {% for row in assets_structure %}
+                            <tr><td>{{ row.name }}</td><td class="text-end">{{ "%.2f"|format(row.amount) }} руб.</td><td class="text-end">{{ "%.1f"|format(row.pct) }}%</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-    <div class="col-auto ms-auto">
-      <a href="{{ url_for('finance.management_balance_print', date=snapshot_date.strftime('%Y-%m-%d')) }}" class="btn btn-sm btn-outline-primary" target="_blank">
-        <i class="bi bi-printer"></i> Печать
-      </a>
+    <div class="col-lg-6">
+        <div class="surface p-0 overflow-hidden">
+            <div class="p-3 border-bottom fw-semibold">Пассивы</div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light"><tr><th>Статья</th><th class="text-end">Сумма</th><th class="text-end">Доля</th></tr></thead>
+                    <tbody>
+                        {% for row in liabilities_structure %}
+                            <tr><td>{{ row.name }}</td><td class="text-end">{{ "%.2f"|format(row.amount) }} руб.</td><td class="text-end">{{ "%.1f"|format(row.pct) }}%</td></tr>
+                        {% endfor %}
+                        <tr class="table-light"><td>Капитал</td><td class="text-end">{{ "%.2f"|format(equity) }} руб.</td><td class="text-end">-</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-  </form>
-  <div class="row gy-3">
-    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary">Запасы</div><div class="h5">{{ "%.2f"|format(inventory_value) }} ₽</div></div></div>
-    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary">Денежные средства</div><div class="h5">{{ "%.2f"|format(cash_amount) }} ₽</div></div></div>
-    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary">Дебиторка</div><div class="h5">{{ "%.2f"|format(receivables) }} ₽</div></div></div>
-    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary">Кредиторка</div><div class="h5">{{ "%.2f"|format(payables) }} ₽</div></div></div>
-  </div>
-  <div class="row gy-3 mt-3">
-    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Активы</div><div class="h4">{{ "%.2f"|format(total_assets) }} ₽</div></div></div>
-    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Пассивы</div><div class="h4">{{ "%.2f"|format(total_liabilities) }} ₽</div></div></div>
-    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary">Собственный капитал</div><div class="h4">{{ "%.2f"|format(equity) }} ₽</div></div></div>
-  </div>
-  <div class="mt-3">
-    <span class="badge {% if check_equal %}text-bg-success{% else %}text-bg-danger{% endif %}">Баланс равен: {{ check_equal }}</span>
-  </div>
+</div>
+
+<div class="mt-3">
+    <span class="badge {% if check_equal %}text-bg-success{% else %}text-bg-danger{% endif %}">Проверка: активы = обязательства + капитал</span>
 </div>
 {% endblock %}

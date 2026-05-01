@@ -1,154 +1,116 @@
 {% extends "base.html" %}
 
-{% block title %}Финансовый центр | КИС "МебельГрад"{% endblock %}
+{% block title %}Рабочее место финансиста | КИС "МебельГрад"{% endblock %}
 
 {% block content %}
 <section class="hero-strip">
-    <div class="row align-items-center g-4">
-        <div class="col-lg-8">
-            <div class="text-uppercase text-secondary small mb-2">Планирование и управление финансами</div>
-            <h1 class="h3 mb-2">Финансовый центр предприятия</h1>
-            <p class="mb-0">
-                Контур объединяет казначейство, бюджетирование, план-фактный анализ,
-                отчет о прибыли, взаиморасчеты с контрагентами и подготовку обменных данных
-                по продажам и поступлениям за выбранный период.
-            </p>
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small mb-2">Финансы / учебное демо</div>
+            <h1 class="h3 mb-2">Рабочее место финансиста</h1>
+            <p class="mb-0">БДДС, платежный календарь, P&amp;L по начислению, управленческий баланс, бюджетирование и demo-интеграции. Данные симулируются локально, реальные банки и гос.сервисы не вызываются.</p>
         </div>
-        <div class="col-lg-4">
-            <div class="surface p-3 h-100">
-                <div class="text-secondary small">Текущий период</div>
-                <div class="h4 mb-2">{{ current_period }}</div>
-                <div class="small text-secondary">Неоплаченных заказов поставщикам: {{ unpaid_purchase_orders }}</div>
-                <div class="small text-secondary">Сумма ожидаемых выплат: {{ "%.2f"|format(unpaid_purchase_amount) }} ₽</div>
-            </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('finance.dashboard') }}" class="btn btn-primary">Dashboard</a>
+            <a href="{{ url_for('finance.payment_requests') }}" class="btn btn-primary">Платежные заявки</a>
+            <a href="{{ url_for('finance.integrations') }}" class="btn btn-outline-dark">Интеграции demo</a>
+            <a href="{{ url_for('finance.finance_help') }}" class="btn btn-outline-dark">Справка</a>
         </div>
     </div>
 </section>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Доходы периода</div><div class="display-6">{{ "%.0f"|format(total_income) }}</div><div class="small text-secondary">По проведенным входящим платежам</div></div></div>
-    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Расходы периода</div><div class="display-6">{{ "%.0f"|format(total_expenses) }}</div><div class="small text-secondary">По заказам поставщикам за период</div></div></div>
-    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Операционная ликвидность</div><div class="display-6">{{ "%.0f"|format(current_liquidity) }}</div><div class="small text-secondary">Доходы минус расходы</div></div></div>
-    <div class="col-md-6 col-xl-3"><div class="surface p-3 h-100"><div class="text-secondary small">Платежные документы</div><div class="display-6">{{ payments_count + purchase_orders_count }}</div><div class="small text-secondary">Входящие оплаты и заявки на оплату</div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Деньги</div><div class="h4 mb-0">{{ "%.0f"|format(cash_balance) }} руб.</div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Кассовый разрыв</div><div class="h5 mb-0">{% if cash_gap_date %}{{ cash_gap_date.strftime("%d.%m.%Y") }}{% else %}нет{% endif %}</div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Дебиторка</div><div class="h4 mb-0">{{ "%.0f"|format(receivables) }} руб.</div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Кредиторка</div><div class="h4 mb-0">{{ "%.0f"|format(payables) }} руб.</div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Net Profit</div><div class="h4 mb-0 {% if net_profit < 0 %}text-danger{% endif %}">{{ "%.0f"|format(net_profit) }} руб.</div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="surface p-3 h-100"><div class="text-secondary small">Бюджет, откл.</div><div class="h4 mb-0 {% if budget_variance_pct >= 20 or budget_variance_pct <= -20 %}text-danger{% elif budget_variance_pct >= 10 or budget_variance_pct <= -10 %}text-warning{% endif %}">{{ "%.1f"|format(budget_variance_pct) }}%</div></div></div>
 </div>
 
-<div class="row g-4 mb-4">
-    <div class="col-xl-8">
+<div class="surface p-3 mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Финансовые разделы</div>
+            <div class="fw-semibold">БДДС, взаиморасчеты, БДР, dashboard и справка</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('finance.bdds_forecast') }}" class="btn btn-outline-dark btn-sm">
+                <i class="bi bi-calendar2-week"></i> БДДС прогноз
+            </a>
+            <a href="{{ url_for('finance.settlements') }}" class="btn btn-outline-dark btn-sm">
+                <i class="bi bi-people"></i> Взаиморасчеты
+            </a>
+            <a href="{{ url_for('finance.bdr_report') }}" class="btn btn-outline-dark btn-sm">
+                <i class="bi bi-bar-chart"></i> БДР
+            </a>
+            <a href="{{ url_for('finance.dashboard') }}" class="btn btn-outline-dark btn-sm">
+                <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+            <a href="{{ url_for('finance.finance_help') }}" class="btn btn-outline-dark btn-sm">
+                <i class="bi bi-question-circle"></i> Справка
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-4">
         <div class="surface p-4 h-100">
-            <div class="text-uppercase text-secondary small mb-2">Рабочие разделы</div>
-            <h2 class="h4 mb-3">Казначейство, бюджет и управленческая аналитика</h2>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <div class="surface p-3 h-100">
-                        <div class="fw-semibold mb-1">Входящие платежи</div>
-                        <div class="small text-secondary mb-3">Реестр оплат от клиентов с фильтрами по периоду, заказу и фискальному номеру.</div>
-                        <div class="small text-secondary mb-3">Финансист проверяет приходные документы, фиксирует фактические поступления и сверяет их с планом БДДС.</div>
-                        <a href="{{ url_for('finance.incoming_payments') }}" class="btn btn-outline-dark btn-sm">Открыть реестр</a>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="surface p-3 h-100">
-                        <div class="fw-semibold mb-1">Исходящие заявки на оплату</div>
-                        <div class="small text-secondary mb-3">Контроль заказов поставщикам, статусов оплаты и ожидаемых кассовых выплат.</div>
-                        <div class="small text-secondary mb-3">Финансист согласовывает заявки, подтверждает источники финансирования и контролирует исполнение договоров.</div>
-                        <a href="{{ url_for('finance.outgoing_payments') }}" class="btn btn-outline-dark btn-sm">Открыть реестр</a>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="surface p-3 h-100">
-                        <div class="fw-semibold mb-1">Бюджетирование</div>
-                        <div class="small text-secondary mb-3">Плановые доходы и расходы по статьям, периодам и управленческим категориям.</div>
-                        <div class="small text-secondary mb-3">Финансист формирует годовую смету БДДС, управляет бюджетом по статьям и следит за исполнением расходов.</div>
-                        <a href="{{ url_for('finance.budget') }}" class="btn btn-outline-dark btn-sm">Открыть бюджет</a>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="surface p-3 h-100">
-                        <div class="fw-semibold mb-1">План-фактный анализ</div>
-                        <div class="small text-secondary mb-3">Сравнение факта по продажам и закупкам с бюджетными ориентирами периода.</div>
-                        <div class="small text-secondary mb-3">Финансист анализирует отклонения, фиксирует причины и предлагает корректировки планов.</div>
-                        <a href="{{ url_for('finance.plan_fact_analysis') }}" class="btn btn-outline-dark btn-sm">Открыть анализ</a>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="surface p-3 h-100">
-                        <div class="fw-semibold mb-1">Календарь денежных средств</div>
-                        <div class="small text-secondary mb-3">Дневной разрез поступлений, фактических выплат и ожидаемых кассовых разрывов.</div>
-                        <div class="small text-secondary mb-3">Ведение кассового плана по статьям БДДС, контроль ежедневных остатков и платежной дисциплины.</div>
-                        <a href="{{ url_for('finance.bdds_calendar') }}" class="btn btn-outline-dark btn-sm">Открыть календарь</a>
-                        <a href="{{ url_for('finance.bdds_forecast') }}" class="btn btn-outline-dark btn-sm mt-2">Прогноз на 30 дней</a>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="surface p-3 h-100">
-                        <div class="fw-semibold mb-1">БДР по сегментам</div>
-                        <div class="small text-secondary mb-3">Валовая прибыль и маржинальность по товарным группам и каналам.</div>
-                        <div class="small text-secondary mb-3">Финансист контролирует прибыльность сегментов, качество договоров и согласует показатели по отделам.</div>
-                        <a href="{{ url_for('finance.bdr_report') }}" class="btn btn-outline-dark btn-sm">Открыть БДР</a>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="surface p-3 h-100">
-                        <div class="fw-semibold mb-1">Управленческий баланс</div>
-                        <div class="small text-secondary mb-3">Баланс активов и обязательств на любую дату.</div>
-                        <div class="small text-secondary mb-3">Проверка ликвидности, дебиторки и кредиторки для принятия решений по финансированию.</div>
-                        <a href="{{ url_for('finance.management_balance') }}" class="btn btn-outline-dark btn-sm">Открыть баланс</a>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="surface p-3 h-100">
-                        <div class="fw-semibold mb-1">Executive Dashboard</div>
-                        <div class="small text-secondary mb-3">Основные KPI и финансовые индикаторы для владельца.</div>
-                        <div class="small text-secondary mb-3">Финансист формирует управленческий отчет по выбранному периоду и контролирует соблюдение допусков.</div>
-                        <a href="{{ url_for('finance.dashboard') }}" class="btn btn-outline-dark btn-sm">Открыть дашборд</a>
-                        <a href="{{ url_for('finance.finance_help') }}" class="btn btn-outline-dark btn-sm mt-2">Открыть методичку</a>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="surface p-3 h-100">
-                        <div class="fw-semibold mb-1">Взаиморасчеты</div>
-                        <div class="small text-secondary mb-3">Аналитика по заказам клиентов, задолженности и кредиторской нагрузке по поставщикам.</div>
-                        <div class="small text-secondary mb-3">Финансист проверяет расчеты по договорам, проводит зачеты взаимных требований и контролирует исполнение обязательств.</div>
-                        <a href="{{ url_for('finance.settlements') }}" class="btn btn-outline-dark btn-sm">Открыть расчеты</a>
-                    </div>
-                </div>
+            <div class="text-uppercase text-secondary small mb-2">Казначейство</div>
+            <h2 class="h5">Cash Flow и платежный календарь</h2>
+            <p class="text-secondary">Факт по счетам, БДДС по группам, план/факт входящих и исходящих платежей.</p>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ url_for('finance.cash_flow') }}" class="btn btn-outline-dark btn-sm">Cash Flow</a>
+                <a href="{{ url_for('finance.bdds_calendar') }}" class="btn btn-outline-dark btn-sm">Календарь</a>
+                <a href="{{ url_for('finance.bdds_forecast') }}" class="btn btn-outline-dark btn-sm">Прогноз БДДС</a>
             </div>
         </div>
     </div>
-
-    <div class="col-xl-4">
+    <div class="col-md-6 col-xl-4">
         <div class="surface p-4 h-100">
-            <div class="text-uppercase text-secondary small mb-2">Управленческие действия</div>
-            <h2 class="h4 mb-3">Быстрые операции</h2>
-            <div class="d-grid gap-2 mb-3">
-                <a href="{{ url_for('finance.profitability_report') }}" class="btn btn-primary">Отчет о прибыли</a>
-                <a href="{{ url_for('finance.plan_fact_analysis') }}" class="btn btn-outline-dark">План-фактный анализ</a>
-                <a href="{{ url_for('finance.budget') }}" class="btn btn-outline-dark">Бюджетные статьи</a>
+            <div class="text-uppercase text-secondary small mb-2">P&amp;L</div>
+            <h2 class="h5">Прибыль по начислению</h2>
+            <p class="text-secondary">Выручка из выполненных заказов, COGS по cost_price/FIFO, OPEX и учебный налог УСН 6%.</p>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ url_for('finance.profitability_report') }}" class="btn btn-outline-dark btn-sm">Открыть P&amp;L</a>
+                <a href="{{ url_for('finance.bdr_report') }}" class="btn btn-outline-dark btn-sm">БДР</a>
             </div>
-            <form method="post" action="{{ url_for('finance.export_1c') }}" class="surface p-3 mb-3">
-                <label class="form-label" for="period">Выгрузка обменных данных</label>
-                <div class="input-group">
-                    <input class="form-control" id="period" name="period" value="{{ current_period }}">
-                    <button class="btn btn-primary" type="submit">Сформировать файл</button>
-                </div>
-                <div class="small text-secondary mt-2">
-                    Формируется файл обмена по продажам и поступлениям за выбранный период.
-                </div>
-            </form>
-            <div class="surface p-3">
-                <div class="text-uppercase text-secondary small mb-2">DOCX-отчеты</div>
-                <div class="small text-secondary mb-3">Нажмите кнопку, выберите период и сформируйте отчет по актуальному периоду управления финансами.</div>
-                <div class="d-grid gap-2">
-                    <button type="button" data-report-url="{{ url_for('finance.dashboard_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX дашборд</button>
-                    <button type="button" data-report-url="{{ url_for('finance.plan_fact_analysis_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX план-факт</button>
-                    <button type="button" data-report-url="{{ url_for('finance.budget_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX бюджет</button>
-                    <button type="button" data-report-url="{{ url_for('finance.bdr_report_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX БДР</button>
-                    <button type="button" data-report-url="{{ url_for('finance.cash_flow_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX кассовый отчет</button>
-                    <button type="button" data-report-url="{{ url_for('finance.management_balance_print') }}" data-mode="date" data-default-value="{{ current_period ~ '-01' }}" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX управление баланс</button>
-                    <button type="button" data-report-url="{{ url_for('finance.settlements_print') }}" data-mode="period" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX взаиморасчеты</button>
-                    <button type="button" data-report-url="{{ url_for('finance.bdds_forecast_print') }}" data-mode="start_date" data-default-value="{{ current_period ~ '-01' }}" class="btn btn-outline-dark btn-sm docx-report-btn">Скачать DOCX прогноз 30 дней</button>
-                </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Баланс</div>
+            <h2 class="h5">Управленческий баланс</h2>
+            <p class="text-secondary">Деньги, дебиторка, запасы, основные средства, кредиторка и займы на дату.</p>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ url_for('finance.management_balance') }}" class="btn btn-outline-dark btn-sm">Открыть баланс</a>
+                <a href="{{ url_for('finance.settlements') }}" class="btn btn-outline-dark btn-sm">Взаиморасчеты</a>
             </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Бюджет</div>
+            <h2 class="h5">Сценарии и годовой план</h2>
+            <p class="text-secondary">Base, optimistic, stress, утверждение demo и помесячная разбивка.</p>
+            <a href="{{ url_for('finance.budget') }}" class="btn btn-outline-dark btn-sm">Открыть бюджет</a>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Контроль</div>
+            <h2 class="h5">План-факт</h2>
+            <p class="text-secondary">Отклонения по статьям, предупреждения 10% и 20%, причины отклонений.</p>
+            <a href="{{ url_for('finance.plan_fact_analysis') }}" class="btn btn-outline-dark btn-sm">Открыть план-факт</a>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Demo-интеграции</div>
+            <h2 class="h5">Банк, 1C, ФНС mock</h2>
+            <p class="text-secondary">Импорт CSV или генерация локальных данных, защита дублей по external_ref.</p>
+            <a href="{{ url_for('finance.integrations') }}" class="btn btn-outline-dark btn-sm">Открыть интеграции</a>
         </div>
     </div>
 </div>
@@ -156,29 +118,20 @@
 <div class="row g-4">
     <div class="col-xl-7">
         <div class="surface p-4 h-100">
-            <div class="text-uppercase text-secondary small mb-2">Динамика периода</div>
-            <h2 class="h4 mb-3">Сравнение по месяцам 2026 года</h2>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0">Динамика Cash Flow</h2>
+                <span class="text-secondary small">{{ current_period }}</span>
+            </div>
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Период</th>
-                            <th>Доходы</th>
-                            <th>Расходы</th>
-                            <th>Баланс</th>
-                        </tr>
-                    </thead>
+                    <thead class="table-light"><tr><th>Период</th><th class="text-end">Поступления</th><th class="text-end">Выплаты</th><th class="text-end">Остаток</th></tr></thead>
                     <tbody>
                         {% for row in period_rows %}
                             <tr>
                                 <td>{{ row.period }}</td>
-                                <td>{{ "%.2f"|format(row.income) }} ₽</td>
-                                <td>{{ "%.2f"|format(row.expenses) }} ₽</td>
-                                <td>
-                                    <span class="badge {% if row.balance >= 0 %}text-bg-success{% else %}text-bg-danger{% endif %}">
-                                        {{ "%.2f"|format(row.balance) }} ₽
-                                    </span>
-                                </td>
+                                <td class="text-end">{{ "%.0f"|format(row.income) }} руб.</td>
+                                <td class="text-end">{{ "%.0f"|format(row.expenses) }} руб.</td>
+                                <td class="text-end"><span class="badge {% if row.balance >= 0 %}text-bg-success{% else %}text-bg-danger{% endif %}">{{ "%.0f"|format(row.balance) }} руб.</span></td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -188,108 +141,19 @@
     </div>
     <div class="col-xl-5">
         <div class="surface p-4 h-100">
-            <div class="text-uppercase text-secondary small mb-2">Контроль риска</div>
-            <h2 class="h4 mb-3">Платежная дисциплина и нагрузка</h2>
-            <div class="surface p-3 mb-3">
-                <div class="text-secondary small">Неоплаченные закупочные документы</div>
-                <div class="h3 mb-0">{{ unpaid_purchase_orders }}</div>
-            </div>
-            <div class="surface p-3 mb-3">
-                <div class="text-secondary small">Сумма ожидаемых выплат</div>
-                <div class="h3 mb-0">{{ "%.2f"|format(unpaid_purchase_amount) }} ₽</div>
-            </div>
-            <div class="surface p-3">
-                <div class="text-secondary small">Заказы клиентов в системе</div>
-                <div class="h3 mb-0">{{ sales_orders_count }}</div>
-            </div>
-        </div>
-    </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="docxPeriodModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Выберите период отчета</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <form id="docxPeriodForm" class="modal-body">
-                <input type="hidden" id="docxReportUrl">
-                <input type="hidden" id="docxMode">
-                <div class="mb-3" id="docxPeriodGroup">
-                    <label for="docxPeriodInput" class="form-label">Период</label>
-                    <input id="docxPeriodInput" type="month" class="form-control" value="{{ current_period }}">
-                </div>
-                <div class="mb-3 d-none" id="docxDateGroup">
-                    <label for="docxDateInput" class="form-label">Дата отчета</label>
-                    <input id="docxDateInput" type="date" class="form-control" value="{{ current_period ~ '-01' }}">
-                </div>
-                <div class="mb-3 d-none" id="docxStartDateGroup">
-                    <label for="docxStartDateInput" class="form-label">Начало периода</label>
-                    <input id="docxStartDateInput" type="date" class="form-control" value="{{ current_period ~ '-01' }}">
-                </div>
-            </form>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" id="docxSubmitButton" class="btn btn-primary">Сформировать DOCX</button>
+            <h2 class="h5 mb-3">Быстрые действия</h2>
+            <div class="d-grid gap-2">
+                <a href="{{ url_for('finance.dashboard') }}" class="btn btn-outline-dark">Финансовый dashboard</a>
+                <a href="{{ url_for('finance.bdds_forecast') }}" class="btn btn-outline-dark">Прогноз БДДС</a>
+                <a href="{{ url_for('finance.settlements') }}" class="btn btn-outline-dark">Взаиморасчеты</a>
+                <a href="{{ url_for('finance.bdr_report') }}" class="btn btn-outline-dark">БДР</a>
+                <a href="{{ url_for('finance.incoming_payments') }}" class="btn btn-outline-dark">Входящие оплаты</a>
+                <a href="{{ url_for('finance.outgoing_payments') }}" class="btn btn-outline-dark">Закупки к оплате</a>
+                <a href="{{ url_for('finance.profitability_report_print', period=current_period) }}" class="btn btn-outline-dark" target="_blank">Скачать P&amp;L DOCX</a>
+                <a href="{{ url_for('finance.cash_flow_print', period=current_period) }}" class="btn btn-outline-dark" target="_blank">Скачать Cash Flow DOCX</a>
+                <a href="{{ url_for('finance.finance_help') }}" class="btn btn-outline-dark">Справка по финансам</a>
             </div>
         </div>
     </div>
 </div>
-
-{% endblock %}
-
-{% block extra_js %}
-<script>
-    const periodModal = new bootstrap.Modal(document.getElementById('docxPeriodModal'));
-    const reportUrlInput = document.getElementById('docxReportUrl');
-    const modeInput = document.getElementById('docxMode');
-    const periodGroup = document.getElementById('docxPeriodGroup');
-    const dateGroup = document.getElementById('docxDateGroup');
-    const startDateGroup = document.getElementById('docxStartDateGroup');
-    const periodInput = document.getElementById('docxPeriodInput');
-    const dateInput = document.getElementById('docxDateInput');
-    const startDateInput = document.getElementById('docxStartDateInput');
-
-    document.querySelectorAll('.docx-report-btn').forEach(button => {
-        button.addEventListener('click', event => {
-            const reportUrl = button.getAttribute('data-report-url');
-            const mode = button.getAttribute('data-mode');
-            const defaultValue = button.getAttribute('data-default-value');
-            reportUrlInput.value = reportUrl;
-            modeInput.value = mode;
-            periodGroup.classList.toggle('d-none', mode !== 'period');
-            dateGroup.classList.toggle('d-none', mode !== 'date');
-            startDateGroup.classList.toggle('d-none', mode !== 'start_date');
-            if (defaultValue) {
-                if (mode === 'date') {
-                    dateInput.value = defaultValue;
-                } else if (mode === 'start_date') {
-                    startDateInput.value = defaultValue;
-                }
-            }
-            periodModal.show();
-        });
-    });
-
-    document.getElementById('docxSubmitButton').addEventListener('click', () => {
-        const reportUrl = reportUrlInput.value;
-        const mode = modeInput.value;
-        let href = reportUrl;
-        if (mode === 'date') {
-            const dateValue = dateInput.value;
-            href += `?date=${encodeURIComponent(dateValue)}&show_seal=1&show_signatures=1`;
-        } else if (mode === 'start_date') {
-            const startValue = startDateInput.value;
-            href += `?start_date=${encodeURIComponent(startValue)}&show_seal=1&show_signatures=1`;
-        } else {
-            const periodValue = periodInput.value;
-            href += `?period=${encodeURIComponent(periodValue)}&show_seal=1&show_signatures=1`;
-        }
-        window.open(href, '_blank');
-        periodModal.hide();
-    });
-</script>
 {% endblock %}

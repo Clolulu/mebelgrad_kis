@@ -9,14 +9,22 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 from app.models import (
+    BudgetLine,
     BudgetItem,
+    BudgetScenario,
+    CashAccount,
     CashCalendarItem,
+    CashTransaction,
     CompanyProfile,
     Customer,
     Employee,
+    FinanceArticle,
+    FixedAsset,
     IndirectExpense,
     InventoryBatch,
+    Loan,
     Payment,
+    PaymentRequest,
     Product,
     PurchaseOrder,
     PurchaseOrderItem,
@@ -29,6 +37,11 @@ from app.models import (
     db,
 )
 from config import config
+
+
+DEFAULT_COMPANY_SEAL_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQAM2ekfbi4aBiiUKUq6NJLKjJAorMhwJiTqQ&s"
+DEFAULT_COMPANY_SIGNATURE_URL = "https://upload.wikimedia.org/wikipedia/commons/2/2c/GalkinAI-signature.png"
+DEFAULT_COMPANY_LOGO_URL = "https://alaci.kz/wp-content/uploads/2022/03/logo-mebelgrad-e1646908558844.png"
 
 
 load_dotenv()
@@ -778,6 +791,235 @@ def seed_database():
         if exists is None:
             db.session.add(IndirectExpense(period=period_val, category=category_val, amount=amount_val))
 
+    finance_articles_data = [
+        ("Продажи", "both", "operational", "revenue"),
+        ("Закупки", "both", "operational", "cogs"),
+        ("Аренда", "both", "operational", "opex"),
+        ("Зарплата", "both", "operational", "opex"),
+        ("Налоги", "both", "operational", "tax"),
+        ("Оборудование", "bdds", "investment", "other"),
+        ("Кредит", "bdds", "financial", "other"),
+        ("Прочие расходы", "both", "operational", "other"),
+    ]
+    article_map = {}
+    for name, report_type, cash_flow_group, pnl_group in finance_articles_data:
+        article = FinanceArticle.query.filter_by(name=name).first()
+        if article is None:
+            article = FinanceArticle(
+                name=name,
+                report_type=report_type,
+                cash_flow_group=cash_flow_group,
+                pnl_group=pnl_group,
+                is_active=True,
+            )
+            db.session.add(article)
+            db.session.flush()
+        article_map[name] = article
+
+    cash_accounts_data = [
+        ("Расчетный счет", "bank", "Учебный банк", "40702810000000000001", "RUB", 850000.00, datetime(2025, 1, 1)),
+        ("Касса", "cash", None, "CASH-01", "RUB", 120000.00, datetime(2025, 1, 1)),
+        ("Demo накопительный", "demo", "Учебный банк", "DEMO-SAVE-01", "RUB", 350000.00, datetime(2025, 6, 1)),
+    ]
+    account_map = {}
+    for name, account_type, bank_name, account_number, currency, opening_balance, opening_date in cash_accounts_data:
+        account = CashAccount.query.filter_by(name=name).first()
+        if account is None:
+            account = CashAccount(
+                name=name,
+                account_type=account_type,
+                bank_name=bank_name,
+                account_number=account_number,
+                currency=currency,
+                opening_balance=opening_balance,
+                opening_date=opening_date,
+                is_active=True,
+            )
+            db.session.add(account)
+            db.session.flush()
+        account_map[name] = account
+
+    db.session.flush()
+    main_account = account_map["Расчетный счет"]
+    for payment in Payment.query.filter_by(status="completed").all():
+        external_ref = f"payment:{payment.id}"
+        if CashTransaction.query.filter_by(external_ref=external_ref).first() is None:
+            db.session.add(
+                CashTransaction(
+                    account_id=main_account.id,
+                    date=payment.payment_date,
+                    amount=payment.amount,
+                    direction="incoming",
+                    article_id=article_map["Продажи"].id,
+                    customer_id=payment.sales_order.customer_id if payment.sales_order else None,
+                    counterparty=payment.sales_order.customer.name if payment.sales_order and payment.sales_order.customer else None,
+                    source="sales",
+                    status="executed",
+                    description=f"Оплата заказа {payment.sales_order.order_number if payment.sales_order else payment.id}",
+                    external_ref=external_ref,
+                )
+            )
+
+    for order in PurchaseOrder.query.filter_by(is_paid=True).all():
+        external_ref = f"purchase_order:{order.id}"
+        if CashTransaction.query.filter_by(external_ref=external_ref).first() is None:
+            db.session.add(
+                CashTransaction(
+                    account_id=main_account.id,
+                    date=order.order_date + timedelta(days=2),
+                    amount=order.total_amount,
+                    direction="outgoing",
+                    article_id=article_map["Закупки"].id,
+                    supplier_id=order.supplier_id,
+                    counterparty=order.supplier.name if order.supplier else None,
+                    source="purchase",
+                    status="executed",
+                    description=f"Оплата закупки {order.order_number}",
+                    external_ref=external_ref,
+                )
+            )
+
+    demo_cash_transactions = [
+        ("demo-rent-2026-01", "Расчетный счет", datetime(2026, 1, 6), 82000.00, "outgoing", "Аренда", "Бизнес-центр", "Аренда шоурума"),
+        ("demo-salary-2026-01", "Расчетный счет", datetime(2026, 1, 25), 215000.00, "outgoing", "Зарплата", "Сотрудники", "Зарплата demo"),
+        ("demo-tax-2026-02", "Расчетный счет", datetime(2026, 2, 15), 46000.00, "outgoing", "Налоги", "ИФНС demo", "УСН 6% demo"),
+        ("demo-equipment-2026-03", "Расчетный счет", datetime(2026, 3, 20), 380000.00, "outgoing", "Оборудование", "Станки demo", "Покупка форматно-раскроечного станка"),
+        ("demo-loan-2026-03", "Demo накопительный", datetime(2026, 3, 28), 500000.00, "incoming", "Кредит", "Учебный банк", "Поступление демо-кредита"),
+        ("demo-interest-2026-04", "Расчетный счет", datetime(2026, 4, 28), 18000.00, "outgoing", "Кредит", "Учебный банк", "Проценты по демо-кредиту"),
+    ]
+    for external_ref, account_name, tx_date, amount, direction, article_name, counterparty, description in demo_cash_transactions:
+        if CashTransaction.query.filter_by(external_ref=external_ref).first() is None:
+            db.session.add(
+                CashTransaction(
+                    account_id=account_map[account_name].id,
+                    date=tx_date,
+                    amount=amount,
+                    direction=direction,
+                    article_id=article_map[article_name].id,
+                    counterparty=counterparty,
+                    source="demo_bank",
+                    status="executed",
+                    description=description,
+                    external_ref=external_ref,
+                )
+            )
+
+    fixed_assets_data = [
+        ("Форматно-раскроечный станок", datetime(2026, 3, 20), 380000.00, 25000.00, "Производство"),
+        ("Демо-касса и POS", datetime(2025, 9, 10), 95000.00, 30000.00, "Торговое оборудование"),
+        ("Офисная мебель шоурума", datetime(2025, 7, 15), 220000.00, 55000.00, "Шоурум"),
+    ]
+    for name, purchase_date, initial_cost, depreciation, category in fixed_assets_data:
+        if FixedAsset.query.filter_by(name=name).first() is None:
+            db.session.add(
+                FixedAsset(
+                    name=name,
+                    purchase_date=purchase_date,
+                    initial_cost=initial_cost,
+                    accumulated_depreciation=depreciation,
+                    category=category,
+                    is_active=True,
+                )
+            )
+
+    if Loan.query.filter_by(lender="Учебный банк").first() is None:
+        db.session.add(
+            Loan(
+                lender="Учебный банк",
+                principal=500000.00,
+                rate=12.5,
+                start_date=datetime(2026, 3, 28),
+                due_date=datetime(2027, 3, 28),
+                outstanding_amount=475000.00,
+                is_active=True,
+            )
+        )
+
+    scenario_specs = [
+        ("base", 2026, "approved", 1, 1.00),
+        ("optimistic", 2026, "draft", 1, 1.12),
+        ("stress", 2026, "draft", 1, 0.86),
+    ]
+    budget_line_base = [
+        ("Продажи", 980000.00),
+        ("Закупки", 540000.00),
+        ("Аренда", 82000.00),
+        ("Зарплата", 218000.00),
+        ("Налоги", 46000.00),
+    ]
+    for scenario_name, year, status, version, factor in scenario_specs:
+        scenario = BudgetScenario.query.filter_by(name=scenario_name, year=year, version=version).first()
+        if scenario is None:
+            scenario = BudgetScenario(name=scenario_name, year=year, status=status, version=version)
+            db.session.add(scenario)
+            db.session.flush()
+        for month in range(1, 13):
+            period_key = f"{year}-{month:02d}"
+            season = 1.0 + ((month - 6) * 0.015)
+            for article_name, base_amount in budget_line_base:
+                article = article_map[article_name]
+                exists = BudgetLine.query.filter_by(
+                    scenario_id=scenario.id,
+                    period=period_key,
+                    article_id=article.id,
+                ).first()
+                if exists is None:
+                    db.session.add(
+                        BudgetLine(
+                            scenario_id=scenario.id,
+                            period=period_key,
+                            article_id=article.id,
+                            category=article.name,
+                            amount=round(base_amount * factor * season, 2),
+                            department="Финансы",
+                            owner="Финансист demo",
+                        )
+                    )
+
+    demo_supplier = Supplier.query.first()
+    finance_user = User.query.filter_by(username="finance").first()
+    payment_requests_data = [
+        ("demo-pr-001", datetime(2026, 4, 26), 54000.00, "outgoing", "Аренда", "pending", "high", "Аренда склада за май"),
+        ("demo-pr-002", datetime(2026, 4, 29), 38000.00, "outgoing", "Налоги", "approved", "normal", "Учебный платеж УСН"),
+        ("demo-pr-003", datetime(2026, 4, 12), 125000.00, "outgoing", "Закупки", "paid", "normal", "Оплаченная demo-заявка"),
+        ("demo-pr-004", datetime(2026, 5, 5), 27000.00, "outgoing", "Прочие расходы", "rejected", "low", "Отклоненная demo-заявка"),
+    ]
+    for external_ref, due_date, amount, direction, article_name, status, priority, comment in payment_requests_data:
+        request_item = PaymentRequest.query.filter_by(comment=comment).first()
+        if request_item is None:
+            request_item = PaymentRequest(
+                date=due_date - timedelta(days=4),
+                due_date=due_date,
+                amount=amount,
+                direction=direction,
+                article_id=article_map[article_name].id,
+                supplier_id=demo_supplier.id if demo_supplier else None,
+                status=status,
+                priority=priority,
+                comment=comment,
+                created_by=finance_user.id if finance_user else None,
+                approved_by=finance_user.id if status in {"approved", "paid", "rejected"} and finance_user else None,
+                approved_at=due_date - timedelta(days=2) if status in {"approved", "paid", "rejected"} else None,
+            )
+            db.session.add(request_item)
+            db.session.flush()
+        if status == "paid" and CashTransaction.query.filter_by(external_ref=f"payment_request_seed:{external_ref}").first() is None:
+            db.session.add(
+                CashTransaction(
+                    account_id=main_account.id,
+                    date=due_date,
+                    amount=amount,
+                    direction=direction,
+                    article_id=article_map[article_name].id,
+                    supplier_id=demo_supplier.id if demo_supplier else None,
+                    counterparty=demo_supplier.name if demo_supplier else None,
+                    source="manual",
+                    status="executed",
+                    description=f"Оплата по заявке #{request_item.id}",
+                    external_ref=f"payment_request_seed:{external_ref}",
+                )
+            )
+
     balance_snapshots = [
         (datetime(2026, 3, 31), 12500000.00, 6800000.00, 5700000.00, "Баланс на 31 марта 2026"),
         (datetime(2026, 4, 30), 13000000.00, 7100000.00, 5900000.00, "Баланс на 30 апреля 2026"),
@@ -821,25 +1063,25 @@ def seed_database():
             ceo="Кузьмин Андрей Сергеевич",
             ceo_position=None,
             ceo_signature_url=None,
-            signature_url="https://upload.wikimedia.org/wikipedia/commons/2/2c/GalkinAI-signature.png",
+            signature_url=DEFAULT_COMPANY_SIGNATURE_URL,
             chief_accountant_name=None,
             chief_accountant_signature_url=None,
-            seal_url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQAM2ekfbi4aBiiUKUq6NJLKjJAorMhwJiTqQ&s",
-            logo_url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQqjBb3N-5K12RjxM-PFGwrzRDeXoYRWvH9Ww&s",
+            seal_url=DEFAULT_COMPANY_SEAL_URL,
+            logo_url=DEFAULT_COMPANY_LOGO_URL,
             print_footer="Документ изготовлен автоматически и действителен без подписи и печати в соответствии с законодательством РФ об индивидуальных предпринимателях.",
         )
         db.session.add(company)
     else:
         updated = False
-        if company.logo_url == "https://i.imgur.com/logo.png":
-            company.logo_url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQqjBb3N-5K12RjxM-PFGwrzRDeXoYRWvH9Ww&s"
-            updated = True
-        if company.seal_url == "https://i.imgur.com/seal.png":
-            company.seal_url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQAM2ekfbi4aBiiUKUq6NJLKjJAorMhwJiTqQ&s"
-            updated = True
-        if company.signature_url == "https://i.imgur.com/signature.png":
-            company.signature_url = "https://upload.wikimedia.org/wikipedia/commons/2/2c/GalkinAI-signature.png"
-            updated = True
+        seeded_assets = {
+            "signature_url": DEFAULT_COMPANY_SIGNATURE_URL,
+            "seal_url": DEFAULT_COMPANY_SEAL_URL,
+            "logo_url": DEFAULT_COMPANY_LOGO_URL,
+        }
+        for field, value in seeded_assets.items():
+            if getattr(company, field) != value:
+                setattr(company, field, value)
+                updated = True
         if updated:
             db.session.add(company)
 

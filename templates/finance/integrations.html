@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Demo-интеграции | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div>
+        <div class="text-uppercase text-secondary small">Финансы / Demo-интеграции</div>
+        <h1 class="h3 mb-2">Банк, 1C и ФНС mock</h1>
+        <p class="mb-0">{{ demo_note }}</p>
+    </div>
+</section>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="surface p-4 h-100">
+            <h2 class="h5 mb-3">Импорт банковской выписки</h2>
+            <form method="post" action="{{ url_for('finance.import_bank_demo') }}" enctype="multipart/form-data">
+                <label class="form-label" for="bank_file">CSV: date, account, amount, direction, counterparty, purpose, external_ref</label>
+                <input class="form-control mb-3" id="bank_file" name="bank_file" type="file" accept=".csv">
+                <button class="btn btn-primary" type="submit">Импортировать CSV или demo-выписку</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="surface p-4 h-100">
+            <h2 class="h5 mb-3">Импорт 1C demo</h2>
+            <form method="post" action="{{ url_for('finance.import_1c_demo') }}" class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label" for="period">Период</label>
+                    <input class="form-control" id="period" name="period" type="month" value="{{ current_year }}-04">
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" type="submit">Сгенерировать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="surface p-4 mb-4">
+    <h2 class="h5 mb-3">Проверка контрагента в ФНС mock</h2>
+    <form method="post" action="{{ url_for('finance.check_fns_demo') }}" class="row g-3 align-items-end">
+        <div class="col-md-9">
+            <label class="form-label" for="counterparty">Контрагент или ИНН</label>
+            <input class="form-control" id="counterparty" name="counterparty" placeholder="ООО Северный офис">
+        </div>
+        <div class="col-md-3">
+            <button class="btn btn-outline-dark w-100" type="submit">Проверить demo</button>
+        </div>
+    </form>
+    {% if fns_result %}
+        <div class="alert alert-info mt-3 mb-0">
+            {{ fns_result.counterparty }}: {{ fns_result.label }}. Источник: {{ fns_result.source }}.
+        </div>
+    {% endif %}
+</div>
+
+<div class="surface p-0 overflow-hidden">
+    <div class="p-3 border-bottom fw-semibold">Последние CashTransaction</div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Дата</th><th>Счет</th><th>Направление</th><th>Статья</th><th class="text-end">Сумма</th><th>Источник</th><th>External ref</th></tr></thead>
+            <tbody>
+                {% for tx in recent_transactions %}
+                    <tr>
+                        <td>{{ tx.date.strftime("%d.%m.%Y") }}</td>
+                        <td>{{ tx.account.name }}</td>
+                        <td>{{ "Приход" if tx.direction == "incoming" else "Расход" }}</td>
+                        <td>{{ tx.article.name if tx.article else "Без статьи" }}</td>
+                        <td class="text-end">{{ "%.2f"|format(tx.amount) }} руб.</td>
+                        <td>{{ tx.source }}</td>
+                        <td><span class="small text-secondary">{{ tx.external_ref or "-" }}</span></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7" class="text-center py-4 text-secondary">Транзакций пока нет.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

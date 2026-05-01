@@ -1,133 +1,90 @@
 {% extends "base.html" %}
 
-{% block title %}План-фактный анализ | КИС "МебельГрад"{% endblock %}
+{% block title %}План-факт | КИС "МебельГрад"{% endblock %}
 
 {% block content %}
-{% include "finance/_role_badges.html" %}
 <section class="hero-strip">
-    <div class="text-uppercase text-secondary small">Финансы / Аналитика</div>
-    <h1 class="h3 mb-2">План-фактный анализ</h1>
-    <p class="mb-0">Сопоставление бюджета и фактических движений денежных средств по ключевым категориям.</p>
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Финансы / Контроль бюджета</div>
+            <h1 class="h3 mb-2">План-фактный анализ</h1>
+            <p class="mb-0">Отклонения свыше 10% подсвечиваются как warning, свыше 20% - как danger. Причины отклонений сохраняются локально.</p>
+        </div>
+        <a href="{{ url_for('finance.plan_fact_analysis_print', period=period) }}" class="btn btn-outline-dark" target="_blank">DOCX</a>
+    </div>
 </section>
 
 <div class="surface p-4 mb-4">
     <form method="get" class="row g-3">
-        <div class="col-lg-9">
+        <div class="col-lg-10">
             <label class="form-label" for="period">Период</label>
             <input class="form-control" id="period" name="period" type="month" value="{{ period }}">
         </div>
         <div class="col-lg-2 d-flex align-items-end">
             <button class="btn btn-primary w-100" type="submit">Показать</button>
         </div>
-        <div class="col-lg-1 d-flex align-items-end">
-            <a href="{{ url_for('finance.plan_fact_analysis_print', period=period) }}" class="btn btn-outline-primary w-100" target="_blank" title="Печать отчета">
-                <i class="bi bi-printer"></i>
-            </a>
-        </div>
-    </form>
-</div>
-
-<div class="surface p-4 mb-4">
-    <h5>Добавить причину отклонения</h5>
-    {% if deviations_alpha %}
-        <div class="alert alert-warning">Критические отклонения (>=20%): {% for d in deviations_alpha %}{{ d.category }} ({{ "%.1f"|format(d.variance_pct) }}%) {% if not loop.last %}, {% endif %}{% endfor %}</div>
-    {% endif %}
-    <form method="post" class="row g-3">
-        <div class="col-md-4">
-            <label class="form-label" for="item_name">Статья</label>
-            <input class="form-control" type="text" id="item_name" name="item_name" required>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label" for="planned">План</label>
-            <input class="form-control" type="number" step="0.01" id="planned" name="planned" value="0">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label" for="actual">Факт</label>
-            <input class="form-control" type="number" step="0.01" id="actual" name="actual" value="0">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label" for="deviation">Отклонение</label>
-            <input class="form-control" type="number" step="0.01" id="deviation" name="deviation" value="0">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label" for="reason">Причина</label>
-            <input class="form-control" type="text" id="reason" name="reason" required>
-        </div>
-        <div class="col-12">
-            <button class="btn btn-outline-dark" type="submit">Сохранить причину</button>
-        </div>
     </form>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">План</div><div class="h4 mb-0">{{ "%.2f"|format(total_planned) }} ₽</div></div></div>
-    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Факт</div><div class="h4 mb-0">{{ "%.2f"|format(total_actual) }} ₽</div></div></div>
-    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Отклонение</div><div class="h4 mb-0">{{ "%.2f"|format(total_variance) }} ₽</div></div></div>
-    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Денежный разрыв</div><div class="h4 mb-0">{{ "%.2f"|format(cash_gap) }} ₽</div></div></div>
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">План</div><div class="h4 mb-0">{{ "%.0f"|format(total_planned) }} руб.</div></div></div>
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Факт</div><div class="h4 mb-0">{{ "%.0f"|format(total_actual) }} руб.</div></div></div>
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Отклонение</div><div class="h4 mb-0 {% if total_variance < 0 %}text-danger{% endif %}">{{ "%.0f"|format(total_variance) }} руб.</div></div></div>
+    <div class="col-md-3"><div class="surface p-3"><div class="text-secondary small">Прогноз денег</div><div class="h4 mb-0 {% if cash_gap < 0 %}text-danger{% endif %}">{{ "%.0f"|format(cash_gap) }} руб.</div></div></div>
 </div>
 
-<div class="surface p-0 overflow-hidden">
+<div class="surface p-4 mb-4">
+    <h2 class="h5 mb-3">Добавить причину отклонения</h2>
+    <form method="post" class="row g-3">
+        <div class="col-md-3"><label class="form-label" for="item_name">Статья</label><input class="form-control" id="item_name" name="item_name" required></div>
+        <div class="col-md-2"><label class="form-label" for="planned">План</label><input class="form-control" type="number" step="0.01" id="planned" name="planned" value="0"></div>
+        <div class="col-md-2"><label class="form-label" for="actual">Факт</label><input class="form-control" type="number" step="0.01" id="actual" name="actual" value="0"></div>
+        <div class="col-md-2"><label class="form-label" for="deviation">Отклонение</label><input class="form-control" type="number" step="0.01" id="deviation" name="deviation" value="0"></div>
+        <div class="col-md-3"><label class="form-label" for="reason">Причина</label><input class="form-control" id="reason" name="reason" required></div>
+        <div class="col-12"><button class="btn btn-outline-dark" type="submit">Сохранить причину</button></div>
+    </form>
+</div>
+
+<div class="surface p-0 overflow-hidden mb-4">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Категория</th>
-                    <th>Тип</th>
-                    <th class="text-end">План</th>
-                    <th class="text-end">Факт</th>
-                    <th class="text-end">Гибкий план</th>
-                    <th class="text-end">Отклонение</th>
-                    <th class="text-end">Отклонение, %</th>
-                </tr>
-            </thead>
+            <thead class="table-light"><tr><th>Статья</th><th class="text-end">План</th><th class="text-end">Факт</th><th class="text-end">Отклонение</th><th class="text-end">%</th></tr></thead>
             <tbody>
                 {% for item in analysis %}
-                    <tr>
+                    <tr class="{% if item.severity == 'danger' %}table-danger{% elif item.severity == 'warning' %}table-warning{% endif %}">
                         <td class="fw-semibold">{{ item.category }}</td>
-                        <td>{{ "Доход" if item.type == 'income' else "Расход" }}</td>
-                        <td class="text-end">{{ "%.2f"|format(item.planned) }} ₽</td>
-                        <td class="text-end">{{ "%.2f"|format(item.actual) }} ₽</td>
-                        <td class="text-end">{{ "%.2f"|format(item.flexed if item.flexed is defined else item.planned) }} ₽</td>
-                        <td class="text-end {% if item.variance > 0 %}text-danger{% elif item.variance < 0 %}text-success{% endif %}">{{ "%.2f"|format(item.variance) }} ₽</td>
-                        <td class="text-end">
-                            {% if item.planned %}
-                                {{ "%.1f"|format((item.variance / item.planned) * 100) }} %
-                            {% else %}
-                                0.0 %
-                            {% endif %}
-                        </td>
+                        <td class="text-end">{{ "%.2f"|format(item.planned) }} руб.</td>
+                        <td class="text-end">{{ "%.2f"|format(item.actual) }} руб.</td>
+                        <td class="text-end">{{ "%.2f"|format(item.variance) }} руб.</td>
+                        <td class="text-end">{{ "%.1f"|format(item.variance_pct) }}%</td>
                     </tr>
+                {% else %}
+                    <tr><td colspan="5" class="text-center py-4 text-secondary">Нет данных для анализа.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<div class="surface p-4 mt-4">
-    <h5>Последние причины план-факт</h5>
-    {% if deviations %}
-        <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-                <thead class="table-light">
-                    <tr><th>Дата</th><th>Статья</th><th>План</th><th>Факт</th><th>Отклонение</th><th>%</th><th>Причина</th></tr>
-                </thead>
-                <tbody>
-                    {% for d in deviations %}
-                        <tr>
-                            <td>{{ d.created_at.strftime('%Y-%m-%d') }}</td>
-                            <td>{{ d.item_name }}</td>
-                            <td>{{ '%.2f'|format(d.planned_value) }}</td>
-                            <td>{{ '%.2f'|format(d.actual_value) }}</td>
-                            <td>{{ '%.2f'|format(d.deviation) }}</td>
-                            <td>{{ '%.2f'|format(d.deviation_pct) }}</td>
-                            <td>{{ d.reason }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <p class="mb-0">Причины отклонений еще не добавлены.</p>
-    {% endif %}
+<div class="surface p-0 overflow-hidden">
+    <div class="p-3 border-bottom fw-semibold">Причины отклонений</div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Дата</th><th>Статья</th><th class="text-end">План</th><th class="text-end">Факт</th><th>Причина</th></tr></thead>
+            <tbody>
+                {% for d in deviations %}
+                    <tr>
+                        <td>{{ d.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ d.item_name }}</td>
+                        <td class="text-end">{{ "%.2f"|format(d.planned_value) }}</td>
+                        <td class="text-end">{{ "%.2f"|format(d.actual_value) }}</td>
+                        <td>{{ d.reason }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5" class="text-center py-4 text-secondary">Причины еще не добавлены.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 {% endblock %}
