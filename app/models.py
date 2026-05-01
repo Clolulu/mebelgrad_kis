@@ -15,12 +15,18 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    phone = db.Column(db.String(20), unique=True)
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     is_finance = db.Column(db.Boolean, default=False)
     is_data_admin = db.Column(db.Boolean, default=False)
     is_data_editor = db.Column(db.Boolean, default=False)
     is_data_viewer = db.Column(db.Boolean, default=False)
+    # New role system: админ, финансист, кладовщик, Продавец
+    role_admin = db.Column(db.Boolean, default=False)  # админ
+    role_financier = db.Column(db.Boolean, default=False)  # финансист
+    role_warehouse = db.Column(db.Boolean, default=False)  # кладовщик
+    role_seller = db.Column(db.Boolean, default=False)  # Продавец
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -32,6 +38,127 @@ class User(UserMixin, db.Model):
     
     def __repr__(self):
         return f'<User {self.username}>'
+
+    @property
+    def role_name(self):
+        if self.role_admin:
+            return "admin"
+        if self.role_financier:
+            return "finance"
+        if self.role_warehouse:
+            return "warehouse"
+        if self.role_seller:
+            return "seller"
+        return None
+
+    @property
+    def role_label(self):
+        return {
+            "admin": "Админ",
+            "finance": "Финансист",
+            "warehouse": "Кладовщик",
+            "seller": "Продавец",
+        }.get(self.role_name, "Нет роли")
+
+    @property
+    def role_permission(self):
+        if not self.role_name:
+            return None
+        return RolePermission.query.filter_by(role_name=self.role_name).first()
+
+    @property
+    def can_view_mdm(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            (permissions and (permissions.can_view_mdm or permissions.can_edit_mdm))
+            or self.is_data_admin
+            or self.is_data_editor
+            or self.is_data_viewer
+        )
+
+    @property
+    def can_edit_mdm(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            (permissions and permissions.can_edit_mdm)
+            or self.is_data_admin
+            or self.is_data_editor
+        )
+
+    @property
+    def can_view_finance(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            (permissions and (permissions.can_view_finance or permissions.can_edit_finance))
+            or self.is_finance
+        )
+
+    @property
+    def can_edit_finance(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            (permissions and permissions.can_edit_finance)
+            or self.is_finance
+        )
+
+    @property
+    def can_view_warehouse(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            permissions and (permissions.can_view_warehouse or permissions.can_edit_warehouse)
+        )
+
+    @property
+    def can_edit_warehouse(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(permissions and permissions.can_edit_warehouse)
+
+    @property
+    def can_view_sales(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            permissions and (permissions.can_view_sales or permissions.can_edit_sales)
+        )
+
+    @property
+    def can_edit_sales(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(permissions and permissions.can_edit_sales)
+
+
+class RolePermission(db.Model):
+    __tablename__ = 'role_permissions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    role_name = db.Column(db.String(50), nullable=False, unique=True)
+    label = db.Column(db.String(50), nullable=False)
+    can_view_mdm = db.Column(db.Boolean, default=False)
+    can_edit_mdm = db.Column(db.Boolean, default=False)
+    can_view_finance = db.Column(db.Boolean, default=False)
+    can_edit_finance = db.Column(db.Boolean, default=False)
+    can_view_warehouse = db.Column(db.Boolean, default=False)
+    can_edit_warehouse = db.Column(db.Boolean, default=False)
+    can_view_sales = db.Column(db.Boolean, default=False)
+    can_edit_sales = db.Column(db.Boolean, default=False)
+
+    def __repr__(self):
+        return f'<RolePermission {self.role_name}>'
 
 
 class Customer(db.Model):

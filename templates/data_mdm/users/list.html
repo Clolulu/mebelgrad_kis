@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Пользователи | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Управление данными / Пользователи</div>
+            <h1 class="h3 mb-2">Управление пользователями</h1>
+            <p class="mb-0">Создание и управление учетными записями пользователей системы.</p>
+        </div>
+        <a href="{{ url_for('mdm.create_user') }}" class="btn btn-primary">Добавить пользователя</a>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6"><div class="surface p-3"><div class="text-secondary small">Всего пользователей</div><div class="h4 mb-0">{{ total_users }}</div></div></div>
+    <div class="col-md-6"><div class="surface p-3"><div class="text-secondary small">Активные пользователи</div><div class="h4 mb-0">{{ active_users }}</div></div></div>
+</div>
+
+<div class="surface p-4 mb-4">
+    <form method="get" class="row g-3">
+        <div class="col-lg-10">
+            <label class="form-label" for="q">Поиск</label>
+            <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Имя пользователя или email">
+        </div>
+        <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Найти</button>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Пользователь</th>
+                    <th>Email</th>
+                    <th>Роли</th>
+                    <th>Статус</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users.items %}
+                    <tr>
+                        <td>
+                            <strong>{{ user.username }}</strong><br>
+                            <small class="text-secondary">{{ user.phone }}</small>
+                        </td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            <div class="small">
+                                {% if user.role_admin %}<span class="badge bg-danger">админ</span>{% endif %}
+                                {% if user.role_financier %}<span class="badge bg-info">финансист</span>{% endif %}
+                                {% if user.role_warehouse %}<span class="badge bg-warning">кладовщик</span>{% endif %}
+                                {% if user.role_seller %}<span class="badge bg-success">продавец</span>{% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if user.is_active %}
+                                <span class="badge bg-success">Активен</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Деактивирован</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('mdm.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">Редактировать</a>
+                            {% if user.id != current_user.id %}
+                                <form method="post" action="{{ url_for('mdm.delete_user', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Вы уверены?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if users.pages > 1 %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if users.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('mdm.users_list', page=users.prev_num, q=q) }}">← Назад</a>
+                </li>
+            {% endif %}
+            <li class="page-item active">
+                <span class="page-link">Страница {{ users.page }}</span>
+            </li>
+            {% if users.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('mdm.users_list', page=users.next_num, q=q) }}">Вперед →</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}
+{% endblock %}

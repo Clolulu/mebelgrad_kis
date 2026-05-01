@@ -16,7 +16,9 @@ from app.models import (
     DuplicateAttempt,
     Employee,
     Product,
+    RolePermission,
     Supplier,
+    User,
     db,
 )
 
@@ -24,7 +26,9 @@ from app.models import (
 def admin_required(view):
     @wraps(view)
     def wrapper(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
+        if not current_user.is_authenticated or not (
+            current_user.is_admin or current_user.role_admin
+        ):
             flash("Раздел управления данными доступен только администратору.", "danger")
             return redirect(url_for("index"))
         return view(*args, **kwargs)
@@ -39,9 +43,9 @@ def mdm_readonly_required(view):
             not current_user.is_authenticated
             or not (
                 current_user.is_admin
-                or current_user.is_data_admin
-                or current_user.is_data_editor
-                or current_user.is_data_viewer
+                or current_user.role_admin
+                or current_user.can_view_mdm
+                or current_user.can_edit_mdm
             )
         ):
             flash("Доступ к данным MDM ограничен. Обратитесь к администратору.", "danger")
@@ -58,8 +62,8 @@ def mdm_editor_required(view):
             not current_user.is_authenticated
             or not (
                 current_user.is_admin
-                or current_user.is_data_admin
-                or current_user.is_data_editor
+                or current_user.role_admin
+                or current_user.can_edit_mdm
             )
         ):
             flash("Изменение данных MDM разрешено только пользователям с правами редактирования.", "danger")
@@ -288,15 +292,13 @@ def index():
     products = Product.query.all()
     customers = Customer.query.all()
     suppliers = Supplier.query.all()
-    employees = Employee.query.all()
+    users = User.query.all()
     user_roles = []
-    if current_user.is_admin:
+    if current_user.is_admin or current_user.role_admin:
         user_roles.append("admin")
-    if current_user.is_data_admin:
-        user_roles.append("mdm-admin")
-    if current_user.is_data_editor:
+    if current_user.can_edit_mdm:
         user_roles.append("mdm-editor")
-    if current_user.is_data_viewer:
+    elif current_user.can_view_mdm:
         user_roles.append("mdm-viewer")
 
     return render_template(
@@ -309,8 +311,8 @@ def index():
             1 for customer in customers if customer.type == "legal_entity"
         ),
         suppliers_count=len(suppliers),
-        employees_count=len(employees),
-        active_employees_count=sum(1 for employee in employees if employee.is_active),
+        total_users=len(users),
+        active_users=sum(1 for user in users if user.is_active),
         incomplete_customer_contacts=sum(
             1 for customer in customers if not customer.phone or not customer.email
         ),
@@ -320,7 +322,7 @@ def index():
             if not supplier.phone or not supplier.email or not supplier.inn
         ),
         incomplete_employee_contacts=sum(
-            1 for employee in employees if not employee.phone or not employee.email
+            1 for user in users if not user.phone or not user.email
         ),
         total_reserved=sum(product.qty_reserved for product in products),
         total_on_hand=sum(product.qty_on_hand for product in products),
@@ -934,32 +936,7 @@ def delete_supplier(supplier_id):
 @login_required
 @mdm_readonly_required
 def employees_list():
-    page = request.args.get("page", 1, type=int)
-    q = request.args.get("q", "").strip()
-    role = request.args.get("role", "").strip()
-
-    query = Employee.query
-    if q:
-        query = query.filter(
-            or_(
-                Employee.name.ilike(f"%{q}%"),
-                Employee.position.ilike(f"%{q}%"),
-                Employee.phone.ilike(f"%{q}%"),
-                Employee.email.ilike(f"%{q}%"),
-            )
-        )
-    if role:
-        query = query.filter(Employee.position.ilike(f"%{role}%"))
-
-    employees = query.order_by(Employee.name.asc()).paginate(page=page, per_page=20)
-    return render_template(
-        "data_mdm/employees/list.html",
-        employees=employees,
-        q=q,
-        role=role,
-        total_employees=Employee.query.count(),
-        active_employees=Employee.query.filter_by(is_active=True).count(),
-    )
+    return redirect(url_for("mdm.users_list"))
 
 
 @mdm_bp.route("/employees/create", methods=["GET", "POST"])
@@ -1159,23 +1136,251 @@ def stock_list():
     )
 
 
+@mdm_bp.route("/users")
+@login_required
+@admin_required
+def users_list():
+    page = request.args.get("page", 1, type=int)
+    q = request.args.get("q", "").strip()
+
+    query = User.query
+    if q:
+        query = query.filter(
+            or_(
+                User.username.ilike(f"%{q}%"),
+                User.email.ilike(f"%{q}%"),
+                User.phone.ilike(f"%{q}%"),
+            )
+        )
+
+    users = query.order_by(User.username.asc()).paginate(page=page, per_page=20)
+    return render_template(
+        "data_mdm/users/list.html",
+        users=users,
+        q=q,
+        total_users=User.query.count(),
+        active_users=User.query.filter_by(is_active=True).count(),
+    )
+
+
+@mdm_bp.route("/users/create", methods=["GET", "POST"])
+@login_required
+@admin_required
+def create_user():
+    from app.models import User
+    
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        password_repeat = request.form.get("password_repeat", "")
+        phone = _normalize_phone(request.form.get("phone", "").strip())
+
+        role_admin = request.form.get("role_admin") == "on"
+        role_financier = request.form.get("role_financier") == "on"
+        role_warehouse = request.form.get("role_warehouse") == "on"
+        role_seller = request.form.get("role_seller") == "on"
+        role_count = sum([role_admin, role_financier, role_warehouse, role_seller])
+
+        if not all([username, email, password, password_repeat, phone]):
+            flash("Заполните все поля формы и укажите телефон.", "danger")
+            return redirect(url_for("mdm.create_user"))
+
+        if role_count != 1:
+            flash("Выберите одну роль: админ, финансист, кладовщик или продавец.", "danger")
+            return redirect(url_for("mdm.create_user"))
+
+        if password != password_repeat:
+            flash("Пароли не совпадают.", "danger")
+            return redirect(url_for("mdm.create_user"))
+
+        if not _validate_phone(phone):
+            flash("Проверьте корректность формата телефона.", "danger")
+            return redirect(url_for("mdm.create_user"))
+
+        if User.query.filter_by(username=username).first():
+            flash("Пользователь с таким именем уже существует.", "danger")
+            return redirect(url_for("mdm.create_user"))
+
+        if User.query.filter_by(email=email).first():
+            flash("Пользователь с таким email уже существует.", "danger")
+            return redirect(url_for("mdm.create_user"))
+
+        if User.query.filter_by(phone=phone).first():
+            flash("Пользователь с таким телефоном уже существует.", "danger")
+            return redirect(url_for("mdm.create_user"))
+
+        user = User(
+            username=username,
+            email=email,
+            phone=phone,
+            is_active=request.form.get("is_active") == "on",
+            role_admin=role_admin,
+            role_financier=role_financier,
+            role_warehouse=role_warehouse,
+            role_seller=role_seller,
+            is_admin=role_admin,
+            is_finance=role_financier,
+            is_data_admin=role_admin,
+            is_data_editor=False,
+            is_data_viewer=False,
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+
+        flash("Пользователь добавлен в систему.", "success")
+        return redirect(url_for("mdm.users_list"))
+
+    return render_template("data_mdm/users/create.html")
+
+
+@mdm_bp.route("/users/<int:user_id>/edit", methods=["GET", "POST"])
+@login_required
+@admin_required
+def edit_user(user_id):
+    user = User.query.get_or_404(user_id)
+
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        phone = _normalize_phone(request.form.get("phone", user.phone or "").strip())
+        password = request.form.get("password", "").strip()
+        password_repeat = request.form.get("password_repeat", "").strip()
+
+        role_admin = request.form.get("role_admin") == "on"
+        role_financier = request.form.get("role_financier") == "on"
+        role_warehouse = request.form.get("role_warehouse") == "on"
+        role_seller = request.form.get("role_seller") == "on"
+        role_count = sum([role_admin, role_financier, role_warehouse, role_seller])
+
+        if not email or not phone:
+            flash("Email и телефон обязательны.", "danger")
+            return redirect(url_for("mdm.edit_user", user_id=user_id))
+
+        if role_count != 1:
+            flash("Выберите одну роль: админ, финансист, кладовщик или продавец.", "danger")
+            return redirect(url_for("mdm.edit_user", user_id=user_id))
+
+        if password and password != password_repeat:
+            flash("Пароли не совпадают.", "danger")
+            return redirect(url_for("mdm.edit_user", user_id=user_id))
+
+        existing_user = User.query.filter(
+            User.email == email,
+            User.id != user_id
+        ).first()
+        if existing_user:
+            flash("Пользователь с таким email уже существует.", "danger")
+            return redirect(url_for("mdm.edit_user", user_id=user_id))
+
+        existing_phone = User.query.filter(
+            User.phone == phone,
+            User.id != user_id
+        ).first()
+        if existing_phone:
+            flash("Пользователь с таким телефоном уже существует.", "danger")
+            return redirect(url_for("mdm.edit_user", user_id=user_id))
+
+        if not _validate_phone(phone):
+            flash("Проверьте корректность формата телефона.", "danger")
+            return redirect(url_for("mdm.edit_user", user_id=user_id))
+
+        if password:
+            user.set_password(password)
+
+        user.email = email
+        user.phone = phone
+        user.is_active = request.form.get("is_active") == "on"
+        user.role_admin = role_admin
+        user.role_financier = role_financier
+        user.role_warehouse = role_warehouse
+        user.role_seller = role_seller
+        user.is_admin = role_admin
+        user.is_finance = role_financier
+        user.is_data_admin = role_admin
+        db.session.commit()
+
+        flash("Данные пользователя обновлены.", "success")
+        return redirect(url_for("mdm.users_list"))
+
+    return render_template("data_mdm/users/edit.html", user=user)
+
+
+@mdm_bp.route("/users/<int:user_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_user(user_id):
+    from app.models import User
+    
+    # Prevent self-deletion
+    if user_id == current_user.id:
+        flash("Вы не можете удалить свой аккаунт.", "danger")
+        return redirect(url_for("mdm.users_list"))
+
+    user = User.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    flash("Пользователь удален из системы.", "info")
+    return redirect(url_for("mdm.users_list"))
+
+
 @mdm_bp.route("/users/roles", methods=["GET", "POST"])
 @login_required
 @admin_required
 def user_roles():
-    from app.models import User
+    role_definitions = [
+        {"name": "admin", "label": "Админ"},
+        {"name": "finance", "label": "Финансист"},
+        {"name": "warehouse", "label": "Кладовщик"},
+        {"name": "seller", "label": "Продавец"},
+    ]
+
+    def get_role_permission(role_name, label):
+        permission = RolePermission.query.filter_by(role_name=role_name).first()
+        if permission is None:
+            permission = RolePermission(role_name=role_name, label=label)
+            db.session.add(permission)
+        else:
+            permission.label = label
+        return permission
 
     if request.method == "POST":
-        for user in User.query.all():
-            user.is_data_admin = request.form.get(f"data_admin_{user.id}") == "on"
-            user.is_data_editor = request.form.get(f"data_editor_{user.id}") == "on"
-            user.is_data_viewer = request.form.get(f"data_viewer_{user.id}") == "on"
+        for role_definition in role_definitions:
+            permission = get_role_permission(
+                role_definition["name"], role_definition["label"]
+            )
+            permission.can_view_mdm = (
+                request.form.get(f"can_view_mdm_{role_definition['name']}") == "on"
+            )
+            permission.can_edit_mdm = (
+                request.form.get(f"can_edit_mdm_{role_definition['name']}") == "on"
+            )
+            permission.can_view_finance = (
+                request.form.get(f"can_view_finance_{role_definition['name']}") == "on"
+            )
+            permission.can_edit_finance = (
+                request.form.get(f"can_edit_finance_{role_definition['name']}") == "on"
+            )
+            permission.can_view_warehouse = (
+                request.form.get(f"can_view_warehouse_{role_definition['name']}") == "on"
+            )
+            permission.can_edit_warehouse = (
+                request.form.get(f"can_edit_warehouse_{role_definition['name']}") == "on"
+            )
+            permission.can_view_sales = (
+                request.form.get(f"can_view_sales_{role_definition['name']}") == "on"
+            )
+            permission.can_edit_sales = (
+                request.form.get(f"can_edit_sales_{role_definition['name']}") == "on"
+            )
+
         db.session.commit()
-        flash("Роли доступа к MDM обновлены", "success")
+        flash("Права доступа по ролям обновлены", "success")
         return redirect(url_for("mdm.user_roles"))
 
-    users = User.query.order_by(User.username).all()
-    return render_template("data_mdm/users/roles.html", users=users)
+    roles = [get_role_permission(role["name"], role["label"]) for role in role_definitions]
+    db.session.commit()
+    return render_template("data_mdm/users/roles.html", roles=roles)
 
 
 @mdm_bp.route("/company-profile")

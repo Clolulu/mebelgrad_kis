@@ -746,7 +746,10 @@ def finance_required(view):
     @wraps(view)
     def wrapper(*args, **kwargs):
         if not current_user.is_authenticated or not (
-            current_user.is_finance or current_user.is_admin
+            current_user.is_admin
+            or current_user.is_finance
+            or current_user.can_view_finance
+            or current_user.can_edit_finance
         ):
             flash(
                 "Финансовый модуль доступен бухгалтерии и администраторам.",
