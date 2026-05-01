@@ -2,15 +2,20 @@ from functools import wraps
 
 from datetime import datetime
 
+import io
 import json
 import re
+import urllib.request
 
-from flask import flash, redirect, render_template, request, url_for
+from docx import Document
+from docx.shared import Inches
+from flask import flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import and_, func, or_
 
 from app.data_mdm import mdm_bp
 from app.models import (
+    AuditLog,
     CompanyProfile,
     Customer,
     DuplicateAttempt,
@@ -412,7 +417,22 @@ def audit_log():
     entity = request.args.get("entity", "").strip()
     q = request.args.get("q", "").strip().lower()
 
-    entries = _build_mdm_audit_entries()
+    audit_entries = AuditLog.query.order_by(AuditLog.created_at.desc()).all()
+    entries = [
+        {
+            "timestamp_label": entry.created_at.strftime("%d.%m.%Y %H:%M") if entry.created_at else "н/д",
+            "entity": entry.entity,
+            "entity_key": entry.entity_key,
+            "action": entry.action,
+            "record_name": entry.record_name,
+            "record_meta": entry.record_meta,
+            "details": entry.details,
+            "status": entry.status,
+            "owner": entry.username or "Система",
+        }
+        for entry in audit_entries
+    ]
+
     if entity:
         entries = [entry for entry in entries if entry["entity_key"] == entity]
     if q:
@@ -423,6 +443,7 @@ def audit_log():
             or q in (entry["record_meta"] or "").lower()
             or q in (entry["action"] or "").lower()
             or q in (entry["details"] or "").lower()
+            or q in (entry["owner"] or "").lower()
         ]
 
     entity_options = [
@@ -430,8 +451,9 @@ def audit_log():
         ("customers", "Клиенты"),
         ("suppliers", "Поставщики"),
         ("employees", "Сотрудники"),
+        ("users", "Пользователи системы"),
         ("company_profile", "Профиль компании"),
-        ("stock", "Остатки"),
+        ("roles", "Роли пользователей"),
         ("duplicate_attempts", "Дубли / конфликтные записи"),
     ]
 
@@ -1152,6 +1174,80 @@ def stock_list():
         critical_count=sum(1 for product in Product.query.all() if product.qty_on_hand <= 5),
         reserved_count=sum(1 for product in Product.query.all() if product.qty_reserved > 0),
         total_on_hand=sum(product.qty_on_hand for product in Product.query.all()),
+    )
+
+
+@mdm_bp.route("/stock/report")
+@login_required
+@mdm_readonly_required
+def stock_report():
+    q = request.args.get("q", "").strip()
+    stock_state = request.args.get("stock_state", "")
+
+    query = Product.query
+    if q:
+        query = query.filter(or_(Product.sku.ilike(f"%{q}%"), Product.name.ilike(f"%{q}%")))
+
+    products = query.order_by(Product.name.asc()).all()
+    if stock_state == "critical":
+        products = [product for product in products if product.qty_on_hand <= 5]
+    elif stock_state == "reserved":
+        products = [product for product in products if product.qty_reserved > 0]
+    elif stock_state == "available":
+        products = [product for product in products if product.qty_on_hand - product.qty_reserved > 0]
+
+    document = Document()
+    logo_url = "https://alaci.kz/wp-content/uploads/2022/03/logo-mebelgrad-e1646908558844.png"
+    try:
+        image_data = urllib.request.urlopen(logo_url, timeout=10).read()
+        header = document.sections[0].header
+        header_paragraph = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+        run = header_paragraph.add_run()
+        run.add_picture(io.BytesIO(image_data), width=Inches(1.8))
+    except Exception:
+        pass
+
+    document.add_heading("Срез складских остатков", level=1)
+    filter_text = "Все"
+    if stock_state == "critical":
+        filter_text = "Критический остаток"
+    elif stock_state == "reserved":
+        filter_text = "Есть резерв"
+    elif stock_state == "available":
+        filter_text = "Положительный остаток"
+
+    document.add_paragraph(f"Фильтр: {filter_text}")
+    document.add_paragraph(f"Поиск: {q if q else '—'}")
+    document.add_paragraph(f"Дата отчета: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+
+    table = document.add_table(rows=1, cols=6)
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = "Артикул"
+    hdr_cells[1].text = "Наименование"
+    hdr_cells[2].text = "Ед. изм."
+    hdr_cells[3].text = "На складе"
+    hdr_cells[4].text = "В резерве"
+    hdr_cells[5].text = "Доступно"
+
+    for product in products:
+        available = product.qty_on_hand - product.qty_reserved
+        row_cells = table.add_row().cells
+        row_cells[0].text = product.sku or ""
+        row_cells[1].text = product.name or ""
+        row_cells[2].text = product.unit or ""
+        row_cells[3].text = str(product.qty_on_hand)
+        row_cells[4].text = str(product.qty_reserved)
+        row_cells[5].text = str(available)
+
+    output = io.BytesIO()
+    document.save(output)
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="stock_report.docx",
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
 
 

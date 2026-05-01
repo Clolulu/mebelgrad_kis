@@ -15,6 +15,7 @@ from app.models import (
     CashAccount,
     CashCalendarItem,
     CashTransaction,
+    AuditLog,
     CompanyProfile,
     Customer,
     Employee,

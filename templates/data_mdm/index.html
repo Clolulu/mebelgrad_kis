@@ -109,20 +109,6 @@
                 </div>
                 <div class="col-md-6">
                     <div class="surface p-3 h-100">
-                        <div class="fw-semibold mb-1">Пользователи системы</div>
-                        <div class="small text-secondary mb-3">Управление учетными записями и правами доступа пользователей.</div>
-                        <div class="d-flex gap-2 flex-wrap">
-                            {% if current_user.is_admin %}
-                                <a href="{{ url_for('mdm.users_list') }}" class="btn btn-outline-dark btn-sm">Управление пользователями</a>
-                                <a href="{{ url_for('mdm.user_roles') }}" class="btn btn-primary btn-sm">Роли пользователей</a>
-                            {% else %}
-                                <span class="badge bg-secondary">Только для администраторов</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="surface p-3 h-100">
                         <div class="fw-semibold mb-1">Журнал аудита</div>
                         <div class="small text-secondary mb-3">Хронология событий по мастер-данным: создание карточек, обновление профиля и движения складских остатков.</div>
                         <div class="d-flex gap-2 flex-wrap">
