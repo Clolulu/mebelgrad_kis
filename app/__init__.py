@@ -30,6 +30,7 @@ from app.models import (
     PurchaseOrder,
     PurchaseOrderItem,
     SalesOrder,
+    SalesOrderAttachment,
     SalesOrderItem,
     Stock,
     Supplier,
@@ -78,7 +79,7 @@ def create_app(config_name="development"):
         db.create_all()
         try:
             sync_user_schema()
-            sync_products_schema()
+            sync_sales_schema()
             seed_database()
         except OperationalError as exc:
             app.logger.warning(
@@ -88,7 +89,7 @@ def create_app(config_name="development"):
             db.drop_all()
             db.create_all()
             sync_user_schema()
-            sync_products_schema()
+            sync_sales_schema()
             seed_database()
 
     return app
@@ -135,6 +136,41 @@ def sync_products_schema():
                 text(f"ALTER TABLE products ADD COLUMN {column} {definition}")
             )
             db.session.commit()
+
+
+def sync_sales_schema():
+    """Apply additive schema updates for sales workflow tables."""
+    customer_columns = [
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info('customers');")).fetchall()
+    ]
+    customer_additions = {
+        "birth_date": "DATE",
+        "registration_address": "VARCHAR(255)",
+        "passport_series_number": "VARCHAR(20)",
+        "passport_issued_by": "VARCHAR(255)",
+        "passport_issue_date": "DATE",
+        "snils": "VARCHAR(20)",
+        "customer_inn": "VARCHAR(12)",
+        "notes": "TEXT",
+    }
+    for column, sql_type in customer_additions.items():
+        if column not in customer_columns:
+            db.session.execute(text(f"ALTER TABLE customers ADD COLUMN {column} {sql_type}"))
+
+    sales_order_columns = [
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info('sales_orders');")).fetchall()
+    ]
+    sales_order_additions = {
+        "delivery_address": "VARCHAR(255)",
+        "delivery_confirmed_at": "DATETIME",
+    }
+    for column, sql_type in sales_order_additions.items():
+        if column not in sales_order_columns:
+            db.session.execute(text(f"ALTER TABLE sales_orders ADD COLUMN {column} {sql_type}"))
+
+    db.session.commit()
 
 
 @login_manager.user_loader

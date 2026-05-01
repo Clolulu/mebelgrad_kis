@@ -3,20 +3,27 @@
 {% block title %}Продажи и доставка | КИС "МебельГрад"{% endblock %}
 
 {% block content %}
-<div class="surface p-4 p-lg-5">
-    <div class="text-uppercase text-secondary small">Демо-модуль</div>
-    <h1 class="h3 mb-3">Модуль управления продажами, заказами и доставкой</h1>
-    <p class="lead mb-3">
-        Данный модуль находится в стадии активной разработки и будет доступен в следующей версии КИС "МебельГрад".
+<section class="surface p-4 p-lg-5">
+    <div class="text-uppercase text-secondary small">Подсистема продаж</div>
+    <h1 class="h3 mb-3">CRM и обработка заказов</h1>
+    <p class="text-secondary mb-4">
+        Учебный mock-контур для оформления заказа, документов, статусов комплектации и доставки.
     </p>
-    <p>
-        Целевой контур модуля объединяет CRM, обработку заказов, контроль исполнения,
-        формирование счетов и договоров, управление доставкой и прозрачное взаимодействие с клиентами.
-    </p>
-    <div class="row g-3 mt-2">
-        <div class="col-md-4"><div class="surface p-3 h-100">CRM и база клиентов</div></div>
-        <div class="col-md-4"><div class="surface p-3 h-100">Обработка заказов и документы</div></div>
-        <div class="col-md-4"><div class="surface p-3 h-100">Доставка и отслеживание исполнения</div></div>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="surface p-4 h-100">
+                <h2 class="h5">CRM продавца</h2>
+                <p class="small text-secondary mb-3">Клиенты, товары, договор, счет, mock-оплата.</p>
+                <a class="btn btn-primary" href="/sales/crm">Открыть CRM продавца</a>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="surface p-4 h-100">
+                <h2 class="h5">Обработка заказов</h2>
+                <p class="small text-secondary mb-3">Статусы, документы, прикрепление файлов доставки.</p>
+                <a class="btn btn-outline-dark" href="/sales/orders">Открыть обработку заказов</a>
+            </div>
+        </div>
     </div>
-</div>
+</section>
 {% endblock %}

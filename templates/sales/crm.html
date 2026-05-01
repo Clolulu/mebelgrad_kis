@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}CRM продавца | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="surface p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <div class="text-uppercase text-secondary small">Продажи</div>
+            <h1 class="h4 mb-0">CRM продавца</h1>
+        </div>
+        <a class="btn btn-outline-dark btn-sm" href="{{ url_for('sales_demo.orders') }}">Обработка заказов</a>
+    </div>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="surface p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h6 mb-0">Клиент</h2>
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#newCustomerModal">Новый клиент</button>
+            </div>
+            <input id="customerSearch" class="form-control mb-2" placeholder="Фильтр по фамилии/имени клиента">
+            <select id="customerSelect" class="form-select"></select>
+            <div id="customerMeta" class="small text-secondary mt-2"></div>
+        </div>
+
+        <div class="surface p-4">
+            <h2 class="h6">Адрес доставки</h2>
+            <textarea id="deliveryAddress" class="form-control" rows="3" placeholder="Город, улица, дом, квартира"></textarea>
+            <div class="small text-secondary mt-2">Поле обязательно при формировании заказа.</div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="surface p-4">
+            <h2 class="h6">Каталог товаров</h2>
+            <input id="productSearch" class="form-control mb-2" placeholder="Фильтр по названию товара">
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                    <tr>
+                        <th>Товар</th>
+                        <th>Наличие</th>
+                        <th>Цена</th>
+                        <th>Кол-во</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody id="productsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="surface p-4 mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="h6 mb-0">Текущий заказ</h2>
+        <div class="small text-secondary">Сумма: <span id="orderTotal">0.00</span> руб.</div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm">
+            <thead>
+            <tr>
+                <th>Товар</th>
+                <th>Кол-во</th>
+                <th>Цена</th>
+                <th>Сумма</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody id="orderItemsBody"></tbody>
+        </table>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-dark btn-sm" id="previewContractBtn">Сформировать договор</button>
+        <button class="btn btn-outline-dark btn-sm" id="previewInvoiceBtn">Сформировать счет</button>
+        <button class="btn btn-primary btn-sm" id="printAndPayBtn">Печать договора (2 экземпляра) и переход к оплате</button>
+    </div>
+</section>
+
+<section class="surface p-4 mt-4 d-none" id="paymentPanel">
+    <h2 class="h6">Подтверждение оплаты (mock)</h2>
+    <p class="small text-secondary mb-2">После подтверждения статус заказа изменится на «В процессе комплектации».</p>
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-success btn-sm" id="confirmPaymentBtn">Подтвердить оплату</button>
+        <span id="paymentStatusText" class="small"></span>
+    </div>
+</section>
+
+<div class="modal fade" id="newCustomerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title h6">Новый клиент</h3>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-2">
+                    <div class="col-md-6"><label class="form-label">ФИО*</label><input class="form-control" id="newCustomerName"></div>
+                    <div class="col-md-3"><label class="form-label">Телефон</label><input class="form-control" id="newCustomerPhone"></div>
+                    <div class="col-md-3"><label class="form-label">Email</label><input class="form-control" id="newCustomerEmail"></div>
+                    <div class="col-md-4"><label class="form-label">Дата рождения</label><input type="date" class="form-control" id="newCustomerBirthDate"></div>
+                    <div class="col-md-8"><label class="form-label">Адрес регистрации</label><input class="form-control" id="newCustomerAddress"></div>
+                    <div class="col-md-4"><label class="form-label">Паспорт серия/номер</label><input class="form-control" id="newCustomerPassport"></div>
+                    <div class="col-md-4"><label class="form-label">Кем выдан</label><input class="form-control" id="newCustomerIssuedBy"></div>
+                    <div class="col-md-4"><label class="form-label">Дата выдачи</label><input type="date" class="form-control" id="newCustomerIssueDate"></div>
+                    <div class="col-md-4"><label class="form-label">СНИЛС</label><input class="form-control" id="newCustomerSnils"></div>
+                    <div class="col-md-4"><label class="form-label">ИНН</label><input class="form-control" id="newCustomerInn"></div>
+                    <div class="col-md-12"><label class="form-label">Примечание</label><textarea class="form-control" id="newCustomerNotes" rows="2"></textarea></div>
+                </div>
+                <div id="newCustomerError" class="text-danger small mt-2"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
+                <button class="btn btn-primary btn-sm" id="saveNewCustomerBtn">Сохранить клиента</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let customers = [];
+let products = [];
+let orderItems = [];
+let currentOrderId = null;
+
+const customerSelect = document.getElementById('customerSelect');
+const customerMeta = document.getElementById('customerMeta');
+const productTable = document.getElementById('productsTableBody');
+const orderItemsBody = document.getElementById('orderItemsBody');
+const paymentPanel = document.getElementById('paymentPanel');
+const paymentStatusText = document.getElementById('paymentStatusText');
+
+function selectedCustomerId() {
+    const value = customerSelect.value;
+    return value ? Number(value) : null;
+}
+
+function orderPayload() {
+    return {
+        customer_id: selectedCustomerId(),
+        delivery_address: document.getElementById('deliveryAddress').value.trim(),
+        items: orderItems.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_price: item.unit_price
+        }))
+    };
+}
+
+function calcTotal() {
+    let total = 0;
+    orderItems.forEach(i => total += i.quantity * i.unit_price);
+    document.getElementById('orderTotal').textContent = total.toFixed(2);
+}
+
+function renderOrderItems() {
+    orderItemsBody.innerHTML = '';
+    orderItems.forEach((item, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${item.name}</td>
+            <td>${item.quantity}</td>
+            <td>${item.unit_price.toFixed(2)}</td>
+            <td>${(item.quantity * item.unit_price).toFixed(2)}</td>
+            <td><button class="btn btn-sm btn-outline-danger">Удалить</button></td>
+        `;
+        row.querySelector('button').addEventListener('click', () => {
+            orderItems.splice(index, 1);
+            renderOrderItems();
+        });
+        orderItemsBody.appendChild(row);
+    });
+    calcTotal();
+}
+
+function renderProducts() {
+    productTable.innerHTML = '';
+    products.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${item.name}</td>
+            <td>${item.stock}</td>
+            <td>${Number(item.unit_price).toFixed(2)}</td>
+            <td><input class="form-control form-control-sm" type="number" min="1" value="1" style="max-width:90px"></td>
+            <td><button class="btn btn-sm btn-outline-primary">Добавить</button></td>
+        `;
+        row.querySelector('button').addEventListener('click', () => {
+            const qty = Number(row.querySelector('input').value || 0);
+            if (!qty || qty < 1) return;
+            const exists = orderItems.find(i => i.product_id === item.id);
+            if (exists) {
+                exists.quantity += qty;
+            } else {
+                orderItems.push({
+                    product_id: item.id,
+                    name: item.name,
+                    quantity: qty,
+                    unit_price: Number(item.unit_price)
+                });
+            }
+            renderOrderItems();
+        });
+        productTable.appendChild(row);
+    });
+}
+
+function renderCustomers() {
+    customerSelect.innerHTML = '<option value="">Выберите клиента</option>';
+    customers.forEach(customer => {
+        const option = document.createElement('option');
+        option.value = customer.id;
+        option.textContent = customer.name;
+        customerSelect.appendChild(option);
+    });
+}
+
+customerSelect.addEventListener('change', () => {
+    const id = selectedCustomerId();
+    const current = customers.find(c => c.id === id);
+    customerMeta.textContent = current ? `Телефон: ${current.phone || '-'}, Email: ${current.email || '-'}` : '';
+});
+
+document.getElementById('customerSearch').addEventListener('input', async (e) => {
+    const query = encodeURIComponent(e.target.value.trim());
+    const resp = await fetch(`/sales/api/customers?q=${query}`);
+    customers = await resp.json();
+    renderCustomers();
+});
+
+document.getElementById('productSearch').addEventListener('input', async (e) => {
+    const query = encodeURIComponent(e.target.value.trim());
+    const resp = await fetch(`/sales/api/products?q=${query}`);
+    products = await resp.json();
+    renderProducts();
+});
+
+async function downloadDoc(url, payload) {
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    if (!resp.ok) {
+        alert('Не удалось сформировать документ');
+        return;
+    }
+    const blob = await resp.blob();
+    const fileURL = URL.createObjectURL(blob);
+    window.open(fileURL, '_blank');
+}
+
+document.getElementById('previewContractBtn').addEventListener('click', async () => {
+    await downloadDoc('/sales/documents/contract-preview', orderPayload());
+});
+
+document.getElementById('previewInvoiceBtn').addEventListener('click', async () => {
+    await downloadDoc('/sales/documents/invoice-preview', orderPayload());
+});
+
+document.getElementById('printAndPayBtn').addEventListener('click', async () => {
+    if (currentOrderId) {
+        window.open(`/sales/orders/${currentOrderId}/documents/contract-print`, '_blank');
+        paymentPanel.classList.remove('d-none');
+        return;
+    }
+    const payload = orderPayload();
+    const resp = await fetch('/sales/api/orders', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+        alert(data.error || 'Не удалось создать заказ');
+        return;
+    }
+    currentOrderId = data.order_id;
+    window.open(`/sales/orders/${currentOrderId}/documents/contract-print`, '_blank');
+    paymentPanel.classList.remove('d-none');
+    paymentStatusText.textContent = `Заказ ${data.order_number} создан со статусом "Не оплачен".`;
+});
+
+document.getElementById('confirmPaymentBtn').addEventListener('click', async () => {
+    if (!currentOrderId) return;
+    const resp = await fetch(`/sales/api/orders/${currentOrderId}/confirm-payment`, {method: 'POST'});
+    const data = await resp.json();
+    if (!resp.ok) {
+        alert('Не удалось подтвердить оплату');
+        return;
+    }
+    paymentStatusText.textContent = `Статус заказа: ${data.status_label}.`;
+});
+
+document.getElementById('saveNewCustomerBtn').addEventListener('click', async () => {
+    const payload = {
+        name: document.getElementById('newCustomerName').value.trim(),
+        phone: document.getElementById('newCustomerPhone').value.trim(),
+        email: document.getElementById('newCustomerEmail').value.trim(),
+        birth_date: document.getElementById('newCustomerBirthDate').value || null,
+        registration_address: document.getElementById('newCustomerAddress').value.trim(),
+        passport_series_number: document.getElementById('newCustomerPassport').value.trim(),
+        passport_issued_by: document.getElementById('newCustomerIssuedBy').value.trim(),
+        passport_issue_date: document.getElementById('newCustomerIssueDate').value || null,
+        snils: document.getElementById('newCustomerSnils').value.trim(),
+        customer_inn: document.getElementById('newCustomerInn').value.trim(),
+        notes: document.getElementById('newCustomerNotes').value.trim()
+    };
+    const resp = await fetch('/sales/api/customers', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+        document.getElementById('newCustomerError').textContent = data.error || 'Не удалось создать клиента';
+        return;
+    }
+    customers.unshift(data);
+    renderCustomers();
+    customerSelect.value = data.id;
+    customerMeta.textContent = `Телефон: ${data.phone || '-'}, Email: ${data.email || '-'}`;
+    bootstrap.Modal.getInstance(document.getElementById('newCustomerModal')).hide();
+});
+
+window.addEventListener('DOMContentLoaded', async () => {
+    customers = await (await fetch('/sales/api/customers?q=')).json();
+    renderCustomers();
+    products = await (await fetch('/sales/api/products?q=')).json();
+    renderProducts();
+});
+</script>
+{% endblock %}

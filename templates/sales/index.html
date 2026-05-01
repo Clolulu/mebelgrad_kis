@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Продажи и доставка | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="surface p-4 p-lg-5">
+    <div class="text-uppercase text-secondary small">Подсистема продаж</div>
+    <h1 class="h3 mb-3">CRM, обработка заказов и контроль доставки</h1>
+    <p class="text-secondary mb-4">
+        Операционный контур продавца: единая точка для работы с клиентом, оформлением продажи,
+        комплектом документов и статусами исполнения заказа.
+    </p>
+    <div class="row g-3">
+        <div class="col-md-6 col-xl-3">
+            <div class="surface p-3 h-100">
+                <div class="text-secondary small">Заказы всего</div>
+                <div class="h3 mb-0">{{ total_orders or 0 }}</div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="surface p-3 h-100">
+                <div class="text-secondary small">Не оплачены</div>
+                <div class="h3 mb-0">{{ unpaid_orders or 0 }}</div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="surface p-3 h-100">
+                <div class="text-secondary small">В исполнении</div>
+                <div class="h3 mb-0">{{ in_progress_orders or 0 }}</div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="surface p-3 h-100">
+                <div class="text-secondary small">Выполнены</div>
+                <div class="h3 mb-0">{{ completed_orders or 0 }}</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="surface p-4 mt-4">
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="surface p-4 h-100">
+                <h2 class="h5">CRM продавца</h2>
+                <p class="small text-secondary mb-3">Поиск и создание клиента, подбор товаров, договор/счет, переход к оплате.</p>
+                <a class="btn btn-primary" href="{{ url_for('sales_demo.crm') }}">Открыть CRM продавца</a>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="surface p-4 h-100">
+                <h2 class="h5">Обработка заказов</h2>
+                <p class="small text-secondary mb-3">Статусы заказа, документы, подтверждение комплектации и доставки.</p>
+                <a class="btn btn-outline-dark" href="{{ url_for('sales_demo.orders') }}">Открыть обработку заказов</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="surface p-4 mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Быстрые действия</h2>
+        <span class="small text-secondary">Клиентов: {{ active_customers or 0 }}, активных товаров: {{ active_products or 0 }}</span>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sales_demo.crm') }}">Создать новый заказ</a>
+        <a class="btn btn-sm btn-outline-dark" href="{{ url_for('sales_demo.orders') }}?status=unpaid">Показать неоплаченные</a>
+        <a class="btn btn-sm btn-outline-dark" href="{{ url_for('sales_demo.orders') }}?status=in_transit">Показать заказы в пути</a>
+        <a class="btn btn-sm btn-outline-dark" href="{{ url_for('sales_demo.orders') }}?status=completed">Показать выполненные</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm">
+            <thead>
+            <tr>
+                <th>Заказ</th>
+                <th>Клиент</th>
+                <th>Сумма</th>
+                <th>Статус</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for order in recent_orders %}
+                <tr>
+                    <td>{{ order.order_number }}</td>
+                    <td>{{ order.customer.name if order.customer else '-' }}</td>
+                    <td>{{ '%.2f'|format(order.total_amount or 0) }}</td>
+                    <td>{{ status_labels.get(order.status, order.status) }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4" class="text-center text-secondary">Пока нет заказов.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

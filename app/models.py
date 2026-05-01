@@ -170,6 +170,14 @@ class Customer(db.Model):
     phone = db.Column(db.String(20), unique=True)
     email = db.Column(db.String(120), unique=True)
     type = db.Column(db.String(50), default='individual')  # 'individual' or 'legal_entity'
+    birth_date = db.Column(db.Date)
+    registration_address = db.Column(db.String(255))
+    passport_series_number = db.Column(db.String(20))
+    passport_issued_by = db.Column(db.String(255))
+    passport_issue_date = db.Column(db.Date)
+    snils = db.Column(db.String(20))
+    customer_inn = db.Column(db.String(12))
+    notes = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -276,11 +284,14 @@ class SalesOrder(db.Model):
     segment = db.Column(db.String(50), default='retail')  # retail / b2b / service
     status = db.Column(db.String(50), default='pending')  # 'pending', 'completed', 'cancelled'
     total_amount = db.Column(db.Float, default=0.0)
+    delivery_address = db.Column(db.String(255))
+    delivery_confirmed_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
     items = db.relationship('SalesOrderItem', backref='sales_order', lazy=True, cascade='all, delete-orphan')
     payments = db.relationship('Payment', backref='sales_order', lazy=True, cascade='all, delete-orphan')
+    attachments = db.relationship('SalesOrderAttachment', backref='sales_order', lazy=True, cascade='all, delete-orphan')
     
     def __repr__(self):
         return f'<SalesOrder {self.order_number}>'
@@ -300,6 +311,24 @@ class SalesOrderItem(db.Model):
     
     def __repr__(self):
         return f'<SalesOrderItem Order {self.sales_order_id} - Product {self.product_id}>'
+
+
+class SalesOrderAttachment(db.Model):
+    """Attachments uploaded in sales order processing workflow."""
+    __tablename__ = 'sales_order_attachments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sales_order_id = db.Column(db.Integer, db.ForeignKey('sales_orders.id'), nullable=False)
+    kind = db.Column(db.String(50), default='delivery_doc')
+    stored_path = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    uploader = db.relationship('User', backref='sales_order_attachments')
+
+    def __repr__(self):
+        return f'<SalesOrderAttachment {self.id} for order {self.sales_order_id}>'
 
 
 class Payment(db.Model):
