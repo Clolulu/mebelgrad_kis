@@ -571,6 +571,25 @@ def delete_product(product_id):
     return redirect(url_for("mdm.products_list"))
 
 
+@mdm_bp.route("/products/<int:product_id>/certificate", methods=["GET", "POST"])
+@login_required
+@mdm_editor_required
+def edit_product_certificate(product_id):
+    product = Product.query.get_or_404(product_id)
+
+    if request.method == "POST":
+        certificate_link = request.form.get("certificate_link", "").strip()
+        if certificate_link:
+            product.certificate_link = certificate_link
+            db.session.commit()
+            flash("Ссылка на сертификат обновлена.", "success")
+        else:
+            flash("Ссылка на сертификат не может быть пустой.", "danger")
+        return redirect(url_for("mdm.products_list"))
+
+    return render_template("data_mdm/products/certificate.html", product=product)
+
+
 @mdm_bp.route("/customers")
 @login_required
 @mdm_readonly_required

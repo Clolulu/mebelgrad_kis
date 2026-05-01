@@ -224,6 +224,7 @@ class Product(db.Model):
     name = db.Column(db.String(255), nullable=False)
     unit = db.Column(db.String(20), default='pcs')  # 'pcs' (шт) or 'set' (компл)
     retail_price = db.Column(db.Float, nullable=False, default=0.0)
+    certificate_link = db.Column(db.String(500), default='https://davitamebel.ru/customers/deklaratsii-sootvetstviya/29112026.pdf?srsltid=AfmBOoroXcby5DgCGNkVqvZ3jBiV1LJ8IGsMgp7AKaqRFvWiDIr6ZXKM')
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     

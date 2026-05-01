@@ -77,6 +77,7 @@ def create_app(config_name="development"):
         db.create_all()
         try:
             sync_user_schema()
+            sync_products_schema()
             seed_database()
         except OperationalError as exc:
             app.logger.warning(
@@ -86,6 +87,7 @@ def create_app(config_name="development"):
             db.drop_all()
             db.create_all()
             sync_user_schema()
+            sync_products_schema()
             seed_database()
 
     return app
@@ -112,6 +114,24 @@ def sync_user_schema():
         if column not in existing_columns:
             db.session.execute(
                 text(f"ALTER TABLE users ADD COLUMN {column} {definition}")
+            )
+            db.session.commit()
+
+
+def sync_products_schema():
+    """Выполняем дообновление схемы products для старых БД."""
+    existing_columns = [
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info('products');")).fetchall()
+    ]
+    required_columns = {
+        'certificate_link': "TEXT DEFAULT 'https://davitamebel.ru/customers/deklaratsii-sootvetstviya/29112026.pdf?srsltid=AfmBOoroXcby5DgCGNkVqvZ3jBiV1LJ8IGsMgp7AKaqRFvWiDIr6ZXKM'",
+    }
+
+    for column, definition in required_columns.items():
+        if column not in existing_columns:
+            db.session.execute(
+                text(f"ALTER TABLE products ADD COLUMN {column} {definition}")
             )
             db.session.commit()
 

@@ -94,6 +94,9 @@
                         </td>
                         <td class="text-end">
                             <div class="d-flex gap-2 justify-content-end">
+                                <a href="{{ url_for('mdm.edit_product_certificate', product_id=product.id) }}" class="btn btn-sm btn-outline-info" title="Сертификат соответствия">
+                                    <i class="bi bi-file-earmark-pdf"></i> EAC
+                                </a>
                                 {% if current_user.can_edit_mdm %}
                                     <a href="{{ url_for('mdm.edit_product', product_id=product.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
                                     <form method="post" action="{{ url_for('mdm.delete_product', product_id=product.id) }}" onsubmit="return confirm('Удалить товар из справочника?');">
