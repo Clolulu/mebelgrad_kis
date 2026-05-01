@@ -94,10 +94,10 @@
             <div class="collapse navbar-collapse" id="mainNav">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Главная</a></li>
-                    {% if current_user.is_authenticated and current_user.is_admin %}
+                    {% if current_user.is_authenticated and (current_user.can_view_mdm or current_user.can_edit_mdm or current_user.is_admin) %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('mdm.index') }}">Управление данными</a></li>
                     {% endif %}
-                    {% if current_user.is_authenticated and (current_user.is_finance or current_user.is_admin) %}
+                    {% if current_user.is_authenticated and (current_user.can_view_finance or current_user.can_edit_finance or current_user.is_finance or current_user.is_admin) %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.index') }}">Планирование и финансы</a></li>
                     {% endif %}
                     {% if current_user.is_authenticated %}
@@ -110,11 +110,10 @@
                         <div class="d-flex flex-column align-items-end text-white-50 small me-3">
                             <span>{{ current_user.username }}</span>
                             <span>
-                                {% if current_user.is_admin %}<span class="badge bg-danger">admin</span>{% endif %}
-                                {% if current_user.is_finance %}<span class="badge bg-success">finance</span>{% endif %}
-                                {% if current_user.is_data_admin %}<span class="badge bg-primary">mdm-admin</span>{% endif %}
-                                {% if current_user.is_data_editor %}<span class="badge bg-info text-dark">mdm-editor</span>{% endif %}
-                                {% if current_user.is_data_viewer %}<span class="badge bg-secondary">mdm-viewer</span>{% endif %}
+                                {% if current_user.role_admin %}<span class="badge bg-danger">админ</span>{% endif %}
+                                {% if current_user.role_financier %}<span class="badge bg-info">финансист</span>{% endif %}
+                                {% if current_user.role_warehouse %}<span class="badge bg-warning">кладовщик</span>{% endif %}
+                                {% if current_user.role_seller %}<span class="badge bg-success">продавец</span>{% endif %}
                             </span>
                         </div>
                         <a class="btn btn-outline-light btn-sm" href="{{ url_for('auth.logout') }}">Выйти</a>

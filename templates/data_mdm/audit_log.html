@@ -66,6 +66,7 @@
                         <th>Дата и время</th>
                         <th>Раздел</th>
                         <th>Событие</th>
+                        <th>Владелец</th>
                         <th>Запись</th>
                         <th>Примечание</th>
                     </tr>
@@ -80,6 +81,7 @@
                             <td>
                                 <span class="badge bg-{{ entry.status }}">{{ entry.action }}</span>
                             </td>
+                            <td>{{ entry.owner }}</td>
                             <td>
                                 <div class="fw-semibold">{{ entry.record_name }}</div>
                                 {% if entry.record_meta %}

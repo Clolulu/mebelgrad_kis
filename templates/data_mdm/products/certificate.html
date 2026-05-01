@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Сертификат соответствия | {{ product.name }} | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div>
+        <div class="text-uppercase text-secondary small">Управление данными / Номенклатура / Сертификат</div>
+        <h1 class="h3 mb-2">Сертификат соответствия</h1>
+        <p class="mb-0">Управление ссылкой на PDF сертификата для товара <strong>{{ product.name }}</strong>.</p>
+    </div>
+</section>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="surface p-4">
+            <h5 class="mb-3">Редактировать ссылку</h5>
+            <form method="post">
+                <div class="mb-3">
+                    <label for="certificate_link" class="form-label">Ссылка на PDF сертификата</label>
+                    <input type="url" class="form-control" id="certificate_link" name="certificate_link" value="{{ product.certificate_link }}" required>
+                    <div class="form-text">Укажите полный URL к PDF файлу сертификата соответствия.</div>
+                </div>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-secondary">Отмена</a>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="surface p-4">
+            <h5 class="mb-3">Предварительный просмотр</h5>
+            <div class="ratio ratio-4x3">
+                <iframe src="{{ product.certificate_link }}" width="100%" height="400" style="border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

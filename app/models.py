@@ -2,8 +2,8 @@ import re
 from datetime import datetime
 
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import UserMixin
-from sqlalchemy import event
+from flask_login import UserMixin, current_user
+from sqlalchemy import event, inspect
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
@@ -15,12 +15,18 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    phone = db.Column(db.String(20), unique=True)
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     is_finance = db.Column(db.Boolean, default=False)
     is_data_admin = db.Column(db.Boolean, default=False)
     is_data_editor = db.Column(db.Boolean, default=False)
     is_data_viewer = db.Column(db.Boolean, default=False)
+    # New role system: админ, финансист, кладовщик, Продавец
+    role_admin = db.Column(db.Boolean, default=False)  # админ
+    role_financier = db.Column(db.Boolean, default=False)  # финансист
+    role_warehouse = db.Column(db.Boolean, default=False)  # кладовщик
+    role_seller = db.Column(db.Boolean, default=False)  # Продавец
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -32,6 +38,127 @@ class User(UserMixin, db.Model):
     
     def __repr__(self):
         return f'<User {self.username}>'
+
+    @property
+    def role_name(self):
+        if self.role_admin:
+            return "admin"
+        if self.role_financier:
+            return "finance"
+        if self.role_warehouse:
+            return "warehouse"
+        if self.role_seller:
+            return "seller"
+        return None
+
+    @property
+    def role_label(self):
+        return {
+            "admin": "Админ",
+            "finance": "Финансист",
+            "warehouse": "Кладовщик",
+            "seller": "Продавец",
+        }.get(self.role_name, "Нет роли")
+
+    @property
+    def role_permission(self):
+        if not self.role_name:
+            return None
+        return RolePermission.query.filter_by(role_name=self.role_name).first()
+
+    @property
+    def can_view_mdm(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            (permissions and (permissions.can_view_mdm or permissions.can_edit_mdm))
+            or self.is_data_admin
+            or self.is_data_editor
+            or self.is_data_viewer
+        )
+
+    @property
+    def can_edit_mdm(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            (permissions and permissions.can_edit_mdm)
+            or self.is_data_admin
+            or self.is_data_editor
+        )
+
+    @property
+    def can_view_finance(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            (permissions and (permissions.can_view_finance or permissions.can_edit_finance))
+            or self.is_finance
+        )
+
+    @property
+    def can_edit_finance(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            (permissions and permissions.can_edit_finance)
+            or self.is_finance
+        )
+
+    @property
+    def can_view_warehouse(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            permissions and (permissions.can_view_warehouse or permissions.can_edit_warehouse)
+        )
+
+    @property
+    def can_edit_warehouse(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(permissions and permissions.can_edit_warehouse)
+
+    @property
+    def can_view_sales(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(
+            permissions and (permissions.can_view_sales or permissions.can_edit_sales)
+        )
+
+    @property
+    def can_edit_sales(self):
+        if self.is_admin:
+            return True
+        permissions = self.role_permission
+        return bool(permissions and permissions.can_edit_sales)
+
+
+class RolePermission(db.Model):
+    __tablename__ = 'role_permissions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    role_name = db.Column(db.String(50), nullable=False, unique=True)
+    label = db.Column(db.String(50), nullable=False)
+    can_view_mdm = db.Column(db.Boolean, default=False)
+    can_edit_mdm = db.Column(db.Boolean, default=False)
+    can_view_finance = db.Column(db.Boolean, default=False)
+    can_edit_finance = db.Column(db.Boolean, default=False)
+    can_view_warehouse = db.Column(db.Boolean, default=False)
+    can_edit_warehouse = db.Column(db.Boolean, default=False)
+    can_view_sales = db.Column(db.Boolean, default=False)
+    can_edit_sales = db.Column(db.Boolean, default=False)
+
+    def __repr__(self):
+        return f'<RolePermission {self.role_name}>'
 
 
 class Customer(db.Model):
@@ -105,6 +232,7 @@ class Product(db.Model):
     name = db.Column(db.String(255), nullable=False)
     unit = db.Column(db.String(20), default='pcs')  # 'pcs' (шт) or 'set' (компл)
     retail_price = db.Column(db.Float, nullable=False, default=0.0)
+    certificate_link = db.Column(db.String(500), default='https://davitamebel.ru/customers/deklaratsii-sootvetstviya/29112026.pdf?srsltid=AfmBOoroXcby5DgCGNkVqvZ3jBiV1LJ8IGsMgp7AKaqRFvWiDIr6ZXKM')
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -604,6 +732,25 @@ class DuplicateAttempt(db.Model):
         return f'<DuplicateAttempt {self.entity} {self.duplicate_fields}>'
 
 
+class AuditLog(db.Model):
+    __tablename__ = 'audit_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer)
+    username = db.Column(db.String(120))
+    entity = db.Column(db.String(100), nullable=False)
+    entity_key = db.Column(db.String(100), nullable=False)
+    action = db.Column(db.String(255), nullable=False)
+    record_name = db.Column(db.String(255))
+    record_meta = db.Column(db.String(255))
+    details = db.Column(db.Text)
+    status = db.Column(db.String(50), default='success')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<AuditLog {self.entity} {self.action}>'
+
+
 def _normalize_phone_value(value):
     if not value:
         return None
@@ -637,3 +784,97 @@ def _normalize_mdm_fields(session, flush_context, instances):
             obj.email = _normalize_email_value(obj.email)
         if hasattr(obj, "inn"):
             obj.inn = _normalize_inn_value(obj.inn)
+
+
+def _get_audit_entity_data(obj):
+    class_name = type(obj).__name__
+    entity_map = {
+        "Product": ("Номенклатура", "products"),
+        "Customer": ("Клиенты", "customers"),
+        "Supplier": ("Поставщики", "suppliers"),
+        "Employee": ("Сотрудники", "employees"),
+        "User": ("Пользователи системы", "users"),
+        "CompanyProfile": ("Профиль компании", "company_profile"),
+        "RolePermission": ("Роли пользователей", "roles"),
+        "DuplicateAttempt": ("Контроль качества данных", "duplicate_attempts"),
+    }
+    return entity_map.get(class_name, (class_name, class_name.lower()))
+
+
+def _get_audit_record_data(obj):
+    record_name = None
+    record_meta = None
+
+    if hasattr(obj, "name"):
+        record_name = obj.name
+    elif hasattr(obj, "username"):
+        record_name = obj.username
+    elif hasattr(obj, "short_name"):
+        record_name = obj.short_name
+
+    if hasattr(obj, "sku"):
+        record_meta = obj.sku
+    elif hasattr(obj, "inn"):
+        record_meta = obj.inn
+    elif hasattr(obj, "position"):
+        record_meta = obj.position
+    elif hasattr(obj, "type"):
+        record_meta = obj.type
+    elif hasattr(obj, "email"):
+        record_meta = obj.email
+
+    return record_name, record_meta
+
+
+def _get_changed_fields(obj):
+    state = inspect(obj)
+    changes = []
+    for attr in state.attrs:
+        if attr.history.has_changes():
+            changes.append(attr.key)
+    return changes
+
+
+@event.listens_for(db.session, "after_flush")
+def _record_audit_log(session, flush_context):
+    if not hasattr(current_user, "is_authenticated"):
+        return
+
+    for obj in list(session.new) + list(session.dirty) + list(session.deleted):
+        if isinstance(obj, AuditLog):
+            continue
+
+        entity_label, entity_key = _get_audit_entity_data(obj)
+        record_name, record_meta = _get_audit_record_data(obj)
+        username = current_user.username if current_user.is_authenticated else "Система"
+        user_id = current_user.id if current_user.is_authenticated else None
+
+        if obj in session.new:
+            action = "Создание записи"
+            details = None
+        elif obj in session.deleted:
+            action = "Удаление записи"
+            details = None
+        else:
+            changed = _get_changed_fields(obj)
+            if not changed:
+                continue
+            action = "Изменение записи"
+            details = f"Изменены поля: {', '.join(changed)}"
+
+        if isinstance(obj, DuplicateAttempt) and obj in session.new:
+            action = "Попытка создания дубликата"
+            details = obj.reason
+
+        log_entry = AuditLog(
+            user_id=user_id,
+            username=username,
+            entity=entity_label,
+            entity_key=entity_key,
+            action=action,
+            record_name=record_name,
+            record_meta=record_meta,
+            details=details,
+            status="success",
+        )
+        session.add(log_entry)

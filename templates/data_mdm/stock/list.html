@@ -10,13 +10,10 @@
             <h1 class="h3 mb-2">Срез складских остатков</h1>
             <p class="mb-0">Витрина по остаткам и резерву для контроля доступности товаров и управленческого мониторинга.</p>
         </div>
-        <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-dark">Вернуться к номенклатуре</a>
-    </div>
-</section>
-
-<div class="row g-3 mb-4">
-    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Всего на складе</div><div class="h4 mb-0">{{ total_on_hand }}</div></div></div>
-    <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Критические позиции</div><div class="h4 mb-0">{{ critical_count }}</div></div></div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('mdm.stock_report', q=q, stock_state=stock_state) }}" class="btn btn-primary">Скачать отчет DOCX</a>
+            <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-dark">Вернуться к номенклатуре</a>
+        </div>
     <div class="col-md-4"><div class="surface p-3"><div class="text-secondary small">Позиции с резервом</div><div class="h4 mb-0">{{ reserved_count }}</div></div></div>
 </div>
 

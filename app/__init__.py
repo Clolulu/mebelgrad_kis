@@ -15,6 +15,7 @@ from app.models import (
     CashAccount,
     CashCalendarItem,
     CashTransaction,
+    AuditLog,
     CompanyProfile,
     Customer,
     Employee,
@@ -34,6 +35,7 @@ from app.models import (
     Stock,
     Supplier,
     User,
+    RolePermission,
     BalanceSnapshot,
     db,
 )
@@ -99,16 +101,39 @@ def sync_user_schema():
         row[1]
         for row in db.session.execute(text("PRAGMA table_info('users');")).fetchall()
     ]
-    required_columns = [
-        'is_data_admin',
-        'is_data_editor',
-        'is_data_viewer',
-    ]
+    required_columns = {
+        'is_data_admin': 'BOOLEAN DEFAULT 0',
+        'is_data_editor': 'BOOLEAN DEFAULT 0',
+        'is_data_viewer': 'BOOLEAN DEFAULT 0',
+        'role_admin': 'BOOLEAN DEFAULT 0',
+        'role_financier': 'BOOLEAN DEFAULT 0',
+        'role_warehouse': 'BOOLEAN DEFAULT 0',
+        'role_seller': 'BOOLEAN DEFAULT 0',
+        'phone': 'TEXT',
+    }
 
-    for column in required_columns:
+    for column, definition in required_columns.items():
         if column not in existing_columns:
             db.session.execute(
-                text(f"ALTER TABLE users ADD COLUMN {column} BOOLEAN DEFAULT 0")
+                text(f"ALTER TABLE users ADD COLUMN {column} {definition}")
+            )
+            db.session.commit()
+
+
+def sync_products_schema():
+    """Выполняем дообновление схемы products для старых БД."""
+    existing_columns = [
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info('products');")).fetchall()
+    ]
+    required_columns = {
+        'certificate_link': "TEXT DEFAULT 'https://davitamebel.ru/customers/deklaratsii-sootvetstviya/29112026.pdf?srsltid=AfmBOoroXcby5DgCGNkVqvZ3jBiV1LJ8IGsMgp7AKaqRFvWiDIr6ZXKM'",
+    }
+
+    for column, definition in required_columns.items():
+        if column not in existing_columns:
+            db.session.execute(
+                text(f"ALTER TABLE products ADD COLUMN {column} {definition}")
             )
             db.session.commit()
 
@@ -222,6 +247,10 @@ def seed_database():
         password,
         is_admin=False,
         is_finance=False,
+        role_admin=False,
+        role_financier=False,
+        role_warehouse=False,
+        role_seller=False,
         is_data_admin=False,
         is_data_editor=False,
         is_data_viewer=False,
@@ -233,6 +262,10 @@ def seed_database():
                 email=email,
                 is_admin=is_admin,
                 is_finance=is_finance,
+                role_admin=role_admin,
+                role_financier=role_financier,
+                role_warehouse=role_warehouse,
+                role_seller=role_seller,
                 is_data_admin=is_data_admin,
                 is_data_editor=is_data_editor,
                 is_data_viewer=is_data_viewer,
@@ -243,18 +276,53 @@ def seed_database():
             # Накат прав существующим пользователям при запуске
             user.is_admin = is_admin or user.is_admin
             user.is_finance = is_finance or user.is_finance
+            user.role_admin = role_admin or user.role_admin
+            user.role_financier = role_financier or user.role_financier
+            user.role_warehouse = role_warehouse or user.role_warehouse
+            user.role_seller = role_seller or user.role_seller
             user.is_data_admin = is_data_admin or user.is_data_admin
             user.is_data_editor = is_data_editor or user.is_data_editor
             user.is_data_viewer = is_data_viewer or user.is_data_viewer
 
         return user
 
+    def ensure_role_permission(
+        role_name,
+        label,
+        can_view_mdm=False,
+        can_edit_mdm=False,
+        can_view_finance=False,
+        can_edit_finance=False,
+        can_view_warehouse=False,
+        can_edit_warehouse=False,
+        can_view_sales=False,
+        can_edit_sales=False,
+    ):
+        permission = RolePermission.query.filter_by(role_name=role_name).first()
+        if permission is None:
+            permission = RolePermission(
+                role_name=role_name,
+                label=label,
+                can_view_mdm=can_view_mdm,
+                can_edit_mdm=can_edit_mdm,
+                can_view_finance=can_view_finance,
+                can_edit_finance=can_edit_finance,
+                can_view_warehouse=can_view_warehouse,
+                can_edit_warehouse=can_edit_warehouse,
+                can_view_sales=can_view_sales,
+                can_edit_sales=can_edit_sales,
+            )
+            db.session.add(permission)
+        else:
+            permission.label = label
+        return permission
+
     ensure_user(
         "admin",
         "admin@mebelgrad.local",
         "admin123",
         is_admin=True,
-        is_finance=True,
+        role_admin=True,
         # Админ имеет полные права MDM/Finance
         is_data_admin=True,
         is_data_editor=True,
@@ -265,8 +333,41 @@ def seed_database():
         "finance@mebelgrad.local",
         "finance123",
         is_finance=True,
+        role_financier=True,
         # Финансистам доступ к просмотру MDM, но не к редактированию пока
         is_data_viewer=True,
+    )
+
+    ensure_role_permission(
+        "admin",
+        "Админ",
+        can_view_mdm=True,
+        can_edit_mdm=True,
+        can_view_finance=True,
+        can_edit_finance=True,
+        can_view_warehouse=True,
+        can_edit_warehouse=True,
+        can_view_sales=True,
+        can_edit_sales=True,
+    )
+    ensure_role_permission(
+        "finance",
+        "Финансист",
+        can_view_finance=True,
+        can_edit_finance=True,
+        can_view_warehouse=True,
+    )
+    ensure_role_permission(
+        "warehouse",
+        "Кладовщик",
+        can_view_warehouse=True,
+        can_edit_warehouse=True,
+    )
+    ensure_role_permission(
+        "seller",
+        "Продавец",
+        can_view_sales=True,
+        can_edit_sales=True,
     )
 
     customers_data = [

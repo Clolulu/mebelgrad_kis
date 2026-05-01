@@ -6,13 +6,9 @@
     {% if current_user.is_finance %}
         <span class="badge bg-success">finance</span>
     {% endif %}
-    {% if current_user.is_data_admin %}
-        <span class="badge bg-primary">mdm-admin</span>
-    {% endif %}
-    {% if current_user.is_data_editor %}
-        <span class="badge bg-info text-dark">mdm-editor</span>
-    {% endif %}
-    {% if current_user.is_data_viewer %}
+    {% if current_user.can_edit_mdm %}
+        <span class="badge bg-primary">mdm-editor</span>
+    {% elif current_user.can_view_mdm %}
         <span class="badge bg-secondary">mdm-viewer</span>
     {% endif %}
 </div>
