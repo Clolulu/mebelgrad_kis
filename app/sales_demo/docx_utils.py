@@ -55,30 +55,51 @@ def create_sales_doc(title, company, order=None, customer=None, items=None, note
         doc.add_heading("Данные заказа", level=1)
         doc.add_paragraph(f"Номер заказа: {_safe(getattr(order, 'order_number', ''))}")
         doc.add_paragraph(f"Дата: {getattr(order, 'created_at', datetime.now()).strftime('%d.%m.%Y %H:%M')}")
-        doc.add_paragraph(f"Статус: {_safe(getattr(order, 'status', ''))}")
-        doc.add_paragraph(f"Сумма: {_safe(getattr(order, 'total_amount', 0))} руб.")
         doc.add_paragraph(f"Адрес доставки: {_safe(getattr(order, 'delivery_address', ''))}")
+        if getattr(order, 'needs_assembly', False):
+            doc.add_paragraph("Требуется сборка: да")
         doc.add_paragraph()
 
-    if items:
+    if items or (order and getattr(order, 'needs_assembly', False)):
+        if order or customer:
+            doc.add_page_break()
         doc.add_heading("Состав заказа", level=1)
-        table = doc.add_table(rows=1, cols=5)
+        table = doc.add_table(rows=1, cols=4)
         table.style = "Table Grid"
         head = table.rows[0].cells
         head[0].text = "Товар"
         head[1].text = "Кол-во"
         head[2].text = "Цена"
         head[3].text = "Сумма"
-        head[4].text = "Наличие"
-        for item in items:
+        
+        total_items = 0.0
+        for item in (items or []):
             row = table.add_row().cells
             qty = int(item.get("quantity", 0))
             price = float(item.get("unit_price", 0))
+            item_sum = qty * price
+            total_items += item_sum
             row[0].text = _safe(item.get("name"))
             row[1].text = str(qty)
             row[2].text = f"{price:.2f}"
-            row[3].text = f"{qty * price:.2f}"
-            row[4].text = _safe(item.get("stock"))
+            row[3].text = f"{item_sum:.2f}"
+        
+        # Add assembly if needed
+        if order and getattr(order, 'needs_assembly', False):
+            row = table.add_row().cells
+            row[0].text = "Услуга сборки"
+            row[1].text = "1"
+            row[2].text = "1000.00"
+            row[3].text = "1000.00"
+            total_items += 1000.0
+        
+        # Add total row
+        row = table.add_row().cells
+        row[0].text = "ИТОГ"
+        row[1].text = ""
+        row[2].text = ""
+        row[3].text = f"{total_items:.2f}"
+        
         doc.add_paragraph()
 
     if notes:

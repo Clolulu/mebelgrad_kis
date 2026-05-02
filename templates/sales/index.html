@@ -6,10 +6,6 @@
 <section class="surface p-4 p-lg-5">
     <div class="text-uppercase text-secondary small">Подсистема продаж</div>
     <h1 class="h3 mb-3">CRM, обработка заказов и контроль доставки</h1>
-    <p class="text-secondary mb-4">
-        Операционный контур продавца: единая точка для работы с клиентом, оформлением продажи,
-        комплектом документов и статусами исполнения заказа.
-    </p>
     <div class="row g-3">
         <div class="col-md-6 col-xl-3">
             <div class="surface p-3 h-100">
@@ -25,8 +21,20 @@
         </div>
         <div class="col-md-6 col-xl-3">
             <div class="surface p-3 h-100">
-                <div class="text-secondary small">В исполнении</div>
-                <div class="h3 mb-0">{{ in_progress_orders or 0 }}</div>
+                <div class="text-secondary small">Комплектуются</div>
+                <div class="h3 mb-0">{{ assembling_orders or 0 }}</div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="surface p-3 h-100">
+                <div class="text-secondary small">Собраны и ждут отправки</div>
+                <div class="h3 mb-0">{{ assembled_orders or 0 }}</div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="surface p-3 h-100">
+                <div class="text-secondary small">В пути</div>
+                <div class="h3 mb-0">{{ in_transit_orders or 0 }}</div>
             </div>
         </div>
         <div class="col-md-6 col-xl-3">

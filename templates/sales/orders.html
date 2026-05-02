@@ -30,7 +30,11 @@
         <div class="col-md-2"><label class="form-label">Дата до</label><input class="form-control" type="date" name="created_to" value="{{ request.args.get('created_to', '') }}"></div>
         <div class="col-md-2"><label class="form-label">Сумма от</label><input class="form-control" name="amount_min" value="{{ request.args.get('amount_min', '') }}"></div>
         <div class="col-md-2"><label class="form-label">Сумма до</label><input class="form-control" name="amount_max" value="{{ request.args.get('amount_max', '') }}"></div>
-        <div class="col-md-2"><label class="form-label">Клиент</label><input class="form-control" name="customer" value="{{ request.args.get('customer', '') }}"></div>
+        <div class="col-md-2">
+            <label class="form-label">Клиент</label>
+            <input id="customerFilter" class="form-control" list="customerFilterList" name="customer" value="{{ request.args.get('customer', '') }}" placeholder="ФИО клиента">
+            <datalist id="customerFilterList"></datalist>
+        </div>
         <div class="col-12 d-flex gap-2">
             <button class="btn btn-primary btn-sm">Фильтровать</button>
             <a href="{{ url_for('sales_demo.orders') }}" class="btn btn-outline-secondary btn-sm">Сброс</a>
@@ -56,37 +60,89 @@
             <tbody>
             {% for order in orders %}
                 <tr>
-                    <td>{{ order.order_number }}<br><span class="small text-secondary">ID {{ order.id }}</span></td>
-                    <td>{{ order.created_at.strftime('%d.%m.%Y %H:%M') if order.created_at else '-' }}</td>
+                    <td>{{ order.order_number }}</td>
+                    <td><div>{{ order.created_at.strftime('%d.%m.%Y') if order.created_at else '-' }}</div><div class="small text-secondary">{{ order.created_at.strftime('%H:%M') if order.created_at else '' }}</div></td>
                     <td>{{ order.customer.name if order.customer else '-' }}</td>
-                    <td>{{ '%.2f'|format(order.total_amount or 0) }}</td>
+                    <td><div>{{ '%.2f'|format(order.total_amount or 0) }}</div>{% if order.needs_assembly %}<div class="small text-secondary">В том числе сборка</div>{% endif %}</td>
                     <td>{{ order.delivery_address or '-' }}</td>
                     <td><span class="badge text-bg-secondary">{{ status_labels.get(order.status, order.status) }}</span></td>
                     <td>
-                        <div class="d-flex flex-column gap-1">
-                            <a class="btn btn-outline-dark btn-sm" href="{{ url_for('sales_demo.order_document', order_id=order.id, doc_type='internal-shipment-note') }}" target="_blank">Накладная</a>
-                            <a class="btn btn-outline-dark btn-sm" href="{{ url_for('sales_demo.order_document', order_id=order.id, doc_type='route-sheet') }}" target="_blank">Маршрутный лист</a>
-                            <a class="btn btn-outline-dark btn-sm" href="{{ url_for('sales_demo.order_document', order_id=order.id, doc_type='delivery-act') }}" target="_blank">Акт доставки</a>
-                            <a class="btn btn-outline-dark btn-sm" href="{{ url_for('sales_demo.order_document', order_id=order.id, doc_type='assembly-act') }}" target="_blank">Акт сборки</a>
-                            {% for attachment in order.attachments %}
-                                <a class="small" href="{{ url_for('sales_demo.download_attachment', attachment_id=attachment.id) }}" target="_blank">📎 {{ attachment.original_filename }}</a>
-                            {% endfor %}
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex flex-wrap gap-2">
+                                <a class="btn btn-outline-dark btn-sm" href="{{ url_for('sales_demo.order_document', order_id=order.id, doc_type='internal-shipment-note') }}" target="_blank">Накладная</a>
+                                <a class="btn btn-outline-dark btn-sm" href="{{ url_for('sales_demo.order_document', order_id=order.id, doc_type='route-sheet') }}" target="_blank">Маршрутный лист</a>
+                                <a class="btn btn-outline-dark btn-sm" href="{{ url_for('sales_demo.order_document', order_id=order.id, doc_type='delivery-act') }}" target="_blank">Акт доставки</a>
+                                {% if order.needs_assembly %}
+                                    <a class="btn btn-outline-dark btn-sm" href="{{ url_for('sales_demo.order_document', order_id=order.id, doc_type='assembly-act') }}" target="_blank">Акт сборки</a>
+                                {% endif %}
+                            </div>
+                            <div class="border rounded p-3 bg-light">
+                                <div class="small text-secondary mb-2">Прикрепленные документы</div>
+                                {% if order.attachments %}
+                                    {% for attachment in order.attachments %}
+                                        <div class="mb-3">
+                                            <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+                                                <a class="link-secondary" href="{{ url_for('sales_demo.download_attachment', attachment_id=attachment.id) }}" target="_blank">📎 {{ attachment.original_filename }}</a>
+                                            </div>
+                                            <form method="post" action="{{ url_for('sales_demo.rename_attachment', attachment_id=attachment.id) }}" class="d-flex gap-2">
+                                                <input type="text" name="new_name" class="form-control form-control-sm" value="{{ attachment.original_filename }}">
+                                                <button class="btn btn-outline-secondary btn-sm">Переименовать</button>
+                                            </form>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-secondary small">Документы пока не прикреплены.</div>
+                                {% endif %}
+                            </div>
                         </div>
                     </td>
                     <td>
-                        <form method="post" action="{{ url_for('sales_demo.upload_delivery_doc', order_id=order.id) }}" enctype="multipart/form-data" class="mb-2">
-                            <input type="file" name="document" class="form-control form-control-sm mb-1" required>
-                            <button class="btn btn-outline-dark btn-sm w-100">Прикрепить документ</button>
-                        </form>
-                        <form method="post" action="{{ url_for('sales_demo.mark_assembled', order_id=order.id) }}" class="mb-1">
-                            <button class="btn btn-outline-primary btn-sm w-100">Подтвердить комплектацию</button>
-                        </form>
-                        <form method="post" action="{{ url_for('sales_demo.mark_in_transit', order_id=order.id) }}" class="mb-1">
-                            <button class="btn btn-outline-warning btn-sm w-100">Отметить "В пути"</button>
-                        </form>
-                        <form method="post" action="{{ url_for('sales_demo.confirm_delivery', order_id=order.id) }}">
-                            <button class="btn btn-success btn-sm w-100">Подтвердить доставку</button>
-                        </form>
+                        <div class="d-flex flex-column gap-2">
+                            {% if order.status in ['pending', 'unpaid'] %}
+                                <form method="post" action="{{ url_for('sales_demo.confirm_payment', order_id=order.id) }}">
+                                    <button class="btn btn-primary btn-sm w-100">Подтвердить оплату</button>
+                                </form>
+                            {% elif order.status == 'picking' %}
+                                <form method="post" action="{{ url_for('sales_demo.mark_assembled', order_id=order.id) }}">
+                                    <button class="btn btn-outline-primary btn-sm w-100">Подтвердить комплектацию</button>
+                                </form>
+                            {% elif order.status == 'assembled' %}
+                                <form method="post" action="{{ url_for('sales_demo.mark_in_transit', order_id=order.id) }}">
+                                    <button class="btn btn-outline-warning btn-sm w-100">Заказ в пути</button>
+                                </form>
+                            {% elif order.status == 'in_transit' %}
+                                <form method="post" action="{{ url_for('sales_demo.upload_delivery_doc', order_id=order.id) }}" enctype="multipart/form-data">
+                                    <input type="file" name="document" class="form-control form-control-sm mb-1" required>
+                                    <button class="btn btn-outline-dark btn-sm w-100">Прикрепить документ</button>
+                                </form>
+                                <form method="post" action="{{ url_for('sales_demo.confirm_delivery', order_id=order.id) }}">
+                                    <button class="btn btn-success btn-sm w-100" {% if not order.attachments %}disabled{% endif %}>Подтвердить доставку</button>
+                                </form>
+                            {% endif %}
+
+                            {% if not order.needs_assembly and order.status not in ['cancelled', 'completed'] %}
+                                <form method="post" action="{{ url_for('sales_demo.add_assembly', order_id=order.id) }}">
+                                    <button class="btn btn-outline-secondary btn-sm w-100">Добавить сборку</button>
+                                </form>
+                            {% endif %}
+
+                            {% if order.status not in ['cancelled', 'completed'] %}
+                                <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="toggleCancelReason({{ order.id }})">Отменить заказ</button>
+                                <div id="cancel-reason-{{ order.id }}" class="d-none">
+                                    <form id="cancel-form-{{ order.id }}" method="post" action="{{ url_for('sales_demo.cancel_order', order_id=order.id) }}">
+                                        <textarea name="cancel_reason" class="form-control form-control-sm mb-2" rows="2" placeholder="Причина отмены"></textarea>
+                                        <button class="btn btn-danger btn-sm w-100">Подтвердить отмену</button>
+                                    </form>
+                                </div>
+                            {% else %}
+                                {% if order.status == 'cancelled' %}
+                                    <div class="text-danger small">Заказ отменён</div>
+                                    {% if order.cancel_reason %}
+                                        <div class="small text-secondary">Причина: {{ order.cancel_reason }}</div>
+                                    {% endif %}
+                                {% endif %}
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
             {% else %}
@@ -96,4 +152,42 @@
         </table>
     </div>
 </section>
+
+<script>
+function toggleCancelReason(orderId) {
+    const element = document.getElementById(`cancel-reason-${orderId}`);
+    if (!element) return;
+    element.classList.toggle('d-none');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    const customerFilterInput = document.getElementById('customerFilter');
+    const customerFilterList = document.getElementById('customerFilterList');
+    if (!customerFilterInput || !customerFilterList) {
+        return;
+    }
+
+    async function updateFilterOptions(query = '') {
+        try {
+            const response = await fetch(`/sales/api/customers?q=${encodeURIComponent(query)}`);
+            if (!response.ok) return;
+            const customers = await response.json();
+            customerFilterList.innerHTML = '';
+            customers.forEach(customer => {
+                const option = document.createElement('option');
+                option.value = customer.name;
+                customerFilterList.appendChild(option);
+            });
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    customerFilterInput.addEventListener('input', event => {
+        updateFilterOptions(event.target.value.trim());
+    });
+
+    updateFilterOptions(customerFilterInput.value.trim());
+});
+</script>
 {% endblock %}

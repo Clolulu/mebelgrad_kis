@@ -20,14 +20,19 @@
                 <h2 class="h6 mb-0">Клиент</h2>
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#newCustomerModal">Новый клиент</button>
             </div>
-            <input id="customerSearch" class="form-control mb-2" placeholder="Фильтр по фамилии/имени клиента">
-            <select id="customerSelect" class="form-select"></select>
+            <input id="customerInput" class="form-control mb-2" list="customerList" placeholder="Введите ФИО клиента или часть ФИО">
+            <datalist id="customerList"></datalist>
+            <input type="hidden" id="customerId">
             <div id="customerMeta" class="small text-secondary mt-2"></div>
         </div>
 
         <div class="surface p-4">
             <h2 class="h6">Адрес доставки</h2>
             <textarea id="deliveryAddress" class="form-control" rows="3" placeholder="Город, улица, дом, квартира"></textarea>
+            <div class="form-check mt-3">
+                <input class="form-check-input" type="checkbox" id="assemblyCheck">
+                <label class="form-check-label" for="assemblyCheck">Сборка (1000 руб.)</label>
+            </div>
             <div class="small text-secondary mt-2">Поле обязательно при формировании заказа.</div>
         </div>
     </div>
@@ -59,6 +64,7 @@
         <h2 class="h6 mb-0">Текущий заказ</h2>
         <div class="small text-secondary">Сумма: <span id="orderTotal">0.00</span> руб.</div>
     </div>
+    <div id="assemblyNotice" class="small text-secondary mb-2" style="display:none;">В том числе сборка: 1000 руб.</div>
     <div class="table-responsive">
         <table class="table table-sm">
             <thead>
@@ -74,18 +80,20 @@
         </table>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-outline-dark btn-sm" id="previewContractBtn">Сформировать договор</button>
-        <button class="btn btn-outline-dark btn-sm" id="previewInvoiceBtn">Сформировать счет</button>
-        <button class="btn btn-primary btn-sm" id="printAndPayBtn">Печать договора (2 экземпляра) и переход к оплате</button>
+        <button class="btn btn-primary btn-sm" id="printAndPayBtn">Печать договора и переход к оплате</button>
     </div>
 </section>
 
 <section class="surface p-4 mt-4 d-none" id="paymentPanel">
-    <h2 class="h6">Подтверждение оплаты (mock)</h2>
+    <h2 class="h6">Подтверждение оплаты</h2>
     <p class="small text-secondary mb-2">После подтверждения статус заказа изменится на «В процессе комплектации».</p>
     <div class="d-flex gap-2 align-items-center">
         <button class="btn btn-success btn-sm" id="confirmPaymentBtn">Подтвердить оплату</button>
         <span id="paymentStatusText" class="small"></span>
+    </div>
+    <div id="paymentSuccess" class="d-none mt-3 p-3 bg-success bg-opacity-10 border border-success rounded">
+        <div class="text-success"><strong>✓ Заказ оплачен</strong></div>
+        <div class="small text-success" id="paymentSuccessMessage"></div>
     </div>
 </section>
 
@@ -128,15 +136,18 @@ let products = [];
 let orderItems = [];
 let currentOrderId = null;
 
-const customerSelect = document.getElementById('customerSelect');
+const customerInput = document.getElementById('customerInput');
+const customerIdInput = document.getElementById('customerId');
 const customerMeta = document.getElementById('customerMeta');
 const productTable = document.getElementById('productsTableBody');
 const orderItemsBody = document.getElementById('orderItemsBody');
+const assemblyCheck = document.getElementById('assemblyCheck');
+const assemblyNotice = document.getElementById('assemblyNotice');
 const paymentPanel = document.getElementById('paymentPanel');
 const paymentStatusText = document.getElementById('paymentStatusText');
 
 function selectedCustomerId() {
-    const value = customerSelect.value;
+    const value = customerIdInput.value;
     return value ? Number(value) : null;
 }
 
@@ -144,6 +155,7 @@ function orderPayload() {
     return {
         customer_id: selectedCustomerId(),
         delivery_address: document.getElementById('deliveryAddress').value.trim(),
+        needs_assembly: assemblyCheck.checked,
         items: orderItems.map(item => ({
             product_id: item.product_id,
             quantity: item.quantity,
@@ -155,6 +167,12 @@ function orderPayload() {
 function calcTotal() {
     let total = 0;
     orderItems.forEach(i => total += i.quantity * i.unit_price);
+    if (assemblyCheck.checked) {
+        total += 1000;
+        assemblyNotice.style.display = 'block';
+    } else {
+        assemblyNotice.style.display = 'none';
+    }
     document.getElementById('orderTotal').textContent = total.toFixed(2);
 }
 
@@ -182,19 +200,31 @@ function renderProducts() {
     productTable.innerHTML = '';
     products.forEach(item => {
         const row = document.createElement('tr');
+        const disabled = item.stock <= 0 ? 'disabled' : '';
         row.innerHTML = `
             <td>${item.name}</td>
             <td>${item.stock}</td>
             <td>${Number(item.unit_price).toFixed(2)}</td>
-            <td><input class="form-control form-control-sm" type="number" min="1" value="1" style="max-width:90px"></td>
-            <td><button class="btn btn-sm btn-outline-primary">Добавить</button></td>
+            <td><input class="form-control form-control-sm" type="number" min="1" ${item.stock > 0 ? `max="${item.stock}"` : 'disabled'} value="1" style="max-width:90px"></td>
+            <td><button class="btn btn-sm btn-outline-primary" ${disabled}>Добавить</button></td>
         `;
-        row.querySelector('button').addEventListener('click', () => {
-            const qty = Number(row.querySelector('input').value || 0);
+        const qtyInput = row.querySelector('input');
+        const addButton = row.querySelector('button');
+        addButton.addEventListener('click', () => {
+            const qty = Number(qtyInput.value || 0);
             if (!qty || qty < 1) return;
+            if (qty > item.stock) {
+                alert(`Максимально доступно ${item.stock} шт.`);
+                return;
+            }
             const exists = orderItems.find(i => i.product_id === item.id);
             if (exists) {
-                exists.quantity += qty;
+                const newQty = exists.quantity + qty;
+                if (newQty > item.stock) {
+                    alert(`Максимально доступно ${item.stock} шт.`);
+                    return;
+                }
+                exists.quantity = newQty;
             } else {
                 orderItems.push({
                     product_id: item.id,
@@ -210,56 +240,46 @@ function renderProducts() {
 }
 
 function renderCustomers() {
-    customerSelect.innerHTML = '<option value="">Выберите клиента</option>';
+    const list = document.getElementById('customerList');
+    list.innerHTML = '';
     customers.forEach(customer => {
         const option = document.createElement('option');
-        option.value = customer.id;
-        option.textContent = customer.name;
-        customerSelect.appendChild(option);
+        option.value = customer.name;
+        list.appendChild(option);
     });
 }
 
-customerSelect.addEventListener('change', () => {
-    const id = selectedCustomerId();
-    const current = customers.find(c => c.id === id);
-    customerMeta.textContent = current ? `Телефон: ${current.phone || '-'}, Email: ${current.email || '-'}` : '';
-});
+function updateCustomerMeta() {
+    const selectedName = (customerInput.value || '').trim().toLowerCase();
+    const current = customers.find(c => c.name.toLowerCase() === selectedName);
+    if (current) {
+        customerIdInput.value = current.id;
+        customerMeta.textContent = `Телефон: ${current.phone || '-'}, Email: ${current.email || '-'}`;
+    } else {
+        customerIdInput.value = '';
+        customerMeta.textContent = '';
+    }
+}
 
-document.getElementById('customerSearch').addEventListener('input', async (e) => {
+customerInput.addEventListener('input', async (e) => {
     const query = encodeURIComponent(e.target.value.trim());
     const resp = await fetch(`/sales/api/customers?q=${query}`);
     customers = await resp.json();
     renderCustomers();
+    updateCustomerMeta();
 });
+
+customerInput.addEventListener('change', () => {
+    updateCustomerMeta();
+});
+
+assemblyCheck.addEventListener('change', calcTotal);
 
 document.getElementById('productSearch').addEventListener('input', async (e) => {
     const query = encodeURIComponent(e.target.value.trim());
     const resp = await fetch(`/sales/api/products?q=${query}`);
     products = await resp.json();
     renderProducts();
-});
-
-async function downloadDoc(url, payload) {
-    const resp = await fetch(url, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
-    });
-    if (!resp.ok) {
-        alert('Не удалось сформировать документ');
-        return;
-    }
-    const blob = await resp.blob();
-    const fileURL = URL.createObjectURL(blob);
-    window.open(fileURL, '_blank');
-}
-
-document.getElementById('previewContractBtn').addEventListener('click', async () => {
-    await downloadDoc('/sales/documents/contract-preview', orderPayload());
-});
-
-document.getElementById('previewInvoiceBtn').addEventListener('click', async () => {
-    await downloadDoc('/sales/documents/invoice-preview', orderPayload());
 });
 
 document.getElementById('printAndPayBtn').addEventListener('click', async () => {
@@ -288,12 +308,15 @@ document.getElementById('printAndPayBtn').addEventListener('click', async () => 
 document.getElementById('confirmPaymentBtn').addEventListener('click', async () => {
     if (!currentOrderId) return;
     const resp = await fetch(`/sales/api/orders/${currentOrderId}/confirm-payment`, {method: 'POST'});
-    const data = await resp.json();
     if (!resp.ok) {
         alert('Не удалось подтвердить оплату');
         return;
     }
+    const data = await resp.json();
     paymentStatusText.textContent = `Статус заказа: ${data.status_label}.`;
+    document.getElementById('confirmPaymentBtn').disabled = true;
+    document.getElementById('paymentSuccess').classList.remove('d-none');
+    document.getElementById('paymentSuccessMessage').textContent = `Заказ ${data.order_number || ''} оплачен. Статус: ${data.status_label}.`;
 });
 
 document.getElementById('saveNewCustomerBtn').addEventListener('click', async () => {
@@ -322,7 +345,8 @@ document.getElementById('saveNewCustomerBtn').addEventListener('click', async ()
     }
     customers.unshift(data);
     renderCustomers();
-    customerSelect.value = data.id;
+    customerInput.value = data.name;
+    customerIdInput.value = data.id;
     customerMeta.textContent = `Телефон: ${data.phone || '-'}, Email: ${data.email || '-'}`;
     bootstrap.Modal.getInstance(document.getElementById('newCustomerModal')).hide();
 });

@@ -284,6 +284,8 @@ class SalesOrder(db.Model):
     segment = db.Column(db.String(50), default='retail')  # retail / b2b / service
     status = db.Column(db.String(50), default='pending')  # 'pending', 'completed', 'cancelled'
     total_amount = db.Column(db.Float, default=0.0)
+    needs_assembly = db.Column(db.Boolean, default=False)
+    cancel_reason = db.Column(db.Text)
     delivery_address = db.Column(db.String(255))
     delivery_confirmed_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

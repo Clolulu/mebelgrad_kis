@@ -35,7 +35,9 @@ ALLOWED_UPLOAD_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "doc", "docx"}
 def index():
     total_orders = SalesOrder.query.count()
     unpaid_orders = SalesOrder.query.filter(SalesOrder.status.in_(["pending", "unpaid"])).count()
-    in_progress_orders = SalesOrder.query.filter(SalesOrder.status.in_(["picking", "assembled", "in_transit"])).count()
+    assembling_orders = SalesOrder.query.filter_by(status="picking").count()
+    assembled_orders = SalesOrder.query.filter_by(status="assembled").count()
+    in_transit_orders = SalesOrder.query.filter_by(status="in_transit").count()
     completed_orders = SalesOrder.query.filter_by(status="completed").count()
     active_customers = Customer.query.filter_by(is_active=True).count()
     active_products = Product.query.filter_by(is_active=True).count()
@@ -44,7 +46,9 @@ def index():
         "sales/index.html",
         total_orders=total_orders,
         unpaid_orders=unpaid_orders,
-        in_progress_orders=in_progress_orders,
+        assembling_orders=assembling_orders,
+        assembled_orders=assembled_orders,
+        in_transit_orders=in_transit_orders,
         completed_orders=completed_orders,
         active_customers=active_customers,
         active_products=active_products,
@@ -167,6 +171,7 @@ def create_order():
     customer_id = payload.get("customer_id")
     items_payload = payload.get("items") or []
     delivery_address = (payload.get("delivery_address") or "").strip()
+    needs_assembly = bool(payload.get("needs_assembly"))
 
     if not customer_id:
         return jsonify({"error": "Выберите клиента"}), 400
@@ -184,6 +189,7 @@ def create_order():
         customer_id=customer.id,
         status="unpaid",
         delivery_address=delivery_address,
+        needs_assembly=needs_assembly,
         created_at=datetime.utcnow(),
     )
     db.session.add(order)
@@ -193,8 +199,12 @@ def create_order():
     for row in items_payload:
         product = Product.query.get(row.get("product_id"))
         qty = int(row.get("quantity", 0))
-        if not product or qty <= 0:
-            continue
+        if not product:
+            return jsonify({"error": "Товар не найден"}), 400
+        if qty <= 0:
+            return jsonify({"error": "Количество товара должно быть больше нуля"}), 400
+        if qty > product.qty_on_hand:
+            return jsonify({"error": f"Для товара '{product.name}' доступно только {product.qty_on_hand} шт."}), 400
         unit_price = float(row.get("unit_price") or product.retail_price or 0.0)
         total_amount += qty * unit_price
         db.session.add(
@@ -207,6 +217,10 @@ def create_order():
                 product_group="general",
             )
         )
+
+    if needs_assembly:
+        total_amount += 1000.0
+
     order.total_amount = round(total_amount, 2)
     db.session.commit()
     return jsonify({"order_id": order.id, "order_number": order.order_number, "status": order.status})
@@ -216,9 +230,63 @@ def create_order():
 @login_required
 def confirm_payment(order_id):
     order = SalesOrder.query.get_or_404(order_id)
+    if order.status == "cancelled":
+        if request.is_json:
+            return jsonify({"ok": False, "error": "Нельзя подтвердить оплату отмененного заказа"}), 400
+        flash("Нельзя подтвердить оплату отмененного заказа.", "warning")
+        return _redirect_with_filters()
     order.status = "picking"
     db.session.commit()
-    return jsonify({"ok": True, "status": order.status, "status_label": STATUS_LABELS[order.status]})
+    if request.is_json:
+        return jsonify({"ok": True, "status": order.status, "status_label": STATUS_LABELS[order.status]})
+    flash(f"Заказ {order.order_number} оплачен. Статус изменен на 'В процессе комплектации'.", "success")
+    return _redirect_with_filters()
+
+
+@sales_bp.route("/orders/<int:order_id>/cancel", methods=["POST"])
+@login_required
+def cancel_order(order_id):
+    order = SalesOrder.query.get_or_404(order_id)
+    reason = (request.form.get("cancel_reason") or "").strip()
+    if not reason:
+        flash("Укажите причину отмены заказа.", "warning")
+        return _redirect_with_filters()
+    order.status = "cancelled"
+    order.cancel_reason = reason
+    db.session.commit()
+    flash(f"Заказ {order.order_number} отменен. Причина: {reason}", "success")
+    return _redirect_with_filters()
+
+
+@sales_bp.route("/orders/<int:order_id>/add-assembly", methods=["POST"])
+@login_required
+def add_assembly(order_id):
+    order = SalesOrder.query.get_or_404(order_id)
+    if order.status in {"cancelled", "completed"}:
+        flash("Нельзя добавить сборку к этому заказу.", "warning")
+        return _redirect_with_filters()
+    if order.needs_assembly:
+        flash("Сборка уже добавлена к заказу.", "info")
+        return _redirect_with_filters()
+    order.needs_assembly = True
+    order.total_amount = round((order.total_amount or 0.0) + 1000.0, 2)
+    db.session.commit()
+    flash(f"Сборка добавлена к заказу {order.order_number}.", "success")
+    return _redirect_with_filters()
+
+
+@sales_bp.route("/attachments/<int:attachment_id>/rename", methods=["POST"])
+@login_required
+def rename_attachment(attachment_id):
+    attachment = SalesOrderAttachment.query.get_or_404(attachment_id)
+    new_name = (request.form.get("new_name") or "").strip()
+    if not new_name:
+        flash("Укажите новое имя файла.", "warning")
+        return _redirect_with_filters()
+    attachment.original_filename = new_name
+    db.session.commit()
+    flash(f"Имя документа обновлено на '{new_name}'.", "success")
+    return _redirect_with_filters()
 
 
 @sales_bp.route("/orders/<int:order_id>/mark-assembled", methods=["POST"])
@@ -228,7 +296,7 @@ def mark_assembled(order_id):
     order.status = "assembled"
     db.session.commit()
     flash(f"Заказ {order.order_number} отмечен как 'Собран'.", "success")
-    return redirect(url_for("sales_demo.orders"))
+    return _redirect_with_filters()
 
 
 @sales_bp.route("/orders/<int:order_id>/mark-in-transit", methods=["POST"])
@@ -238,18 +306,24 @@ def mark_in_transit(order_id):
     order.status = "in_transit"
     db.session.commit()
     flash(f"Заказ {order.order_number} переведен в статус 'В пути'.", "success")
-    return redirect(url_for("sales_demo.orders"))
+    return _redirect_with_filters()
 
 
 @sales_bp.route("/orders/<int:order_id>/confirm-delivery", methods=["POST"])
 @login_required
 def confirm_delivery(order_id):
     order = SalesOrder.query.get_or_404(order_id)
+    if order.status != "in_transit":
+        flash("Подтвердить доставку можно только для заказа в пути.", "warning")
+        return _redirect_with_filters()
+    if not order.attachments:
+        flash("Прикрепите документ перед подтверждением доставки.", "warning")
+        return _redirect_with_filters()
     order.status = "completed"
     order.delivery_confirmed_at = datetime.utcnow()
     db.session.commit()
     flash(f"Заказ {order.order_number} отмечен как выполненный.", "success")
-    return redirect(url_for("sales_demo.orders"))
+    return _redirect_with_filters()
 
 
 @sales_bp.route("/orders/<int:order_id>/upload-delivery-doc", methods=["POST"])
@@ -259,10 +333,10 @@ def upload_delivery_doc(order_id):
     file = request.files.get("document")
     if not file or not file.filename:
         flash("Файл не выбран.", "warning")
-        return redirect(url_for("sales_demo.orders"))
+        return _redirect_with_filters()
     if not _allowed_file(file.filename):
         flash("Неподдерживаемый формат файла.", "danger")
-        return redirect(url_for("sales_demo.orders"))
+        return _redirect_with_filters()
 
     upload_dir = os.path.join(current_app.instance_path, "uploads", "sales_orders", str(order.id))
     os.makedirs(upload_dir, exist_ok=True)
@@ -282,7 +356,7 @@ def upload_delivery_doc(order_id):
     db.session.add(attachment)
     db.session.commit()
     flash(f"Документ '{original_name}' прикреплен к заказу {order.order_number}.", "success")
-    return redirect(url_for("sales_demo.orders"))
+    return _redirect_with_filters()
 
 
 @sales_bp.route("/attachments/<int:attachment_id>")
@@ -339,6 +413,16 @@ def order_document(order_id, doc_type):
         return "Unknown document type", 404
     doc = create_sales_doc(doc_title_map[doc_type], company, order=order, customer=order.customer, items=items)
     return save_doc(doc, f"{doc_type}_{order.order_number}.docx")
+
+
+def _redirect_with_filters():
+    """Перенаправить на страницу заказов с сохранением фильтров"""
+    filters = {}
+    for key in ["status", "customer", "created_from", "created_to", "amount_min", "amount_max"]:
+        val = request.args.get(key, "").strip()
+        if val:
+            filters[key] = val
+    return redirect(url_for("sales_demo.orders", **filters))
 
 
 def _allowed_file(filename):
