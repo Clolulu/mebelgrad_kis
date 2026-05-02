@@ -86,9 +86,10 @@ class SalesModuleTestCase(unittest.TestCase):
         self.assertEqual(create_resp.status_code, 200)
         data = create_resp.get_json()
         self.assertTrue(data["success"])
-        order = SalesOrder.query.get(data["order_id"])
-        self.assertTrue(order.needs_assembly)
-        self.assertEqual(order.total_amount, 3000)
+        with self.app.app_context():
+            order = SalesOrder.query.get(data["order_id"])
+            self.assertTrue(order.needs_assembly)
+            self.assertEqual(order.total_amount, 3000)
 
     def test_cancel_order_with_reason(self):
         self.login()

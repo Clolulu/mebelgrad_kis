@@ -12,13 +12,16 @@ def login():
         return redirect(url_for("index"))
 
     if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
+        login_value = (request.form.get("email") or request.form.get("username") or "").strip()
         password = request.form.get("password", "")
         remember = request.form.get("remember") == "on"
 
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter(
+            (User.email.ilike(login_value)) | (User.username.ilike(login_value))
+        ).first()
+
         if user is None or not user.check_password(password):
-            flash("Неверный email или пароль.", "danger")
+            flash("Неверный email/имя пользователя или пароль.", "danger")
             return redirect(url_for("auth.login"))
 
         if not user.is_active:

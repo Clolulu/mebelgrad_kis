@@ -35,7 +35,7 @@ def _add_company_block(doc, company):
     doc.add_paragraph()
 
 
-def create_sales_doc(title, company, order=None, customer=None, items=None, notes=None):
+def create_sales_doc(title, company, order=None, customer=None, items=None, notes=None, needs_assembly=False):
     doc = Document()
     doc.add_heading(title, level=0)
     doc.add_paragraph(f"Дата формирования: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
@@ -60,7 +60,7 @@ def create_sales_doc(title, company, order=None, customer=None, items=None, note
             doc.add_paragraph("Требуется сборка: да")
         doc.add_paragraph()
 
-    if items or (order and getattr(order, 'needs_assembly', False)):
+    if items or (order and getattr(order, 'needs_assembly', False)) or needs_assembly:
         if order or customer:
             doc.add_page_break()
         doc.add_heading("Состав заказа", level=1)
@@ -85,7 +85,7 @@ def create_sales_doc(title, company, order=None, customer=None, items=None, note
             row[3].text = f"{item_sum:.2f}"
         
         # Add assembly if needed
-        if order and getattr(order, 'needs_assembly', False):
+        if (order and getattr(order, 'needs_assembly', False)) or needs_assembly:
             row = table.add_row().cells
             row[0].text = "Услуга сборки"
             row[1].text = "1"
@@ -110,13 +110,14 @@ def create_sales_doc(title, company, order=None, customer=None, items=None, note
     return doc
 
 
-def duplicate_contract_doc(company, customer, items, delivery_address):
+def duplicate_contract_doc(company, customer, items, delivery_address, needs_assembly=False):
     doc = create_sales_doc(
         "Договор купли-продажи (2 экземпляра)",
         company,
         customer=customer,
         items=items,
         notes=f"Адрес доставки: {_safe(delivery_address)}",
+        needs_assembly=needs_assembly,
     )
     doc.add_page_break()
     doc.add_heading("Экземпляр №2", level=1)

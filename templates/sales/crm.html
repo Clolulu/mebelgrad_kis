@@ -307,14 +307,23 @@ document.getElementById('printAndPayBtn').addEventListener('click', async () => 
 
 document.getElementById('confirmPaymentBtn').addEventListener('click', async () => {
     if (!currentOrderId) return;
-    const resp = await fetch(`/sales/api/orders/${currentOrderId}/confirm-payment`, {method: 'POST'});
+    const button = document.getElementById('confirmPaymentBtn');
+    const resp = await fetch(`/sales/api/orders/${currentOrderId}/confirm-payment`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: JSON.stringify({}),
+    });
     if (!resp.ok) {
-        alert('Не удалось подтвердить оплату');
+        const errorData = await resp.json().catch(() => null);
+        alert(errorData?.error || 'Не удалось подтвердить оплату');
         return;
     }
     const data = await resp.json();
     paymentStatusText.textContent = `Статус заказа: ${data.status_label}.`;
-    document.getElementById('confirmPaymentBtn').disabled = true;
+    button.disabled = true;
+    button.classList.remove('btn-success');
+    button.classList.add('btn-secondary');
+    button.textContent = 'Оплачено';
     document.getElementById('paymentSuccess').classList.remove('d-none');
     document.getElementById('paymentSuccessMessage').textContent = `Заказ ${data.order_number || ''} оплачен. Статус: ${data.status_label}.`;
 });

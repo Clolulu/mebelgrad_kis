@@ -16,7 +16,7 @@ from werkzeug.utils import secure_filename
 
 from app.sales_demo import sales_bp
 from app.sales_demo.docx_utils import create_sales_doc, duplicate_contract_doc, save_doc
-from app.models import CompanyProfile, Customer, Product, SalesOrder, SalesOrderAttachment, SalesOrderItem, db
+from app.models import CompanyProfile, Customer, Payment, Product, SalesOrder, SalesOrderAttachment, SalesOrderItem, db
 
 STATUS_LABELS = {
     "pending": "Не оплачен",
@@ -223,7 +223,7 @@ def create_order():
 
     order.total_amount = round(total_amount, 2)
     db.session.commit()
-    return jsonify({"order_id": order.id, "order_number": order.order_number, "status": order.status})
+    return jsonify({"success": True, "order_id": order.id, "order_number": order.order_number, "status": order.status})
 
 
 @sales_bp.route("/api/orders/<int:order_id>/confirm-payment", methods=["POST"])
@@ -231,16 +231,31 @@ def create_order():
 def confirm_payment(order_id):
     order = SalesOrder.query.get_or_404(order_id)
     if order.status == "cancelled":
-        if request.is_json:
-            return jsonify({"ok": False, "error": "Нельзя подтвердить оплату отмененного заказа"}), 400
-        flash("Нельзя подтвердить оплату отмененного заказа.", "warning")
-        return _redirect_with_filters()
+        return jsonify({"ok": False, "error": "Нельзя подтвердить оплату отмененного заказа"}), 400
+    if order.status in {"picking", "assembled", "in_transit", "completed"}:
+        return jsonify({
+            "ok": True,
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "status": order.status,
+            "status_label": STATUS_LABELS[order.status],
+        })
     order.status = "picking"
+    payment = Payment(
+        sales_order_id=order.id,
+        amount=float(order.total_amount or 0.0),
+        payment_date=datetime.utcnow(),
+        status="completed",
+    )
+    db.session.add(payment)
     db.session.commit()
-    if request.is_json:
-        return jsonify({"ok": True, "status": order.status, "status_label": STATUS_LABELS[order.status]})
-    flash(f"Заказ {order.order_number} оплачен. Статус изменен на 'В процессе комплектации'.", "success")
-    return _redirect_with_filters()
+    return jsonify({
+        "ok": True,
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "status": order.status,
+        "status_label": STATUS_LABELS[order.status],
+    })
 
 
 @sales_bp.route("/orders/<int:order_id>/cancel", methods=["POST"])
@@ -372,18 +387,32 @@ def download_attachment(attachment_id):
 @sales_bp.route("/documents/contract-preview", methods=["POST"])
 @login_required
 def contract_preview():
-    customer, items, delivery_address = _payload_for_preview(request.get_json(silent=True) or {})
+    customer, items, delivery_address, needs_assembly = _payload_for_preview(request.get_json(silent=True) or {})
     company = CompanyProfile.query.first()
-    doc = create_sales_doc("Договор купли-продажи", company, customer=customer, items=items, notes=f"Адрес доставки: {delivery_address}")
+    doc = create_sales_doc(
+        "Договор купли-продажи",
+        company,
+        customer=customer,
+        items=items,
+        notes=f"Адрес доставки: {delivery_address}",
+        needs_assembly=needs_assembly,
+    )
     return save_doc(doc, f"contract_preview_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx")
 
 
 @sales_bp.route("/documents/invoice-preview", methods=["POST"])
 @login_required
 def invoice_preview():
-    customer, items, delivery_address = _payload_for_preview(request.get_json(silent=True) or {})
+    customer, items, delivery_address, needs_assembly = _payload_for_preview(request.get_json(silent=True) or {})
     company = CompanyProfile.query.first()
-    doc = create_sales_doc("Счет на оплату", company, customer=customer, items=items, notes=f"Адрес доставки: {delivery_address}")
+    doc = create_sales_doc(
+        "Счет на оплату",
+        company,
+        customer=customer,
+        items=items,
+        notes=f"Адрес доставки: {delivery_address}",
+        needs_assembly=needs_assembly,
+    )
     return save_doc(doc, f"invoice_preview_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx")
 
 
@@ -393,7 +422,7 @@ def print_contract(order_id):
     order = SalesOrder.query.get_or_404(order_id)
     company = CompanyProfile.query.first()
     items = _order_items_dict(order)
-    doc = duplicate_contract_doc(company, order.customer, items, order.delivery_address)
+    doc = duplicate_contract_doc(company, order.customer, items, order.delivery_address, needs_assembly=order.needs_assembly)
     return save_doc(doc, f"contract_{order.order_number}_2copies.docx")
 
 
@@ -470,7 +499,12 @@ def _payload_for_preview(payload):
                 "stock": product.qty_on_hand,
             }
         )
-    return customer, items, (payload.get("delivery_address") or "").strip()
+    return (
+        customer,
+        items,
+        (payload.get("delivery_address") or "").strip(),
+        bool(payload.get("needs_assembly")),
+    )
 
 
 def _order_items_dict(order):

@@ -109,7 +109,7 @@ class FinanceModuleTestCase(unittest.TestCase):
             "/finance/help",
         ]:
             self.assertIn(f'href="{href}"', finance_index)
-        self.assertIn("Финансовый dashboard", self.client.get("/finance/dashboard").get_data(as_text=True))
+        self.assertIn("Финансовый дашборд", self.client.get("/finance/dashboard").get_data(as_text=True))
 
     def test_seeded_company_assets_use_external_urls(self):
         with self.app.app_context():
