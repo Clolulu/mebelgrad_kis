@@ -337,6 +337,20 @@ def seed_database():
         # Финансистам доступ к просмотру MDM, но не к редактированию пока
         is_data_viewer=True,
     )
+    ensure_user(
+        "seller",
+        "seller@mebelgrad.local",
+        "seller123",
+        role_seller=True,
+        # Продавец имеет доступ к продажам
+    )
+    ensure_user(
+        "warehouse",
+        "warehouse@mebelgrad.local",
+        "warehouse123",
+        role_warehouse=True,
+        # Кладовщик имеет доступ к складу
+    )
 
     ensure_role_permission(
         "admin",
