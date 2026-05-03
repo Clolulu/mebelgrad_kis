@@ -109,7 +109,7 @@
                     <td>
                         {% set s = pr.status %}
                         <span class="badge {% if s == 'approved' %}bg-success{% elif s == 'rejected' %}bg-danger{% elif s == 'submitted' %}bg-warning text-dark{% elif s == 'ordered' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
-                            {{ status_labels.get(s, s) }}
+                            {{ pr_status_labels.get(s, s) }}
                         </span>
                     </td>
                     <td class="text-secondary small">{{ pr.request_date.strftime('%d.%m.%y') }}</td>
