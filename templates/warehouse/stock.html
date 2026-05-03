@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Остатки на складе | Склад{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">
+                <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад и закупки</a> / Остатки
+            </div>
+            <h1 class="h3 mb-0">Складские остатки</h1>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('warehouse_demo.inventory_new') }}" class="btn btn-outline-dark">🗂 Инвентаризация</a>
+            <a href="{{ url_for('warehouse_demo.purchase_request_new') }}" class="btn btn-primary">+ Заявка на закупку</a>
+        </div>
+    </div>
+</section>
+
+<div class="surface p-3 mb-4">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label small mb-1">Наименование</label>
+            <input type="text" name="name" class="form-control form-control-sm" value="{{ request.args.get('name','') }}" placeholder="Поиск по названию...">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small mb-1">Артикул</label>
+            <input type="text" name="sku" class="form-control form-control-sm" value="{{ request.args.get('sku','') }}" placeholder="SKU...">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small mb-1">Уровень запасов</label>
+            <select name="stock_filter" class="form-select form-select-sm">
+                <option value="">Все</option>
+                <option value="zero" {% if request.args.get('stock_filter')=='zero' %}selected{% endif %}>Нулевые</option>
+                <option value="low" {% if request.args.get('stock_filter')=='low' %}selected{% endif %}>Критические (≤5)</option>
+                <option value="ok" {% if request.args.get('stock_filter')=='ok' %}selected{% endif %}>В норме (>5)</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Найти</button>
+            <a href="{{ url_for('warehouse_demo.stock') }}" class="btn btn-outline-secondary btn-sm">✕</a>
+        </div>
+    </form>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="surface p-3">
+            <div class="text-secondary small">Позиций в таблице</div>
+            <div class="h4 mb-0">{{ products|length }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="surface p-3">
+            <div class="text-secondary small">Критических остатков</div>
+            <div class="h4 mb-0 {% if products|selectattr('qty_on_hand','le',5)|list|length > 0 %}text-danger{% endif %}">
+                {{ products|selectattr('qty_on_hand','le',5)|list|length }}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="surface p-3">
+            <div class="text-secondary small">Стоимость запасов (розн.)</div>
+            <div class="h4 mb-0">{{ '{:,.0f}'.format(total_value) }} ₽</div>
+        </div>
+    </div>
+</div>
+
+<div class="surface p-0">
+    {% if products %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Артикул</th>
+                    <th>Наименование</th>
+                    <th>Ед.</th>
+                    <th>На складе</th>
+                    <th>Резерв</th>
+                    <th>Свободно</th>
+                    <th>Цена</th>
+                    <th>Стоимость</th>
+                    <th>Корректировка</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for p in products %}
+            <tr>
+                <td class="text-secondary small">{{ p.sku }}</td>
+                <td class="fw-semibold">{{ p.name }}</td>
+                <td>{{ p.unit }}</td>
+                <td>
+                    <span class="fw-bold {% if p.qty_on_hand == 0 %}text-danger{% elif p.qty_on_hand <= 5 %}text-warning{% else %}text-success{% endif %}">
+                        {{ p.qty_on_hand }}
+                    </span>
+                </td>
+                <td class="text-secondary">{{ p.qty_reserved }}</td>
+                <td>{{ p.qty_on_hand - p.qty_reserved }}</td>
+                <td>{{ '{:,.0f}'.format(p.retail_price) }} ₽</td>
+                <td class="text-secondary small">{{ '{:,.0f}'.format(p.qty_on_hand * p.retail_price) }} ₽</td>
+                <td>
+                    <button class="btn btn-outline-dark btn-sm" data-bs-toggle="modal"
+                            data-bs-target="#adjustModal"
+                            data-product-id="{{ p.id }}"
+                            data-product-name="{{ p.name }}"
+                            data-current-stock="{{ p.qty_on_hand }}">
+                        ±
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="p-5 text-center text-secondary">Товары не найдены.</div>
+    {% endif %}
+</div>
+
+<!-- Adjust modal -->
+<div class="modal fade" id="adjustModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <form method="post" id="adjustForm" action="">
+                <div class="modal-header">
+                    <h6 class="modal-title">Корректировка остатка</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small mb-1">Товар: <strong id="adjustProductName"></strong></p>
+                    <p class="small mb-3">Текущий остаток: <strong id="adjustCurrentStock"></strong> шт.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Изменение (+ или −)</label>
+                        <input type="number" name="delta" class="form-control" placeholder="Напр.: +10 или -3" required>
+                        <div class="form-text">Введите положительное число для прихода, отрицательное — для списания.</div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Причина</label>
+                        <input type="text" name="reason" class="form-control" placeholder="Напр.: инвентаризация, пересчёт">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.getElementById('adjustModal').addEventListener('show.bs.modal', function(e) {
+    const btn = e.relatedTarget;
+    document.getElementById('adjustProductName').textContent = btn.dataset.productName;
+    document.getElementById('adjustCurrentStock').textContent = btn.dataset.currentStock;
+    document.getElementById('adjustForm').action = `/warehouse/stock/${btn.dataset.productId}/adjust`;
+    document.querySelector('#adjustModal input[name="delta"]').value = '';
+    document.querySelector('#adjustModal input[name="reason"]').value = '';
+});
+</script>
+{% endblock %}

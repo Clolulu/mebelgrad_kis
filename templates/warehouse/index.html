@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Склад и закупки | КИС "МебельГрад"{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Модуль управления складом и закупками</div>
+            <h1 class="h3 mb-1">Склад и закупки</h1>
+            <p class="mb-0 text-secondary">Заявки, приёмка, остатки, комплектация, инвентаризация.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('warehouse_demo.purchase_request_new') }}" class="btn btn-primary">+ Новая заявка</a>
+            <a href="{{ url_for('warehouse_demo.receipt_new') }}" class="btn btn-outline-dark">+ Приёмка товара</a>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="surface p-3 h-100">
+            <div class="text-secondary small">Заявок на закупку</div>
+            <div class="display-6">{{ pr_active }}</div>
+            <div class="small text-secondary">Всего: {{ pr_total }}</div>
+            <a href="{{ url_for('warehouse_demo.purchase_requests') }}" class="btn btn-sm btn-outline-dark mt-2">Открыть →</a>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="surface p-3 h-100">
+            <div class="text-secondary small">Приёмок сегодня</div>
+            <div class="display-6">{{ receipts_today }}</div>
+            <div class="small text-secondary">Всего: {{ receipts_total }}</div>
+            <a href="{{ url_for('warehouse_demo.receipts') }}" class="btn btn-sm btn-outline-dark mt-2">Открыть →</a>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="surface p-3 h-100">
+            <div class="text-secondary small">Комплектаций в работе</div>
+            <div class="display-6">{{ assembly_orders }}</div>
+            <div class="small text-secondary">В пути: {{ in_transit }}</div>
+            <a href="{{ url_for('warehouse_demo.assembly') }}" class="btn btn-sm btn-outline-dark mt-2">Открыть →</a>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="surface p-3 h-100">
+            <div class="text-secondary small">Критических остатков</div>
+            <div class="display-6 {% if low_stock > 0 %}text-danger{% endif %}">{{ low_stock }}</div>
+            <div class="small text-secondary">Инвентаризаций: {{ inventory_counts }}</div>
+            <a href="{{ url_for('warehouse_demo.stock') }}?stock_filter=low" class="btn btn-sm btn-outline-dark mt-2">Открыть →</a>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Навигация по модулям</div>
+            <div class="row g-2">
+                <div class="col-6">
+                    <a href="{{ url_for('warehouse_demo.purchase_requests') }}" class="surface p-3 d-block text-decoration-none h-100">
+                        <div class="fw-semibold">📋 Заявки на закупку</div>
+                        <div class="small text-secondary">Создание и согласование</div>
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="{{ url_for('warehouse_demo.receipts') }}" class="surface p-3 d-block text-decoration-none h-100">
+                        <div class="fw-semibold">📦 Приёмка товара</div>
+                        <div class="small text-secondary">ТТН/УПД, оприходование</div>
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="{{ url_for('warehouse_demo.stock') }}" class="surface p-3 d-block text-decoration-none h-100">
+                        <div class="fw-semibold">🏭 Остатки</div>
+                        <div class="small text-secondary">Управление запасами</div>
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="{{ url_for('warehouse_demo.assembly') }}" class="surface p-3 d-block text-decoration-none h-100">
+                        <div class="fw-semibold">🔧 Комплектация</div>
+                        <div class="small text-secondary">Заказы в сборке</div>
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="{{ url_for('warehouse_demo.inventory') }}" class="surface p-3 d-block text-decoration-none h-100">
+                        <div class="fw-semibold">🗂 Инвентаризация</div>
+                        <div class="small text-secondary">Пересчёт остатков</div>
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="{{ url_for('warehouse_demo.assembly') }}?status=assembled" class="surface p-3 d-block text-decoration-none h-100">
+                        <div class="fw-semibold">🚚 Отгрузка</div>
+                        <div class="small text-secondary">Собранные заказы</div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="surface p-4 h-100">
+            <div class="text-uppercase text-secondary small mb-2">Последние заявки</div>
+            {% if recent_requests %}
+            <table class="table table-sm mb-2">
+                <thead><tr><th>Номер</th><th>Поставщик</th><th>Статус</th><th>Дата</th></tr></thead>
+                <tbody>
+                {% for pr in recent_requests %}
+                <tr>
+                    <td><a href="{{ url_for('warehouse_demo.purchase_request_detail', pr_id=pr.id) }}">{{ pr.request_number }}</a></td>
+                    <td>{{ pr.supplier.name if pr.supplier else '—' }}</td>
+                    <td>
+                        {% set s = pr.status %}
+                        <span class="badge {% if s == 'approved' %}bg-success{% elif s == 'rejected' %}bg-danger{% elif s == 'submitted' %}bg-warning text-dark{% elif s == 'ordered' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                            {{ status_labels.get(s, s) }}
+                        </span>
+                    </td>
+                    <td class="text-secondary small">{{ pr.request_date.strftime('%d.%m.%y') }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            <a href="{{ url_for('warehouse_demo.purchase_requests') }}" class="small">Все заявки →</a>
+            {% else %}
+            <p class="text-secondary">Заявок пока нет.</p>
+            <a href="{{ url_for('warehouse_demo.purchase_request_new') }}" class="btn btn-primary btn-sm">Создать первую заявку</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

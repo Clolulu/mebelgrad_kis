@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Новая приёмка товара | Склад{% endblock %}
+{% block extra_css %}
+<style>
+.item-row { background: var(--mg-panel); border: 1px solid rgba(30,42,47,.08); border-radius:.75rem; padding:1rem; margin-bottom:.75rem; position:relative; }
+.remove-item { position:absolute; top:.5rem; right:.75rem; }
+</style>
+{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div>
+        <div class="text-uppercase text-secondary small">
+            <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад</a> /
+            <a href="{{ url_for('warehouse_demo.receipts') }}" class="text-secondary text-decoration-none">Приёмка</a> /
+            Новая приёмка
+        </div>
+        <h1 class="h3 mb-0">Новая приёмка товара</h1>
+    </div>
+</section>
+
+<form method="post">
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="surface p-4 mb-4">
+            <h2 class="h5 mb-3">Основная информация</h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Поставщик <span class="text-danger">*</span></label>
+                    <select name="supplier_id" class="form-select" required id="supplierSelect">
+                        <option value="">— Выберите поставщика —</option>
+                        {% for s in suppliers %}
+                        <option value="{{ s.id }}">{{ s.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Связанный заказ поставщику <span class="text-secondary small">(необязательно)</span></label>
+                    <select name="purchase_order_id" class="form-select" id="poSelect">
+                        <option value="">— Не выбран —</option>
+                        {% for po in purchase_orders %}
+                        <option value="{{ po.id }}" data-supplier-id="{{ po.supplier_id }}">{{ po.order_number }} — {{ po.supplier.name }} ({{ '{:,.0f}'.format(po.total_amount) }} ₽)</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Дата приёмки</label>
+                    <input type="date" name="receipt_date" class="form-control" value="{{ now.strftime('%Y-%m-%d') if now is defined else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">№ ТТН/УПД</label>
+                    <input type="text" name="doc_number" class="form-control" placeholder="Номер накладной">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Комментарий</label>
+                    <input type="text" name="comment" class="form-control" placeholder="Примечание...">
+                </div>
+            </div>
+        </div>
+
+        <div class="surface p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0">Позиции</h2>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="loadPoItems">Загрузить из заказа</button>
+                    <button type="button" class="btn btn-outline-dark btn-sm" id="addItem">+ Добавить позицию</button>
+                </div>
+            </div>
+            <div id="items-container">
+                <div class="item-row">
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-item" onclick="this.closest('.item-row').remove()">✕</button>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label small">Товар</label>
+                            <select name="product_id[]" class="form-select form-select-sm" required>
+                                <option value="">— Выберите —</option>
+                                {% for p in products %}
+                                <option value="{{ p.id }}" data-stock="{{ p.qty_on_hand }}">{{ p.sku }} — {{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Ожидалось</label>
+                            <input type="number" name="qty_expected[]" class="form-control form-control-sm" min="0" value="0">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Принято <span class="text-danger">*</span></label>
+                            <input type="number" name="qty_received[]" class="form-control form-control-sm" min="0" value="0" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Цена за ед.</label>
+                            <input type="number" name="unit_cost[]" class="form-control form-control-sm" step="0.01" min="0" placeholder="0.00">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">На складе</label>
+                            <input type="text" class="form-control form-control-sm stock-display" value="—" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="surface p-4 mb-3">
+            <h2 class="h6 mb-3">Подсказка</h2>
+            <div class="text-secondary small">
+                <p>1. Выберите поставщика и дату приёмки.</p>
+                <p>2. Если есть связанный заказ — выберите его и нажмите «Загрузить из заказа».</p>
+                <p>3. Укажите фактически принятое количество и цену.</p>
+                <p>4. После создания приёмки — сверьте данные и нажмите «Оприходовать» для обновления остатков.</p>
+            </div>
+        </div>
+        <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary">💾 Создать приёмку</button>
+            <a href="{{ url_for('warehouse_demo.receipts') }}" class="btn btn-outline-secondary">Отмена</a>
+        </div>
+    </div>
+</div>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>
+const allProducts = [
+    {% for p in products %}
+    { id: {{ p.id }}, sku: "{{ p.sku }}", name: "{{ p.name|replace('"','') }}", stock: {{ p.qty_on_hand }} },
+    {% endfor %}
+];
+
+function buildItemRow(productId, productLabel, qtyExp, qtyRec, cost, stockQty) {
+    const opts = allProducts.map(p =>
+        `<option value="${p.id}" data-stock="${p.stock}" ${p.id == productId ? 'selected' : ''}>${p.sku} — ${p.name}</option>`
+    ).join('');
+    return `<div class="item-row">
+        <button type="button" class="btn btn-sm btn-outline-danger remove-item" onclick="this.closest('.item-row').remove()">✕</button>
+        <div class="row g-2">
+            <div class="col-md-4">
+                <label class="form-label small">Товар</label>
+                <select name="product_id[]" class="form-select form-select-sm product-select" required>
+                    <option value="">— Выберите —</option>${opts}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Ожидалось</label>
+                <input type="number" name="qty_expected[]" class="form-control form-control-sm" min="0" value="${qtyExp || 0}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Принято</label>
+                <input type="number" name="qty_received[]" class="form-control form-control-sm" min="0" value="${qtyRec || 0}" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Цена за ед.</label>
+                <input type="number" name="unit_cost[]" class="form-control form-control-sm" step="0.01" min="0" value="${cost || ''}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">На складе</label>
+                <input type="text" class="form-control form-control-sm stock-display" value="${stockQty !== undefined ? stockQty + ' шт.' : '—'}" readonly>
+            </div>
+        </div>
+    </div>`;
+}
+
+document.getElementById('addItem').addEventListener('click', () => {
+    document.getElementById('items-container').insertAdjacentHTML('beforeend', buildItemRow());
+    bindSelects();
+});
+
+document.getElementById('loadPoItems').addEventListener('click', async () => {
+    const poId = document.getElementById('poSelect').value;
+    if (!poId) { alert('Сначала выберите заказ поставщику.'); return; }
+    const resp = await fetch(`/warehouse/api/po-items/${poId}`);
+    const items = await resp.json();
+    if (!items.length) { alert('В заказе нет позиций.'); return; }
+    document.getElementById('items-container').innerHTML = '';
+    for (const item of items) {
+        const prod = allProducts.find(p => p.id === item.product_id);
+        document.getElementById('items-container').insertAdjacentHTML('beforeend',
+            buildItemRow(item.product_id, '', item.quantity, item.quantity, item.unit_cost, prod ? prod.stock : undefined));
+    }
+    bindSelects();
+});
+
+function bindSelects() {
+    document.querySelectorAll('.product-select').forEach(sel => {
+        sel.removeEventListener('change', onSelectChange);
+        sel.addEventListener('change', onSelectChange);
+    });
+}
+
+function onSelectChange(e) {
+    const opt = e.target.options[e.target.selectedIndex];
+    const stock = opt.dataset.stock;
+    const row = e.target.closest('.item-row');
+    if (row && stock !== undefined) {
+        const el = row.querySelector('.stock-display');
+        if (el) el.value = stock + ' шт.';
+    }
+}
+
+bindSelects();
+
+document.getElementById('poSelect').addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    const suppId = opt.dataset ? opt.dataset.supplierId : null;
+    if (suppId) document.getElementById('supplierSelect').value = suppId;
+});
+</script>
+{% endblock %}
