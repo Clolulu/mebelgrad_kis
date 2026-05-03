@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}{{ pr.request_number }} | Заявка на закупку{% endblock %}
+{% block content %}
+{% set s = pr.status %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">
+                <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад</a> /
+                <a href="{{ url_for('warehouse_demo.purchase_requests') }}" class="text-secondary text-decoration-none">Заявки</a> /
+                {{ pr.request_number }}
+            </div>
+            <h1 class="h3 mb-1">{{ pr.request_number }}</h1>
+            <span class="badge {% if s == 'approved' %}bg-success{% elif s == 'rejected' %}bg-danger{% elif s == 'submitted' %}bg-warning text-dark{% elif s == 'ordered' %}bg-info text-dark{% else %}bg-secondary{% endif %} fs-6">
+                {{ status_labels.get(s, s) }}
+            </span>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            {% if s == 'draft' %}
+            <a href="{{ url_for('warehouse_demo.purchase_request_edit', pr_id=pr.id) }}" class="btn btn-outline-dark">✏️ Редактировать</a>
+            <form method="post" action="{{ url_for('warehouse_demo.purchase_request_submit', pr_id=pr.id) }}" class="d-inline">
+                <button class="btn btn-primary">📤 Подать на согласование</button>
+            </form>
+            {% endif %}
+            {% if s == 'submitted' %}
+            <form method="post" action="{{ url_for('warehouse_demo.purchase_request_approve', pr_id=pr.id) }}" class="d-inline">
+                <button class="btn btn-success">✅ Одобрить</button>
+            </form>
+            <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">❌ Отклонить</button>
+            {% endif %}
+            {% if s == 'approved' %}
+            <form method="post" action="{{ url_for('warehouse_demo.purchase_request_convert', pr_id=pr.id) }}" class="d-inline">
+                <button class="btn btn-primary">📦 Оформить заказ поставщику</button>
+            </form>
+            {% endif %}
+            {% if s == 'rejected' %}
+            <a href="{{ url_for('warehouse_demo.purchase_request_edit', pr_id=pr.id) }}" class="btn btn-outline-dark">✏️ Исправить и переподать</a>
+            {% endif %}
+            {% if s in ('draft', 'rejected') %}
+            <form method="post" action="{{ url_for('warehouse_demo.purchase_request_delete', pr_id=pr.id) }}"
+                  onsubmit="return confirm('Удалить заявку {{ pr.request_number }}?')">
+                <button class="btn btn-outline-danger">🗑 Удалить</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="surface p-4 mb-4">
+            <h2 class="h5 mb-3">Позиции заявки</h2>
+            {% if pr.items %}
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead class="table-light">
+                        <tr><th>Артикул</th><th>Товар</th><th>Кол-во</th><th>Цена (оценка)</th><th>Сумма</th><th>Остаток</th><th>Примечание</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for item in pr.items %}
+                    <tr>
+                        <td class="text-secondary small">{{ item.product.sku if item.product else '—' }}</td>
+                        <td>{{ item.product.name if item.product else '—' }}</td>
+                        <td>{{ item.quantity }} {{ item.product.unit if item.product else '' }}</td>
+                        <td>{{ '{:,.0f}'.format(item.estimated_cost or 0) }} ₽</td>
+                        <td class="fw-semibold">{{ '{:,.0f}'.format((item.estimated_cost or 0) * item.quantity) }} ₽</td>
+                        <td>
+                            {% if item.product %}
+                                {% set stock = item.product.qty_on_hand %}
+                                <span class="{{ 'text-danger' if stock <= 5 else 'text-success' }}">{{ stock }} шт.</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-secondary small">{{ item.comment or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-light fw-bold">
+                            <td colspan="4">Итого (оценка)</td>
+                            <td>{{ '{:,.0f}'.format(pr.total_estimated) }} ₽</td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-secondary">Позиций нет.</p>
+            {% endif %}
+        </div>
+
+        {% if s == 'ordered' and pr.purchase_order %}
+        <div class="surface p-4 mb-4">
+            <h2 class="h5 mb-2">Связанный заказ поставщику</h2>
+            <div class="d-flex align-items-center gap-3">
+                <div class="fw-semibold">{{ pr.purchase_order.order_number }}</div>
+                <span class="badge bg-info text-dark">{{ pr.purchase_order.status }}</span>
+                <div class="text-secondary">{{ '{:,.0f}'.format(pr.purchase_order.total_amount) }} ₽</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        <div class="surface p-4 mb-3">
+            <h2 class="h6 mb-3">Детали заявки</h2>
+            <dl class="mb-0">
+                <dt class="small text-secondary">Номер</dt>
+                <dd class="fw-semibold">{{ pr.request_number }}</dd>
+                <dt class="small text-secondary">Поставщик</dt>
+                <dd>{{ pr.supplier.name if pr.supplier else '—' }}</dd>
+                <dt class="small text-secondary">Приоритет</dt>
+                <dd>
+                    {% set p = pr.priority %}
+                    <span class="badge {% if p == 'urgent' %}bg-danger{% elif p == 'high' %}bg-warning text-dark{% elif p == 'low' %}bg-light text-dark border{% else %}bg-secondary{% endif %}">
+                        {{ priority_labels.get(p, p) }}
+                    </span>
+                </dd>
+                <dt class="small text-secondary">Нужно к</dt>
+                <dd>{{ pr.needed_by_date.strftime('%d.%m.%Y') if pr.needed_by_date else '—' }}</dd>
+                <dt class="small text-secondary">Создал</dt>
+                <dd>{{ pr.creator.username if pr.creator else '—' }}</dd>
+                <dt class="small text-secondary">Дата создания</dt>
+                <dd>{{ pr.created_at.strftime('%d.%m.%Y %H:%M') }}</dd>
+                {% if pr.approved_by %}
+                <dt class="small text-secondary">Согласовал</dt>
+                <dd>{{ pr.approver.username if pr.approver else '—' }}</dd>
+                <dt class="small text-secondary">Дата согласования</dt>
+                <dd>{{ pr.approved_at.strftime('%d.%m.%Y %H:%M') if pr.approved_at else '—' }}</dd>
+                {% endif %}
+                {% if pr.comment %}
+                <dt class="small text-secondary">Комментарий</dt>
+                <dd class="text-secondary" style="white-space:pre-line;">{{ pr.comment }}</dd>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+</div>
+
+<!-- Reject modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('warehouse_demo.purchase_request_reject', pr_id=pr.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Отклонить заявку {{ pr.request_number }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">Причина отклонения</label>
+                    <textarea name="reject_reason" class="form-control" rows="3" placeholder="Укажите причину..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-danger">Отклонить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

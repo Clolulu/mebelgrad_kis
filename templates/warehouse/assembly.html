@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Комплектация заказов | Склад{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">
+                <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад и закупки</a> / Комплектация
+            </div>
+            <h1 class="h3 mb-0">Комплектация заказов</h1>
+        </div>
+    </div>
+</section>
+
+<div class="surface p-3 mb-4">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label small mb-1">Статус заказов</label>
+            <select name="status" class="form-select form-select-sm">
+                <option value="picking" {% if current_status == 'picking' %}selected{% endif %}>В комплектации</option>
+                <option value="assembled" {% if current_status == 'assembled' %}selected{% endif %}>Собраны (готовы к отгрузке)</option>
+                <option value="" {% if not current_status %}selected{% endif %}>Все (комплектация + собранные)</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small mb-1">Клиент</label>
+            <input type="text" name="customer" class="form-control form-control-sm" value="{{ request.args.get('customer','') }}" placeholder="Поиск по клиенту...">
+        </div>
+        <div class="col-md-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">Применить</button>
+            <a href="{{ url_for('warehouse_demo.assembly') }}" class="btn btn-outline-secondary btn-sm">Сбросить</a>
+        </div>
+    </form>
+</div>
+
+{% if orders %}
+<div class="row g-4">
+    {% for order in orders %}
+    <div class="col-lg-6">
+        <div class="surface p-4 h-100">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                    <div class="fw-semibold">{{ order.order_number }}</div>
+                    <div class="text-secondary small">{{ order.customer.name if order.customer else '—' }}</div>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    {% if order.needs_assembly %}
+                    <span class="badge bg-info text-dark">Требует сборки</span>
+                    {% endif %}
+                    {% if order.status == 'picking' %}
+                    <span class="badge bg-warning text-dark">В комплектации</span>
+                    {% elif order.status == 'assembled' %}
+                    <span class="badge bg-success">Собран</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="table-responsive mb-3">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr><th>Товар</th><th>Кол-во</th><th>На складе</th><th>Статус</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for item in order.items %}
+                    <tr>
+                        <td class="small">{{ item.product.name if item.product else '—' }}</td>
+                        <td>{{ item.quantity }}</td>
+                        <td>
+                            {% if item.product %}
+                                {% set stock = item.product.qty_on_hand %}
+                                <span class="{{ 'text-danger fw-bold' if stock < item.quantity else 'text-success' }}">{{ stock }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if item.product and item.product.qty_on_hand >= item.quantity %}
+                            <span class="text-success small">✓ Достаточно</span>
+                            {% elif item.product %}
+                            <span class="text-danger small">✗ Нехватка {{ item.quantity - item.product.qty_on_hand }} шт.</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="text-secondary small">
+                    Адрес: {{ order.delivery_address or '—' }}<br>
+                    Сумма: <strong>{{ '{:,.0f}'.format(order.total_amount or 0) }} ₽</strong>
+                </div>
+                {% if order.status == 'picking' %}
+                <form method="post" action="{{ url_for('warehouse_demo.assembly_mark_assembled', order_id=order.id) }}"
+                      onsubmit="return confirm('Отметить заказ {{ order.order_number }} как собранный? Остатки будут списаны со склада.')">
+                    <button class="btn btn-success btn-sm">✅ Комплектация завершена</button>
+                </form>
+                {% elif order.status == 'assembled' %}
+                <a href="{{ url_for('sales_demo.orders') }}?status=assembled" class="btn btn-outline-dark btn-sm">📦 К отгрузке →</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="surface p-5 text-center text-secondary">
+    <div class="mb-3" style="font-size:2.5rem;">🔧</div>
+    <div>Нет заказов в работе. Оплаченные заказы из модуля продаж автоматически попадают в комплектацию.</div>
+    <a href="{{ url_for('sales_demo.orders') }}?status=picking" class="btn btn-outline-dark mt-3">Перейти к заказам →</a>
+</div>
+{% endif %}
+{% endblock %}

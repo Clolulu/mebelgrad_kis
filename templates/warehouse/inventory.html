@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Инвентаризация | Склад{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">
+                <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад и закупки</a> / Инвентаризация
+            </div>
+            <h1 class="h3 mb-0">Инвентаризация</h1>
+        </div>
+        <a href="{{ url_for('warehouse_demo.inventory_new') }}" class="btn btn-primary">+ Начать инвентаризацию</a>
+    </div>
+</section>
+
+<div class="surface p-3 mb-4">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small mb-1">Статус</label>
+            <select name="status" class="form-select form-select-sm">
+                <option value="">Все</option>
+                {% for key, label in status_labels.items() %}
+                <option value="{{ key }}" {% if request.args.get('status') == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small mb-1">Дата с</label>
+            <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request.args.get('date_from','') }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small mb-1">Дата по</label>
+            <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request.args.get('date_to','') }}">
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">Найти</button>
+            <a href="{{ url_for('warehouse_demo.inventory') }}" class="btn btn-outline-secondary btn-sm">✕</a>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-0">
+    {% if counts %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Номер</th>
+                    <th>Дата</th>
+                    <th>Позиций</th>
+                    <th>Расхождений</th>
+                    <th>Статус</th>
+                    <th>Создана</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for ic in counts %}
+            <tr>
+                <td><a href="{{ url_for('warehouse_demo.inventory_detail', count_id=ic.id) }}" class="fw-semibold">{{ ic.count_number }}</a></td>
+                <td>{{ ic.count_date.strftime('%d.%m.%Y') }}</td>
+                <td>{{ ic.items|length }}</td>
+                <td>
+                    {% set disc = ic.items|selectattr('discrepancy', '!=', 0)|list|length %}
+                    {% if disc > 0 %}
+                    <span class="badge bg-warning text-dark">{{ disc }}</span>
+                    {% else %}
+                    <span class="text-secondary">0</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% set st = ic.status %}
+                    <span class="badge {% if st == 'completed' %}bg-success{% elif st == 'in_progress' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                        {{ status_labels.get(st, st) }}
+                    </span>
+                </td>
+                <td class="text-secondary small">{{ ic.created_at.strftime('%d.%m.%Y') }}</td>
+                <td>
+                    {% if ic.status == 'in_progress' %}
+                    <a href="{{ url_for('warehouse_demo.inventory_edit', count_id=ic.id) }}" class="btn btn-sm btn-warning">Заполнить</a>
+                    {% else %}
+                    <a href="{{ url_for('warehouse_demo.inventory_detail', count_id=ic.id) }}" class="btn btn-sm btn-outline-dark">Открыть</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="p-5 text-center text-secondary">
+        <div class="mb-3" style="font-size:2.5rem;">🗂</div>
+        <div>Инвентаризаций нет. <a href="{{ url_for('warehouse_demo.inventory_new') }}">Начать первую</a>.</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

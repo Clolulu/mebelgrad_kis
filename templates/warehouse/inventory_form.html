@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Новая инвентаризация | Склад{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div>
+        <div class="text-uppercase text-secondary small">
+            <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад</a> /
+            <a href="{{ url_for('warehouse_demo.inventory') }}" class="text-secondary text-decoration-none">Инвентаризация</a> /
+            Новая
+        </div>
+        <h1 class="h3 mb-0">Начать инвентаризацию</h1>
+    </div>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="surface p-4 mb-4">
+            <h2 class="h5 mb-3">Параметры инвентаризации</h2>
+            <form method="post">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Дата инвентаризации</label>
+                        <input type="date" name="count_date" class="form-control"
+                               value="{{ now.strftime('%Y-%m-%d') if now is defined else '' }}" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Комментарий</label>
+                        <textarea name="comment" class="form-control" rows="2" placeholder="Плановая, внеплановая, квартальная..."></textarea>
+                    </div>
+                    <div class="col-12">
+                        <div class="alert alert-info mb-0">
+                            <strong>Внимание:</strong> При создании инвентаризации система автоматически
+                            загрузит все {{ products|length }} активных позиций номенклатуры с текущими
+                            учётными остатками. Вам останется ввести фактически посчитанное количество.
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">Создать и начать заполнение</button>
+                        <a href="{{ url_for('warehouse_demo.inventory') }}" class="btn btn-outline-secondary ms-2">Отмена</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="surface p-4">
+            <h2 class="h6 mb-3">Будет включено позиций</h2>
+            <div class="display-5 mb-2">{{ products|length }}</div>
+            <div class="text-secondary small mb-3">Все активные позиции номенклатуры.</div>
+            <div style="max-height:300px;overflow-y:auto;">
+                {% for p in products[:20] %}
+                <div class="d-flex justify-content-between border-bottom py-1 small">
+                    <span>{{ p.sku }}</span>
+                    <span class="text-secondary">{{ p.qty_on_hand }} шт.</span>
+                </div>
+                {% endfor %}
+                {% if products|length > 20 %}
+                <div class="text-secondary small mt-1">...и ещё {{ products|length - 20 }} позиций</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
