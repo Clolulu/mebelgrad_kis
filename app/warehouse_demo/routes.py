@@ -426,11 +426,10 @@ def receipts():
 def receipt_new():
     suppliers = Supplier.query.filter_by(is_active=True).order_by(Supplier.name).all()
     products = Product.query.filter_by(is_active=True).order_by(Product.name).all()
-    purchase_orders = PurchaseOrder.query.filter(
-        PurchaseOrder.status.in_(['pending', 'received'])
-    ).order_by(PurchaseOrder.order_date.desc()).all()
+    today_str = datetime.utcnow().strftime('%Y-%m-%d')
 
     if request.method == 'POST':
+        # supplier_id comes from hidden field set by JS (or fallback select via JS)
         supplier_id = request.form.get('supplier_id', '').strip()
         po_id = request.form.get('purchase_order_id', '').strip() or None
         doc_number = request.form.get('doc_number', '').strip() or None
@@ -440,8 +439,7 @@ def receipt_new():
         if not supplier_id:
             flash('Укажите поставщика.', 'warning')
             return render_template('warehouse/receipt_form.html',
-                                   suppliers=suppliers, products=products,
-                                   purchase_orders=purchase_orders, edit=False)
+                                   suppliers=suppliers, products=products, today=today_str)
 
         product_ids = request.form.getlist('product_id[]')
         qty_expected_list = request.form.getlist('qty_expected[]')
@@ -451,8 +449,7 @@ def receipt_new():
         if not product_ids:
             flash('Добавьте хотя бы одну позицию.', 'warning')
             return render_template('warehouse/receipt_form.html',
-                                   suppliers=suppliers, products=products,
-                                   purchase_orders=purchase_orders, edit=False)
+                                   suppliers=suppliers, products=products, today=today_str)
 
         receipt_date = datetime.strptime(receipt_date_raw, '%Y-%m-%d') if receipt_date_raw else datetime.utcnow()
 
@@ -472,9 +469,12 @@ def receipt_new():
         for i, pid in enumerate(product_ids):
             if not pid:
                 continue
-            qty_exp = int(qty_expected_list[i]) if qty_expected_list[i] else 0
-            qty_rec = int(qty_received_list[i]) if qty_received_list[i] else 0
-            cost = float(unit_cost_list[i]) if unit_cost_list[i] else 0.0
+            try:
+                qty_exp = int(qty_expected_list[i]) if i < len(qty_expected_list) and qty_expected_list[i] else 0
+                qty_rec = int(qty_received_list[i]) if i < len(qty_received_list) and qty_received_list[i] else 0
+                cost = float(unit_cost_list[i]) if i < len(unit_cost_list) and unit_cost_list[i] else 0.0
+            except (ValueError, TypeError):
+                qty_exp, qty_rec, cost = 0, 0, 0.0
             db.session.add(GoodsReceiptItem(
                 receipt_id=receipt.id,
                 product_id=int(pid),
@@ -488,8 +488,7 @@ def receipt_new():
         return redirect(url_for('warehouse_demo.receipt_detail', receipt_id=receipt.id))
 
     return render_template('warehouse/receipt_form.html',
-                           suppliers=suppliers, products=products,
-                           purchase_orders=purchase_orders, edit=False)
+                           suppliers=suppliers, products=products, today=today_str)
 
 
 @warehouse_bp.route('/receipts/<int:receipt_id>')
@@ -728,9 +727,76 @@ def api_po_items(po_id):
         'product_id': i.product_id,
         'product_name': i.product.name if i.product else '',
         'sku': i.product.sku if i.product else '',
+        'unit': i.product.unit if i.product else '',
         'quantity': i.quantity,
         'unit_cost': i.unit_cost,
+        'stock': i.product.qty_on_hand if i.product else 0,
     } for i in po.items])
+
+
+@warehouse_bp.route('/api/purchase-orders')
+@login_required
+def api_purchase_orders():
+    supplier_id = request.args.get('supplier_id', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    amount_min = request.args.get('amount_min', '').strip()
+    amount_max = request.args.get('amount_max', '').strip()
+    status = request.args.get('status', '').strip()
+
+    q = PurchaseOrder.query
+    if supplier_id:
+        try:
+            q = q.filter(PurchaseOrder.supplier_id == int(supplier_id))
+        except ValueError:
+            pass
+    if status:
+        q = q.filter(PurchaseOrder.status == status)
+    else:
+        q = q.filter(PurchaseOrder.status.in_(['pending', 'received']))
+    if date_from:
+        try:
+            q = q.filter(PurchaseOrder.order_date >= datetime.strptime(date_from, '%Y-%m-%d'))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            q = q.filter(PurchaseOrder.order_date <= dt)
+        except ValueError:
+            pass
+    if amount_min:
+        try:
+            q = q.filter(PurchaseOrder.total_amount >= float(amount_min))
+        except ValueError:
+            pass
+    if amount_max:
+        try:
+            q = q.filter(PurchaseOrder.total_amount <= float(amount_max))
+        except ValueError:
+            pass
+
+    pos = q.order_by(PurchaseOrder.order_date.desc()).limit(50).all()
+    return jsonify([{
+        'id': po.id,
+        'order_number': po.order_number,
+        'supplier_id': po.supplier_id,
+        'supplier_name': po.supplier.name if po.supplier else '—',
+        'order_date': po.order_date.strftime('%d.%m.%Y') if po.order_date else '—',
+        'status': po.status,
+        'total_amount': po.total_amount or 0,
+        'is_paid': po.is_paid,
+        'items_count': len(po.items),
+        'items': [{
+            'product_id': i.product_id,
+            'product_name': i.product.name if i.product else '',
+            'sku': i.product.sku if i.product else '',
+            'unit': i.product.unit if i.product else '',
+            'quantity': i.quantity,
+            'unit_cost': i.unit_cost,
+            'stock': i.product.qty_on_hand if i.product else 0,
+        } for i in po.items],
+    } for po in pos])
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
