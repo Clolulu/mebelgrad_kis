@@ -95,20 +95,31 @@ def create_app(config_name="development"):
     return app
 
 
+def _get_existing_columns(table_name):
+    """Return existing column names for a table, works with SQLite and PostgreSQL."""
+    dialect = db.engine.dialect.name
+    if dialect == 'sqlite':
+        rows = db.session.execute(text(f"PRAGMA table_info('{table_name}');")).fetchall()
+        return [row[1] for row in rows]
+    else:
+        rows = db.session.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = :t"
+        ), {"t": table_name}).fetchall()
+        return [row[0] for row in rows]
+
+
 def sync_user_schema():
     """Выполняем дообновление схемы users для старых БД."""
-    existing_columns = [
-        row[1]
-        for row in db.session.execute(text("PRAGMA table_info('users');")).fetchall()
-    ]
+    existing_columns = _get_existing_columns('users')
     required_columns = {
-        'is_data_admin': 'BOOLEAN DEFAULT 0',
-        'is_data_editor': 'BOOLEAN DEFAULT 0',
-        'is_data_viewer': 'BOOLEAN DEFAULT 0',
-        'role_admin': 'BOOLEAN DEFAULT 0',
-        'role_financier': 'BOOLEAN DEFAULT 0',
-        'role_warehouse': 'BOOLEAN DEFAULT 0',
-        'role_seller': 'BOOLEAN DEFAULT 0',
+        'is_data_admin': 'BOOLEAN DEFAULT FALSE',
+        'is_data_editor': 'BOOLEAN DEFAULT FALSE',
+        'is_data_viewer': 'BOOLEAN DEFAULT FALSE',
+        'role_admin': 'BOOLEAN DEFAULT FALSE',
+        'role_financier': 'BOOLEAN DEFAULT FALSE',
+        'role_warehouse': 'BOOLEAN DEFAULT FALSE',
+        'role_seller': 'BOOLEAN DEFAULT FALSE',
         'phone': 'TEXT',
     }
 
@@ -122,10 +133,7 @@ def sync_user_schema():
 
 def sync_products_schema():
     """Выполняем дообновление схемы products для старых БД."""
-    existing_columns = [
-        row[1]
-        for row in db.session.execute(text("PRAGMA table_info('products');")).fetchall()
-    ]
+    existing_columns = _get_existing_columns('products')
     required_columns = {
         'certificate_link': "TEXT DEFAULT 'https://davitamebel.ru/customers/deklaratsii-sootvetstviya/29112026.pdf?srsltid=AfmBOoroXcby5DgCGNkVqvZ3jBiV1LJ8IGsMgp7AKaqRFvWiDIr6ZXKM'",
     }
@@ -140,10 +148,7 @@ def sync_products_schema():
 
 def sync_sales_schema():
     """Apply additive schema updates for sales workflow tables."""
-    customer_columns = [
-        row[1]
-        for row in db.session.execute(text("PRAGMA table_info('customers');")).fetchall()
-    ]
+    customer_columns = _get_existing_columns('customers')
     customer_additions = {
         "birth_date": "DATE",
         "registration_address": "VARCHAR(255)",
@@ -158,10 +163,7 @@ def sync_sales_schema():
         if column not in customer_columns:
             db.session.execute(text(f"ALTER TABLE customers ADD COLUMN {column} {sql_type}"))
 
-    sales_order_columns = [
-        row[1]
-        for row in db.session.execute(text("PRAGMA table_info('sales_orders');")).fetchall()
-    ]
+    sales_order_columns = _get_existing_columns('sales_orders')
     sales_order_additions = {
         "delivery_address": "VARCHAR(255)",
         "delivery_confirmed_at": "DATETIME",
