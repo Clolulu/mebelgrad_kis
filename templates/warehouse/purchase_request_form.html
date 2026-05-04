@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}{% if edit %}Редактирование заявки{% else %}Новая заявка на закупку{% endif %} | Склад{% endblock %}
+{% block extra_css %}
+<style>
+.item-row { background: var(--mg-panel); border: 1px solid rgba(30,42,47,.08); border-radius:.75rem; padding:1rem; margin-bottom:.75rem; position:relative; }
+.remove-item { position:absolute; top:.5rem; right:.75rem; }
+</style>
+{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div>
+        <div class="text-uppercase text-secondary small">
+            <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад</a> /
+            <a href="{{ url_for('warehouse_demo.purchase_requests') }}" class="text-secondary text-decoration-none">Заявки</a> /
+            {% if edit %}Редактирование{% else %}Новая заявка{% endif %}
+        </div>
+        <h1 class="h3 mb-0">{% if edit %}Редактирование {{ pr.request_number }}{% else %}Новая заявка на закупку{% endif %}</h1>
+    </div>
+</section>
+
+<form method="post">
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="surface p-4 mb-4">
+            <h2 class="h5 mb-3">Основная информация</h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Поставщик <span class="text-secondary small">(необязательно)</span></label>
+                    <select name="supplier_id" class="form-select">
+                        <option value="">— Не выбран —</option>
+                        {% for s in suppliers %}
+                        <option value="{{ s.id }}" {% if edit and pr.supplier_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Приоритет</label>
+                    <select name="priority" class="form-select">
+                        {% for key, label in priority_labels.items() %}
+                        <option value="{{ key }}" {% if edit and pr.priority == key %}selected{% elif not edit and key == 'normal' %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Нужно к дате</label>
+                    <input type="date" name="needed_by_date" class="form-control"
+                           value="{{ pr.needed_by_date.strftime('%Y-%m-%d') if edit and pr.needed_by_date else '' }}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Комментарий</label>
+                    <textarea name="comment" class="form-control" rows="2">{{ pr.comment if edit and pr.comment else '' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="surface p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0">Позиции заявки</h2>
+                <button type="button" class="btn btn-outline-dark btn-sm" id="addItem">+ Добавить позицию</button>
+            </div>
+            <div id="items-container">
+                {% if edit and pr.items %}
+                {% for item in pr.items %}
+                <div class="item-row">
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-item" onclick="this.closest('.item-row').remove()">✕</button>
+                    <div class="row g-2">
+                        <div class="col-md-5">
+                            <label class="form-label small">Товар</label>
+                            <select name="product_id[]" class="form-select form-select-sm product-select" required>
+                                <option value="">— Выберите товар —</option>
+                                {% for p in products %}
+                                <option value="{{ p.id }}" {% if p.id == item.product_id %}selected{% endif %}>{{ p.sku }} — {{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Кол-во</label>
+                            <input type="number" name="quantity[]" class="form-control form-control-sm" min="1" value="{{ item.quantity }}" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Цена (оценка)</label>
+                            <input type="number" name="estimated_cost[]" class="form-control form-control-sm" step="0.01" min="0" value="{{ item.estimated_cost or '' }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">На складе</label>
+                            <input type="text" class="form-control form-control-sm" value="{{ item.product.qty_on_hand if item.product else '—' }} шт." readonly>
+                        </div>
+                        <div class="col-12">
+                            <input type="text" name="item_comment[]" class="form-control form-control-sm" placeholder="Примечание к позиции..." value="{{ item.comment or '' }}">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="item-row" id="item-template-instance">
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-item" onclick="this.closest('.item-row').remove()">✕</button>
+                    <div class="row g-2">
+                        <div class="col-md-5">
+                            <label class="form-label small">Товар</label>
+                            <select name="product_id[]" class="form-select form-select-sm product-select" required>
+                                <option value="">— Выберите товар —</option>
+                                {% for p in products %}
+                                <option value="{{ p.id }}" data-stock="{{ p.qty_on_hand }}">{{ p.sku }} — {{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Кол-во</label>
+                            <input type="number" name="quantity[]" class="form-control form-control-sm" min="1" value="1" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Цена (оценка)</label>
+                            <input type="number" name="estimated_cost[]" class="form-control form-control-sm" step="0.01" min="0" placeholder="0.00">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">На складе</label>
+                            <input type="text" class="form-control form-control-sm stock-display" value="—" readonly>
+                        </div>
+                        <div class="col-12">
+                            <input type="text" name="item_comment[]" class="form-control form-control-sm" placeholder="Примечание к позиции...">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="surface p-4 mb-3">
+            <h2 class="h6 mb-3">Товары на складе</h2>
+            <div class="text-secondary small mb-2">Быстрый поиск по номенклатуре:</div>
+            <input type="text" id="productSearch" class="form-control form-control-sm mb-3" placeholder="Поиск товара...">
+            <div id="productHints" style="max-height:300px; overflow-y:auto;"></div>
+        </div>
+        <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary">💾 Сохранить заявку</button>
+            {% if edit %}
+            <a href="{{ url_for('warehouse_demo.purchase_request_detail', pr_id=pr.id) }}" class="btn btn-outline-secondary">Отмена</a>
+            {% else %}
+            <a href="{{ url_for('warehouse_demo.purchase_requests') }}" class="btn btn-outline-secondary">Отмена</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>
+const allProducts = [
+    {% for p in products %}
+    { id: {{ p.id }}, sku: "{{ p.sku }}", name: "{{ p.name|replace('"','') }}", stock: {{ p.qty_on_hand }}, price: {{ p.retail_price }} },
+    {% endfor %}
+];
+
+function buildItemRow() {
+    const opts = allProducts.map(p =>
+        `<option value="${p.id}" data-stock="${p.stock}" data-price="${p.price}">${p.sku} — ${p.name}</option>`
+    ).join('');
+    return `<div class="item-row">
+        <button type="button" class="btn btn-sm btn-outline-danger remove-item" onclick="this.closest('.item-row').remove()">✕</button>
+        <div class="row g-2">
+            <div class="col-md-5">
+                <label class="form-label small">Товар</label>
+                <select name="product_id[]" class="form-select form-select-sm product-select" required>
+                    <option value="">— Выберите товар —</option>${opts}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Кол-во</label>
+                <input type="number" name="quantity[]" class="form-control form-control-sm" min="1" value="1" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Цена (оценка)</label>
+                <input type="number" name="estimated_cost[]" class="form-control form-control-sm" step="0.01" min="0" placeholder="0.00">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">На складе</label>
+                <input type="text" class="form-control form-control-sm stock-display" value="—" readonly>
+            </div>
+            <div class="col-12">
+                <input type="text" name="item_comment[]" class="form-control form-control-sm" placeholder="Примечание к позиции...">
+            </div>
+        </div>
+    </div>`;
+}
+
+document.getElementById('addItem').addEventListener('click', () => {
+    document.getElementById('items-container').insertAdjacentHTML('beforeend', buildItemRow());
+    bindSelects();
+});
+
+function bindSelects() {
+    document.querySelectorAll('.product-select').forEach(sel => {
+        sel.removeEventListener('change', onSelectChange);
+        sel.addEventListener('change', onSelectChange);
+    });
+}
+
+function onSelectChange(e) {
+    const sel = e.target;
+    const opt = sel.options[sel.selectedIndex];
+    const stock = opt.dataset.stock;
+    const price = opt.dataset.price;
+    const row = sel.closest('.item-row');
+    if (row) {
+        const stockEl = row.querySelector('.stock-display');
+        if (stockEl && stock !== undefined) stockEl.value = stock + ' шт.';
+        const costEl = row.querySelector('input[name="estimated_cost[]"]');
+        if (costEl && price && !costEl.value) costEl.value = price;
+    }
+}
+
+bindSelects();
+
+const searchEl = document.getElementById('productSearch');
+const hintsEl = document.getElementById('productHints');
+searchEl.addEventListener('input', () => {
+    const q = searchEl.value.toLowerCase().trim();
+    if (!q) { hintsEl.innerHTML = ''; return; }
+    const matches = allProducts.filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)).slice(0, 15);
+    hintsEl.innerHTML = matches.length ? matches.map(p =>
+        `<div class="d-flex justify-content-between align-items-center py-1 border-bottom small">
+            <div><strong>${p.sku}</strong><br>${p.name}</div>
+            <div class="text-end ms-2">
+                <div class="${p.stock <= 5 ? 'text-danger' : 'text-success'}">${p.stock} шт.</div>
+                <div class="text-secondary">${p.price.toLocaleString()} ₽</div>
+            </div>
+        </div>`
+    ).join('') : '<div class="text-secondary small">Не найдено</div>';
+});
+</script>
+{% endblock %}

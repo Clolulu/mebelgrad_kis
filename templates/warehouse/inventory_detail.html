@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ ic.count_number }} | Инвентаризация{% endblock %}
+{% block content %}
+{% set st = ic.status %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">
+                <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад</a> /
+                <a href="{{ url_for('warehouse_demo.inventory') }}" class="text-secondary text-decoration-none">Инвентаризация</a> /
+                {{ ic.count_number }}
+            </div>
+            <h1 class="h3 mb-1">{{ ic.count_number }}</h1>
+            <span class="badge {% if st == 'completed' %}bg-success{% elif st == 'in_progress' %}bg-warning text-dark{% else %}bg-secondary{% endif %} fs-6">
+                {{ status_labels.get(st, st) }}
+            </span>
+        </div>
+        {% if st == 'in_progress' %}
+        <a href="{{ url_for('warehouse_demo.inventory_edit', count_id=ic.id) }}" class="btn btn-warning">✏️ Заполнить остатки</a>
+        {% endif %}
+    </div>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-9">
+        <div class="surface p-4 mb-4">
+            <div class="d-flex justify-content-between mb-3">
+                <h2 class="h5 mb-0">Результаты инвентаризации</h2>
+                {% set discrepancies = ic.items|selectattr('discrepancy', '!=', 0)|list %}
+                {% if discrepancies %}
+                <span class="badge bg-warning text-dark">Расхождений: {{ discrepancies|length }}</span>
+                {% else %}
+                <span class="badge bg-success">Расхождений нет</span>
+                {% endif %}
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Артикул</th><th>Наименование</th>
+                            <th class="text-center">По системе</th>
+                            <th class="text-center">Факт</th>
+                            <th class="text-center">Расхождение</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in ic.items %}
+                    <tr {% if item.discrepancy != 0 %}class="table-warning"{% endif %}>
+                        <td class="text-secondary small">{{ item.product.sku if item.product else '—' }}</td>
+                        <td>{{ item.product.name if item.product else '—' }}</td>
+                        <td class="text-center">{{ item.qty_system }}</td>
+                        <td class="text-center fw-semibold">{{ item.qty_actual }}</td>
+                        <td class="text-center">
+                            {% set d = item.discrepancy %}
+                            {% if d < 0 %}
+                            <span class="text-danger fw-bold">{{ d }}</span>
+                            {% elif d > 0 %}
+                            <span class="text-success fw-bold">+{{ d }}</span>
+                            {% else %}
+                            <span class="text-secondary">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3">
+        <div class="surface p-4">
+            <h2 class="h6 mb-3">Информация</h2>
+            <dl class="mb-0">
+                <dt class="small text-secondary">Номер</dt><dd class="fw-semibold">{{ ic.count_number }}</dd>
+                <dt class="small text-secondary">Дата</dt><dd>{{ ic.count_date.strftime('%d.%m.%Y') }}</dd>
+                <dt class="small text-secondary">Статус</dt>
+                <dd>
+                    <span class="badge {% if st == 'completed' %}bg-success{% elif st == 'in_progress' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                        {{ status_labels.get(st, st) }}
+                    </span>
+                </dd>
+                <dt class="small text-secondary">Позиций</dt><dd>{{ ic.items|length }}</dd>
+                <dt class="small text-secondary">С расхождениями</dt>
+                <dd>{{ ic.items|selectattr('discrepancy', '!=', 0)|list|length }}</dd>
+                <dt class="small text-secondary">Создал</dt><dd>{{ ic.creator.username if ic.creator else '—' }}</dd>
+                <dt class="small text-secondary">Создана</dt><dd>{{ ic.created_at.strftime('%d.%m.%Y %H:%M') }}</dd>
+                {% if ic.completed_at %}
+                <dt class="small text-secondary">Завершена</dt><dd>{{ ic.completed_at.strftime('%d.%m.%Y %H:%M') }}</dd>
+                {% endif %}
+                {% if ic.comment %}
+                <dt class="small text-secondary">Комментарий</dt><dd class="text-secondary">{{ ic.comment }}</dd>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

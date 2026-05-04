@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ receipt.receipt_number }} | Приёмка{% endblock %}
+{% block content %}
+{% set rs = receipt.status %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">
+                <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад</a> /
+                <a href="{{ url_for('warehouse_demo.receipts') }}" class="text-secondary text-decoration-none">Приёмка</a> /
+                {{ receipt.receipt_number }}
+            </div>
+            <h1 class="h3 mb-1">{{ receipt.receipt_number }}</h1>
+            <span class="badge {% if rs == 'posted' %}bg-success{% elif rs == 'verified' %}bg-warning text-dark{% else %}bg-secondary{% endif %} fs-6">
+                {{ status_labels.get(rs, rs) }}
+            </span>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            {% if rs == 'draft' %}
+            <form method="post" action="{{ url_for('warehouse_demo.receipt_verify', receipt_id=receipt.id) }}">
+                <button class="btn btn-warning">✅ Подтвердить сверку</button>
+            </form>
+            {% endif %}
+            {% if rs == 'verified' %}
+            <form method="post" action="{{ url_for('warehouse_demo.receipt_post', receipt_id=receipt.id) }}"
+                  onsubmit="return confirm('Оприходовать товар? Остатки будут обновлены.')">
+                <button class="btn btn-success">📥 Оприходовать</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="surface p-4 mb-4">
+            <h2 class="h5 mb-3">Позиции приёмки</h2>
+            {% if receipt.items %}
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Артикул</th><th>Товар</th>
+                            <th>Ожидалось</th><th>Принято</th><th>Расхождение</th>
+                            <th>Цена</th><th>Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in receipt.items %}
+                    <tr>
+                        <td class="text-secondary small">{{ item.product.sku if item.product else '—' }}</td>
+                        <td>{{ item.product.name if item.product else '—' }}</td>
+                        <td>{{ item.quantity_expected }}</td>
+                        <td class="fw-semibold">{{ item.quantity_received }}</td>
+                        <td>
+                            {% set d = item.discrepancy %}
+                            {% if d != 0 %}
+                            <span class="badge {% if d < 0 %}bg-danger{% else %}bg-success{% endif %}">
+                                {{ '+' if d > 0 else '' }}{{ d }}
+                            </span>
+                            {% else %}
+                            <span class="text-secondary">0</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ '{:,.0f}'.format(item.unit_cost or 0) }} ₽</td>
+                        <td>{{ '{:,.0f}'.format((item.unit_cost or 0) * item.quantity_received) }} ₽</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-light fw-bold">
+                            <td colspan="6">Итого</td>
+                            <td>{{ '{:,.0f}'.format(receipt.total_amount) }} ₽</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-secondary">Позиций нет.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="surface p-4">
+            <h2 class="h6 mb-3">Детали приёмки</h2>
+            <dl class="mb-0">
+                <dt class="small text-secondary">Номер</dt><dd class="fw-semibold">{{ receipt.receipt_number }}</dd>
+                <dt class="small text-secondary">Поставщик</dt><dd>{{ receipt.supplier.name if receipt.supplier else '—' }}</dd>
+                <dt class="small text-secondary">№ ТТН/УПД</dt><dd>{{ receipt.doc_number or '—' }}</dd>
+                <dt class="small text-secondary">Заказ поставщику</dt>
+                <dd>{{ receipt.purchase_order.order_number if receipt.purchase_order else '—' }}</dd>
+                <dt class="small text-secondary">Дата приёмки</dt><dd>{{ receipt.receipt_date.strftime('%d.%m.%Y') }}</dd>
+                <dt class="small text-secondary">Создал</dt><dd>{{ receipt.creator.username if receipt.creator else '—' }}</dd>
+                <dt class="small text-secondary">Дата создания</dt><dd>{{ receipt.created_at.strftime('%d.%m.%Y %H:%M') }}</dd>
+                {% if receipt.posted_at %}
+                <dt class="small text-secondary">Оприходовано</dt><dd>{{ receipt.posted_at.strftime('%d.%m.%Y %H:%M') }}</dd>
+                {% endif %}
+                {% if receipt.comment %}
+                <dt class="small text-secondary">Комментарий</dt><dd class="text-secondary">{{ receipt.comment }}</dd>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Приёмка товара | Склад{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">
+                <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад и закупки</a> / Приёмка
+            </div>
+            <h1 class="h3 mb-0">Приёмка товара</h1>
+        </div>
+        <a href="{{ url_for('warehouse_demo.receipt_new') }}" class="btn btn-primary">+ Новая приёмка</a>
+    </div>
+</section>
+
+<div class="surface p-3 mb-4">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small mb-1">Статус</label>
+            <select name="status" class="form-select form-select-sm">
+                <option value="">Все статусы</option>
+                {% for key, label in status_labels.items() %}
+                <option value="{{ key }}" {% if request.args.get('status') == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small mb-1">Поставщик</label>
+            <input type="text" name="supplier" class="form-control form-control-sm" value="{{ request.args.get('supplier','') }}" placeholder="Поиск...">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small mb-1">Дата с</label>
+            <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request.args.get('date_from','') }}">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small mb-1">Дата по</label>
+            <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request.args.get('date_to','') }}">
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Найти</button>
+            <a href="{{ url_for('warehouse_demo.receipts') }}" class="btn btn-outline-secondary btn-sm">✕</a>
+        </div>
+    </form>
+</div>
+
+<div class="surface p-0">
+    {% if receipts %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Номер</th>
+                    <th>Поставщик</th>
+                    <th>№ ТТН/УПД</th>
+                    <th>Позиций</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                    <th>Дата</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in receipts %}
+            <tr>
+                <td><a href="{{ url_for('warehouse_demo.receipt_detail', receipt_id=r.id) }}" class="fw-semibold">{{ r.receipt_number }}</a></td>
+                <td>{{ r.supplier.name if r.supplier else '—' }}</td>
+                <td class="text-secondary">{{ r.doc_number or '—' }}</td>
+                <td>{{ r.items|length }}</td>
+                <td>{{ '{:,.0f}'.format(r.total_amount) }} ₽</td>
+                <td>
+                    {% set rs = r.status %}
+                    <span class="badge {% if rs == 'posted' %}bg-success{% elif rs == 'verified' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                        {{ status_labels.get(rs, rs) }}
+                    </span>
+                </td>
+                <td class="text-secondary small">{{ r.receipt_date.strftime('%d.%m.%Y') }}</td>
+                <td><a href="{{ url_for('warehouse_demo.receipt_detail', receipt_id=r.id) }}" class="btn btn-sm btn-outline-dark">Открыть</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="p-5 text-center text-secondary">
+        <div class="mb-3" style="font-size:2.5rem;">📦</div>
+        <div>Приёмок не найдено. <a href="{{ url_for('warehouse_demo.receipt_new') }}">Создайте первую</a>.</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

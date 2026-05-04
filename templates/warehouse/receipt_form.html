@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+{% block title %}Новая приёмка товара | Склад{% endblock %}
+{% block extra_css %}
+<style>
+/* Steps */
+.step-header { display:flex; align-items:center; gap:.75rem; margin-bottom:1.25rem; }
+.step-badge { width:2rem; height:2rem; border-radius:50%; background:var(--mg-accent); color:#fff;
+              display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.9rem; flex-shrink:0; }
+.step-title { font-size:1.05rem; font-weight:600; }
+
+/* PO result cards */
+.po-card { border:2px solid transparent; border-radius:.75rem; padding:.85rem 1rem; cursor:pointer;
+           background:var(--mg-panel); transition:.15s; user-select:none; }
+.po-card:hover { border-color: var(--mg-accent); }
+.po-card.selected { border-color: var(--mg-accent); background:#fff7f0; }
+.po-card .po-number { font-weight:700; }
+.po-card .po-meta { font-size:.8rem; color:var(--bs-secondary); }
+
+/* Items table */
+.receipt-table th, .receipt-table td { vertical-align:middle; }
+.item-row-highlight { animation: rowFlash .6s ease; }
+@keyframes rowFlash { 0%{background:#ffd} 100%{background:transparent} }
+.extra-item-found { color:#198754; font-weight:600; font-size:.8rem; }
+.extra-item-new { color:#0d6efd; font-size:.8rem; }
+
+/* Extra search */
+#extraSearch { max-width:420px; }
+.extra-suggestion { padding:.4rem .75rem; cursor:pointer; border-radius:.4rem; }
+.extra-suggestion:hover { background:#f3f3f3; }
+</style>
+{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div>
+        <div class="text-uppercase text-secondary small">
+            <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад</a> /
+            <a href="{{ url_for('warehouse_demo.receipts') }}" class="text-secondary text-decoration-none">Приёмка</a> /
+            Новая приёмка
+        </div>
+        <h1 class="h3 mb-0">Новая приёмка товара</h1>
+    </div>
+</section>
+
+<form method="post" id="receiptForm">
+<input type="hidden" name="purchase_order_id" id="hiddenPoId" value="">
+<input type="hidden" name="supplier_id" id="hiddenSupplierId" value="">
+
+<div class="row g-4">
+<div class="col-lg-8">
+
+<!-- ── Шаг 1: Поиск заказа поставщика ─────────────────────────────────────── -->
+<div class="surface p-4 mb-4">
+    <div class="step-header">
+        <div class="step-badge">1</div>
+        <div class="step-title">Выберите заказ поставщику</div>
+        <span class="badge bg-secondary ms-auto" id="selectedPoLabel">не выбран</span>
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-md-4">
+            <label class="form-label small mb-1">Поставщик</label>
+            <select id="filterSupplier" class="form-select form-select-sm">
+                <option value="">Все поставщики</option>
+                {% for s in suppliers %}
+                <option value="{{ s.id }}">{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small mb-1">Статус заказа</label>
+            <select id="filterStatus" class="form-select form-select-sm">
+                <option value="">Ожидаемые и полученные</option>
+                <option value="pending">Ожидается</option>
+                <option value="received">Получен</option>
+                <option value="completed">Завершён</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small mb-1">Дата с</label>
+            <input type="date" id="filterDateFrom" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small mb-1">Сумма от / до</label>
+            <div class="input-group input-group-sm">
+                <input type="number" id="filterAmountMin" class="form-control" placeholder="от">
+                <input type="number" id="filterAmountMax" class="form-control" placeholder="до">
+            </div>
+        </div>
+        <div class="col-12">
+            <button type="button" class="btn btn-primary btn-sm" id="btnSearchPo">🔍 Найти заказы</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm ms-1" id="btnResetPoFilter">Сбросить</button>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div id="poResults" style="max-height:340px; overflow-y:auto;">
+        <div class="text-secondary small py-2">Введите параметры поиска и нажмите «Найти заказы».</div>
+    </div>
+</div>
+
+<!-- ── Шаг 2: Реквизиты приёмки ───────────────────────────────────────────── -->
+<div class="surface p-4 mb-4">
+    <div class="step-header">
+        <div class="step-badge">2</div>
+        <div class="step-title">Реквизиты приёмки</div>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label">Дата приёмки</label>
+            <input type="date" name="receipt_date" class="form-control"
+                   value="{{ today }}" required>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">№ ТТН / УПД</label>
+            <input type="text" name="doc_number" class="form-control" placeholder="Номер документа">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Поставщик <span class="text-danger">*</span></label>
+            <select name="supplier_id_fallback" id="supplierFallback" class="form-select">
+                <option value="">— Выберите —</option>
+                {% for s in suppliers %}
+                <option value="{{ s.id }}">{{ s.name }}</option>
+                {% endfor %}
+            </select>
+            <div class="form-text">Заполняется автоматически при выборе заказа.</div>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Комментарий</label>
+            <input type="text" name="comment" class="form-control" placeholder="Примечание...">
+        </div>
+    </div>
+</div>
+
+<!-- ── Шаг 3: Позиции приёмки ─────────────────────────────────────────────── -->
+<div class="surface p-4">
+    <div class="step-header">
+        <div class="step-badge">3</div>
+        <div class="step-title">Позиции приёмки</div>
+        <span class="text-secondary small ms-auto" id="itemsHint">Выберите заказ — позиции загрузятся автоматически.</span>
+    </div>
+
+    <div class="table-responsive mb-3">
+        <table class="table table-sm receipt-table mb-0" id="itemsTable">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:32px;">#</th>
+                    <th>Артикул</th>
+                    <th>Товар</th>
+                    <th class="text-center" style="width:80px;">Ед.</th>
+                    <th class="text-center" style="width:90px;">По заказу</th>
+                    <th class="text-center" style="width:90px;">Принято <span class="text-danger">*</span></th>
+                    <th class="text-center" style="width:100px;">Цена / ед.</th>
+                    <th class="text-center" style="width:80px;">На складе</th>
+                    <th style="width:36px;"></th>
+                </tr>
+            </thead>
+            <tbody id="itemsBody">
+                <tr id="emptyRow">
+                    <td colspan="9" class="text-center text-secondary py-4">
+                        Позиций пока нет. Выберите заказ поставщика или добавьте товар вручную.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Extra / unplanned item search -->
+    <div class="border-top pt-3">
+        <div class="fw-semibold small mb-2">Добавить товар (плановый или незапланированный)</div>
+        <div class="d-flex gap-2 align-items-start flex-wrap">
+            <div style="position:relative; flex:1; min-width:280px;">
+                <input type="text" id="extraSearch" class="form-control form-control-sm"
+                       placeholder="Поиск по артикулу или названию товара...">
+                <div id="extraDropdown"
+                     style="display:none; position:absolute; z-index:1000; width:100%;
+                            background:#fff; border:1px solid #ddd; border-radius:.5rem;
+                            max-height:260px; overflow-y:auto; box-shadow:0 4px 16px rgba(0,0,0,.1);">
+                </div>
+            </div>
+            <div id="extraAddMsg" class="small pt-1"></div>
+        </div>
+    </div>
+</div>
+
+</div>{# /col-lg-8 #}
+
+<!-- ── Sidebar ──────────────────────────────────────────────────────────────── -->
+<div class="col-lg-4">
+    <div class="surface p-4 mb-3" id="poInfoPanel" style="display:none;">
+        <div class="text-uppercase text-secondary small mb-2">Выбранный заказ</div>
+        <div id="poInfoContent"></div>
+    </div>
+
+    <div class="surface p-4 mb-3">
+        <div class="text-uppercase text-secondary small mb-2">Итог приёмки</div>
+        <div class="d-flex justify-content-between mb-1 small">
+            <span>Позиций:</span><strong id="summaryLines">0</strong>
+        </div>
+        <div class="d-flex justify-content-between mb-1 small">
+            <span>Товаров принято:</span><strong id="summaryQty">0</strong>
+        </div>
+        <div class="d-flex justify-content-between small">
+            <span>Сумма приёмки:</span><strong id="summaryAmount">0 ₽</strong>
+        </div>
+    </div>
+
+    <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary" id="btnSubmit">💾 Создать приёмку</button>
+        <a href="{{ url_for('warehouse_demo.receipts') }}" class="btn btn-outline-secondary">Отмена</a>
+    </div>
+</div>
+</div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ── State ──────────────────────────────────────────────────────────────────── */
+let selectedPo = null;         // full PO object from API
+let rowCounter = 0;            // unique row id
+
+/* ── Product map for extra search (loaded from all products) ──────────────── */
+const allProducts = [
+    {% for p in products %}
+    { id: {{ p.id }}, sku: "{{ p.sku|replace('"','') }}", name: "{{ p.name|replace('"','') }}", unit: "{{ p.unit }}", stock: {{ p.qty_on_hand }}, price: {{ p.retail_price }} },
+    {% endfor %}
+];
+
+/* ── PO Search ──────────────────────────────────────────────────────────────── */
+document.getElementById('btnSearchPo').addEventListener('click', searchPOs);
+document.getElementById('btnResetPoFilter').addEventListener('click', () => {
+    ['filterSupplier','filterStatus','filterDateFrom','filterAmountMin','filterAmountMax'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el.tagName === 'SELECT') el.value = '';
+        else el.value = '';
+    });
+    document.getElementById('poResults').innerHTML = '<div class="text-secondary small py-2">Введите параметры поиска и нажмите «Найти заказы».</div>';
+});
+
+async function searchPOs() {
+    const params = new URLSearchParams();
+    const supplier = document.getElementById('filterSupplier').value;
+    const status = document.getElementById('filterStatus').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const amtMin = document.getElementById('filterAmountMin').value;
+    const amtMax = document.getElementById('filterAmountMax').value;
+    if (supplier) params.set('supplier_id', supplier);
+    if (status) params.set('status', status);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (amtMin) params.set('amount_min', amtMin);
+    if (amtMax) params.set('amount_max', amtMax);
+
+    const resultsEl = document.getElementById('poResults');
+    resultsEl.innerHTML = '<div class="text-secondary small py-2">⏳ Загрузка...</div>';
+
+    const resp = await fetch('/warehouse/api/purchase-orders?' + params.toString());
+    const pos = await resp.json();
+
+    if (!pos.length) {
+        resultsEl.innerHTML = '<div class="text-secondary small py-2">Заказов не найдено по заданным фильтрам.</div>';
+        return;
+    }
+
+    const STATUS_MAP = { pending:'Ожидается', received:'Получен', completed:'Завершён', cancelled:'Отменён' };
+    const STATUS_BADGE = { pending:'bg-warning text-dark', received:'bg-info text-dark', completed:'bg-success', cancelled:'bg-danger' };
+
+    resultsEl.innerHTML = pos.map(po => `
+        <div class="po-card mb-2" data-po-id="${po.id}" onclick="selectPO(${po.id})">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="po-number">${po.order_number}</div>
+                    <div class="po-meta">${po.supplier_name} · ${po.order_date}</div>
+                    <div class="po-meta mt-1">
+                        Позиций: <strong>${po.items_count}</strong> ·
+                        Сумма: <strong>${po.total_amount.toLocaleString('ru-RU')} ₽</strong>
+                        ${po.is_paid ? '· <span class="text-success">оплачен</span>' : ''}
+                    </div>
+                    <div class="po-meta mt-1 text-muted">
+                        ${po.items.slice(0,3).map(i => i.sku + ' ' + i.product_name).join(' / ')}
+                        ${po.items.length > 3 ? ' / ...ещё ' + (po.items.length - 3) : ''}
+                    </div>
+                </div>
+                <span class="badge ${STATUS_BADGE[po.status] || 'bg-secondary'} ms-2 flex-shrink-0">
+                    ${STATUS_MAP[po.status] || po.status}
+                </span>
+            </div>
+        </div>
+    `).join('');
+
+    // pre-select if only one result
+    if (pos.length === 1) selectPO(pos[0].id, pos);
+    else window._lastPoResults = pos;
+}
+
+async function selectPO(poId, preloaded) {
+    let po;
+    if (preloaded) {
+        po = preloaded.find(p => p.id === poId);
+    } else if (window._lastPoResults) {
+        po = window._lastPoResults.find(p => p.id === poId);
+    }
+    if (!po) {
+        // fetch directly
+        const resp = await fetch('/warehouse/api/purchase-orders?status=&supplier_id=');
+        const all = await resp.json();
+        po = all.find(p => p.id === poId);
+    }
+    if (!po) return;
+
+    selectedPo = po;
+    window._lastPoResults = window._lastPoResults || [];
+
+    // highlight selected card
+    document.querySelectorAll('.po-card').forEach(c => {
+        c.classList.toggle('selected', parseInt(c.dataset.poId) === poId);
+    });
+
+    // set hidden fields
+    document.getElementById('hiddenPoId').value = po.id;
+    document.getElementById('hiddenSupplierId').value = po.supplier_id;
+
+    // set supplier fallback select
+    document.getElementById('supplierFallback').value = po.supplier_id;
+
+    // update label
+    document.getElementById('selectedPoLabel').textContent = po.order_number + ' — ' + po.supplier_name;
+    document.getElementById('selectedPoLabel').className = 'badge bg-success ms-auto';
+
+    // show PO info panel
+    document.getElementById('poInfoPanel').style.display = '';
+    document.getElementById('poInfoContent').innerHTML = `
+        <dl class="mb-0" style="font-size:.85rem;">
+            <dt class="text-secondary">Номер</dt><dd class="fw-semibold">${po.order_number}</dd>
+            <dt class="text-secondary">Поставщик</dt><dd>${po.supplier_name}</dd>
+            <dt class="text-secondary">Дата заказа</dt><dd>${po.order_date}</dd>
+            <dt class="text-secondary">Сумма</dt><dd>${po.total_amount.toLocaleString('ru-RU')} ₽</dd>
+            <dt class="text-secondary">Оплачен</dt><dd>${po.is_paid ? '✅ Да' : '❌ Нет'}</dd>
+        </dl>
+    `;
+
+    // load items into table
+    loadPOItems(po.items);
+
+    document.getElementById('itemsHint').textContent = 'Проверьте и скорректируйте фактически принятое количество.';
+}
+
+function loadPOItems(items) {
+    const tbody = document.getElementById('itemsBody');
+    tbody.innerHTML = '';
+    rowCounter = 0;
+    items.forEach(item => addRow(item.product_id, item.sku, item.product_name, item.unit, item.quantity, item.quantity, item.unit_cost, item.stock));
+    updateSummary();
+}
+
+/* ── Row management ─────────────────────────────────────────────────────────── */
+function addRow(productId, sku, name, unit, qtyExpected, qtyReceived, unitCost, stock) {
+    document.getElementById('emptyRow') && document.getElementById('emptyRow').remove();
+    rowCounter++;
+    const n = rowCounter;
+    const stockClass = stock <= 5 ? 'text-danger' : 'text-success';
+    const tr = document.createElement('tr');
+    tr.id = `row-${n}`;
+    tr.dataset.productId = productId;
+    tr.innerHTML = `
+        <td class="text-secondary small">${n}</td>
+        <td class="text-secondary small">${sku}</td>
+        <td>${name}</td>
+        <td class="text-center text-secondary small">${unit}</td>
+        <td class="text-center"><input type="number" name="qty_expected[]" class="form-control form-control-sm text-center" min="0" value="${qtyExpected}" style="width:70px;"></td>
+        <td class="text-center"><input type="number" name="qty_received[]" class="form-control form-control-sm text-center" min="0" value="${qtyReceived}" style="width:70px;" oninput="updateSummary()"></td>
+        <td class="text-center"><input type="number" name="unit_cost[]" class="form-control form-control-sm text-center" step="0.01" min="0" value="${unitCost || ''}" style="width:85px;" oninput="updateSummary()"></td>
+        <td class="text-center"><span class="${stockClass}">${stock}</span></td>
+        <td><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeRow(${n})" title="Удалить">✕</button></td>
+        <input type="hidden" name="product_id[]" value="${productId}">
+    `;
+    document.getElementById('itemsBody').appendChild(tr);
+    updateSummary();
+    return tr;
+}
+
+function removeRow(n) {
+    const row = document.getElementById(`row-${n}`);
+    if (row) row.remove();
+    if (!document.getElementById('itemsBody').children.length) {
+        const empty = document.createElement('tr');
+        empty.id = 'emptyRow';
+        empty.innerHTML = '<td colspan="9" class="text-center text-secondary py-4">Позиций пока нет. Выберите заказ поставщика или добавьте товар вручную.</td>';
+        document.getElementById('itemsBody').appendChild(empty);
+    }
+    updateSummary();
+}
+
+function findRowByProductId(productId) {
+    return document.querySelector(`#itemsBody tr[data-product-id="${productId}"]`);
+}
+
+/* ── Extra item search ──────────────────────────────────────────────────────── */
+const extraSearch = document.getElementById('extraSearch');
+const extraDropdown = document.getElementById('extraDropdown');
+const extraMsg = document.getElementById('extraAddMsg');
+
+extraSearch.addEventListener('input', () => {
+    const q = extraSearch.value.trim().toLowerCase();
+    if (!q) { extraDropdown.style.display = 'none'; return; }
+    const matches = allProducts.filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)).slice(0, 20);
+    if (!matches.length) { extraDropdown.style.display = 'none'; return; }
+
+    extraDropdown.innerHTML = matches.map(p => {
+        const inTable = !!findRowByProductId(p.id);
+        return `<div class="extra-suggestion d-flex justify-content-between align-items-center" onclick="addExtraProduct(${p.id})">
+            <div>
+                <span class="fw-semibold">${p.sku}</span> <span class="text-secondary small">— ${p.name}</span>
+                ${inTable ? '<span class="badge bg-success ms-1" style="font-size:.7rem;">уже в списке</span>' : ''}
+            </div>
+            <div class="text-end ms-2" style="font-size:.75rem;">
+                <div class="${p.stock <= 5 ? 'text-danger' : 'text-success'}">${p.stock} шт.</div>
+                <div class="text-secondary">${p.price.toLocaleString('ru-RU')} ₽</div>
+            </div>
+        </div>`;
+    }).join('');
+    extraDropdown.style.display = 'block';
+});
+
+document.addEventListener('click', e => {
+    if (!extraSearch.contains(e.target) && !extraDropdown.contains(e.target)) {
+        extraDropdown.style.display = 'none';
+    }
+});
+
+function addExtraProduct(productId) {
+    extraDropdown.style.display = 'none';
+    extraSearch.value = '';
+
+    const existing = findRowByProductId(productId);
+    if (existing) {
+        // highlight existing row and scroll to it
+        existing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        existing.classList.add('item-row-highlight');
+        setTimeout(() => existing.classList.remove('item-row-highlight'), 800);
+        extraMsg.innerHTML = '<span class="extra-item-found">✓ Товар уже есть в списке — строка выделена.</span>';
+        setTimeout(() => extraMsg.innerHTML = '', 3000);
+        // focus qty_received for that row
+        const qtyInput = existing.querySelector('input[name="qty_received[]"]');
+        if (qtyInput) setTimeout(() => qtyInput.focus(), 400);
+        return;
+    }
+
+    // Add new row (extra, not in PO → expected = 0)
+    const p = allProducts.find(x => x.id === productId);
+    if (!p) return;
+    const newRow = addRow(p.id, p.sku, p.name, p.unit, 0, 1, '', p.stock);
+    newRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    newRow.classList.add('item-row-highlight');
+    setTimeout(() => newRow.classList.remove('item-row-highlight'), 800);
+    extraMsg.innerHTML = '<span class="extra-item-new">+ Добавлен новый товар в приёмку.</span>';
+    setTimeout(() => extraMsg.innerHTML = '', 3000);
+}
+
+/* ── Summary ────────────────────────────────────────────────────────────────── */
+function updateSummary() {
+    const rows = document.querySelectorAll('#itemsBody tr[data-product-id]');
+    let totalQty = 0, totalAmt = 0;
+    rows.forEach(row => {
+        const qty = parseFloat(row.querySelector('input[name="qty_received[]"]')?.value) || 0;
+        const cost = parseFloat(row.querySelector('input[name="unit_cost[]"]')?.value) || 0;
+        totalQty += qty;
+        totalAmt += qty * cost;
+    });
+    document.getElementById('summaryLines').textContent = rows.length;
+    document.getElementById('summaryQty').textContent = totalQty + ' шт.';
+    document.getElementById('summaryAmount').textContent = totalAmt.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' ₽';
+}
+
+/* ── Form validation ─────────────────────────────────────────────────────────── */
+document.getElementById('receiptForm').addEventListener('submit', function(e) {
+    // Sync supplier from fallback select if not set by PO selection
+    const hiddenSupplier = document.getElementById('hiddenSupplierId');
+    if (!hiddenSupplier.value) {
+        hiddenSupplier.value = document.getElementById('supplierFallback').value;
+    }
+    if (!hiddenSupplier.value) {
+        e.preventDefault();
+        alert('Укажите поставщика.');
+        return;
+    }
+    const rows = document.querySelectorAll('#itemsBody tr[data-product-id]');
+    if (!rows.length) {
+        e.preventDefault();
+        alert('Добавьте хотя бы одну позицию.');
+        return;
+    }
+    // rename fallback to avoid double supplier_id
+    document.getElementById('supplierFallback').name = '';
+});
+
+/* ── Initial PO search (show all pending on load) ───────────────────────────── */
+(async () => {
+    const resp = await fetch('/warehouse/api/purchase-orders');
+    const pos = await resp.json();
+    window._lastPoResults = pos;
+    if (pos.length) {
+        const STATUS_MAP = { pending:'Ожидается', received:'Получен', completed:'Завершён', cancelled:'Отменён' };
+        const STATUS_BADGE = { pending:'bg-warning text-dark', received:'bg-info text-dark', completed:'bg-success', cancelled:'bg-danger' };
+        document.getElementById('poResults').innerHTML = pos.map(po => `
+            <div class="po-card mb-2" data-po-id="${po.id}" onclick="selectPO(${po.id})">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="po-number">${po.order_number}</div>
+                        <div class="po-meta">${po.supplier_name} · ${po.order_date}</div>
+                        <div class="po-meta mt-1">
+                            Позиций: <strong>${po.items_count}</strong> ·
+                            Сумма: <strong>${po.total_amount.toLocaleString('ru-RU')} ₽</strong>
+                            ${po.is_paid ? '· <span class="text-success">оплачен</span>' : ''}
+                        </div>
+                        <div class="po-meta mt-1 text-muted">
+                            ${po.items.slice(0,3).map(i => i.sku + ' ' + i.product_name).join(' / ')}
+                            ${po.items.length > 3 ? ' / ...ещё ' + (po.items.length - 3) : ''}
+                        </div>
+                    </div>
+                    <span class="badge ${STATUS_BADGE[po.status] || 'bg-secondary'} ms-2 flex-shrink-0">
+                        ${STATUS_MAP[po.status] || po.status}
+                    </span>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        document.getElementById('poResults').innerHTML = '<div class="text-secondary small py-2">Нет активных заказов поставщика. Вы можете создать приёмку без привязки к заказу — добавьте товар вручную.</div>';
+    }
+})();
+</script>
+{% endblock %}
