@@ -48,7 +48,8 @@
             <thead>
             <tr>
                 <th>Заказ</th>
-                <th>Дата</th>
+                <th>Дата создания</th>
+                <th>Дата доставки</th>
                 <th>Клиент</th>
                 <th>Сумма</th>
                 <th>Адрес доставки</th>
@@ -62,6 +63,7 @@
                 <tr>
                     <td>{{ order.order_number }}</td>
                     <td><div>{{ order.created_at.strftime('%d.%m.%Y') if order.created_at else '-' }}</div><div class="small text-secondary">{{ order.created_at.strftime('%H:%M') if order.created_at else '' }}</div></td>
+                    <td><div>{{ order.delivery_date.strftime('%d.%m.%Y') if order.delivery_date else '-' }}</div></td>
                     <td>{{ order.customer.name if order.customer else '-' }}</td>
                     <td><div>{{ '%.2f'|format(order.total_amount or 0) }}</div>{% if order.needs_assembly %}<div class="small text-secondary">В том числе сборка</div>{% endif %}</td>
                     <td>{{ order.delivery_address or '-' }}</td>

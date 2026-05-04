@@ -23,12 +23,9 @@
         </div>
     </form>
 
-    <form method="post" class="row g-3 mb-4">
-        <div class="col-md-4"><label class="form-label">Категория</label><input type="text" name="category" class="form-control" required></div>
-        <div class="col-md-2"><label class="form-label">Сумма</label><input type="number" name="amount" step="0.01" class="form-control" required></div>
-        <div class="col-md-4"><label class="form-label">Описание</label><input type="text" name="description" class="form-control"></div>
-        <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100" type="submit">Добавить</button></div>
-    </form>
+    {% set form_action = form_action %}
+    {% set entity = entity %}
+    {% include "components/schema_form.html" %}
 
     <div class="table-responsive">
         <table class="table table-hover align-middle">

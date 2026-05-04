@@ -162,12 +162,48 @@
                     <div class="text-uppercase text-secondary small">Рабочий модуль</div>
                     <h2 class="h4 mb-1"><a href="{{ url_for('sales_demo.index') }}" class="text-decoration-none text-reset">Управление продажами, заказами и доставкой</a></h2>
                 </div>
-                <span class="badge text-bg-secondary">Скоро будет</span>
+                <span class="badge text-bg-info">Рабочий модуль</span>
             </div>
-            <p class="text-secondary mb-0">
-                Этот модуль находится в разработке и скоро будет доступен как полноценный рабочий контур.
-                В нём появятся управление заказами, доставка, обработка оплаты и управление продажами.
+            <p class="text-secondary">
+                Контур управления продажами обрабатывает заказы от клиентов, отслеживает статусы комплектации и доставки,
+                контролирует оплату и подготавливает первичные документы для финансовой системы.
             </p>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Всего заказов</div><div class="display-6">{{ total_sales_orders or 0 }}</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Не оплачены</div><div class="display-6">{{ unpaid_sales_orders or 0 }}</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Собраны и ждут отправки</div><div class="display-6">{{ assembled_sales_orders or 0 }}</div></div></div>
+                <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">В пути</div><div class="display-6">{{ in_transit_sales_orders or 0 }}</div></div></div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap mb-3">
+                <a href="{{ url_for('sales_demo.crm') }}" class="btn btn-primary btn-sm">Переход в CRM</a>
+                <a href="{{ url_for('sales_demo.orders') }}" class="btn btn-outline-dark btn-sm">Обработка заказов</a>
+                <a href="{{ url_for('sales_demo.orders') }}?status=assembled" class="btn btn-outline-dark btn-sm">Собраны</a>
+                <a href="{{ url_for('sales_demo.orders') }}?status=in_transit" class="btn btn-outline-dark btn-sm">В пути</a>
+            </div>
+            {% if recent_sales_orders %}
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead>
+                    <tr>
+                        <th>Заказ</th>
+                        <th>Клиент</th>
+                        <th>Сумма</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for order in recent_sales_orders[:5] %}
+                        <tr>
+                            <td><small>{{ order.order_number }}</small></td>
+                            <td><small>{{ order.customer.name if order.customer else '-' }}</small></td>
+                            <td><small>{{ '%.0f'|format(order.total_amount or 0) }} ₸</small></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="small text-secondary mb-0">Пока нет заказов. <a href="{{ url_for('sales_demo.crm') }}">Создать первый заказ</a></p>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -186,26 +222,6 @@
                 <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Активных сотрудников</div><div class="h4 mb-0">{{ active_employees_count }}</div></div></div>
                 <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Товаров на складе</div><div class="h4 mb-0">{{ total_on_hand }}</div></div></div>
                 <div class="col-md-6"><div class="surface p-3 h-100"><div class="text-secondary small">Неоплаченных закупок</div><div class="h4 mb-0">{{ unpaid_purchase_orders }}</div></div></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-xl-6">
-        <div class="surface p-4 h-100">
-            <div class="text-uppercase text-secondary small mb-2">Дорожная карта</div>
-            <h2 class="h4 mb-3">Остальные контуры сохранены как демо</h2>
-            <p class="text-secondary">
-                Модуль управления складом и закупками уже доступен и работает как полноценный контур.
-                Модуль управления продажами, заказами и доставкой пока остаётся демонстрационным — скоро будет полностью доступен.
-                Тем временем основная рабочая нагрузка текущей версии сосредоточена на качестве данных
-                и финансово-управленческой аналитике.
-            </p>
-            <div class="d-flex gap-2 flex-wrap">
-                {% if current_user.is_authenticated %}
-                    <a href="{{ url_for('warehouse_demo.index') }}" class="btn btn-outline-dark btn-sm">Склад и закупки</a>
-                    <a href="{{ url_for('sales_demo.index') }}" class="btn btn-outline-dark btn-sm">Продажи и доставка</a>
-                {% else %}
-                    <span class="badge text-bg-secondary">Демо-контуры доступны после входа</span>
-                {% endif %}
             </div>
         </div>
     </div>

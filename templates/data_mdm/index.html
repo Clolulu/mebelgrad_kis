@@ -54,7 +54,7 @@
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ url_for('mdm.products_list') }}" class="btn btn-outline-dark btn-sm">Реестр товаров</a>
                             {% if current_user.can_edit_mdm %}
-                                <a href="{{ url_for('mdm.create_product') }}" class="btn btn-primary btn-sm">Новая карточка</a>
+                                <a href="{{ url_for('mdm.schema_fields', entity_key='products') }}" class="btn btn-primary btn-sm">Схема данных</a>
                             {% endif %}
                         </div>
                     </div>
@@ -66,7 +66,7 @@
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ url_for('mdm.customers_list') }}" class="btn btn-outline-dark btn-sm">Реестр клиентов</a>
                             {% if current_user.can_edit_mdm %}
-                                <a href="{{ url_for('mdm.create_customer') }}" class="btn btn-primary btn-sm">Добавить клиента</a>
+                                <a href="{{ url_for('mdm.schema_fields', entity_key='customers') }}" class="btn btn-primary btn-sm">Схема данных</a>
                             {% endif %}
                         </div>
                     </div>
@@ -78,7 +78,7 @@
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ url_for('mdm.suppliers_list') }}" class="btn btn-outline-dark btn-sm">Реестр поставщиков</a>
                             {% if current_user.can_edit_mdm %}
-                                <a href="{{ url_for('mdm.create_supplier') }}" class="btn btn-primary btn-sm">Добавить поставщика</a>
+                                <a href="{{ url_for('mdm.schema_fields', entity_key='suppliers') }}" class="btn btn-primary btn-sm">Схема данных</a>
                             {% endif %}
                         </div>
                     </div>

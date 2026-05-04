@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import (
     current_app,
@@ -17,6 +17,7 @@ from werkzeug.utils import secure_filename
 from app.sales_demo import sales_bp
 from app.sales_demo.docx_utils import create_sales_doc, duplicate_contract_doc, save_doc
 from app.models import CompanyProfile, Customer, Payment, Product, SalesOrder, SalesOrderAttachment, SalesOrderItem, db
+from app.schema_utils import get_visible_fields, get_field_by_name
 
 STATUS_LABELS = {
     "pending": "Не оплачен",
@@ -33,6 +34,8 @@ ALLOWED_UPLOAD_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "doc", "docx"}
 @sales_bp.route("/")
 @login_required
 def index():
+    from sqlalchemy import func
+    
     total_orders = SalesOrder.query.count()
     unpaid_orders = SalesOrder.query.filter(SalesOrder.status.in_(["pending", "unpaid"])).count()
     assembling_orders = SalesOrder.query.filter_by(status="picking").count()
@@ -42,6 +45,27 @@ def index():
     active_customers = Customer.query.filter_by(is_active=True).count()
     active_products = Product.query.filter_by(is_active=True).count()
     recent_orders = SalesOrder.query.order_by(SalesOrder.created_at.desc()).limit(6).all()
+    
+    # Statistics: orders for month and week
+    now = datetime.utcnow()
+    month_ago = now - timedelta(days=30)
+    week_ago = now - timedelta(days=7)
+    
+    orders_this_month = SalesOrder.query.filter(SalesOrder.created_at >= month_ago).count()
+    orders_this_week = SalesOrder.query.filter(SalesOrder.created_at >= week_ago).count()
+    
+    # Top selling and least selling products
+    from sqlalchemy import func, desc
+    selling_products = db.session.query(
+        Product,
+        func.sum(SalesOrderItem.quantity).label('total_qty')
+    ).join(SalesOrderItem).group_by(Product.id).order_by(desc('total_qty')).limit(5).all()
+    
+    least_selling_products = db.session.query(
+        Product,
+        func.sum(SalesOrderItem.quantity).label('total_qty')
+    ).join(SalesOrderItem).group_by(Product.id).order_by('total_qty').limit(5).all()
+    
     return render_template(
         "sales/index.html",
         total_orders=total_orders,
@@ -54,6 +78,10 @@ def index():
         active_products=active_products,
         recent_orders=recent_orders,
         status_labels=STATUS_LABELS,
+        orders_this_month=orders_this_month,
+        orders_this_week=orders_this_week,
+        selling_products=selling_products,
+        least_selling_products=least_selling_products,
     )
 
 
@@ -61,7 +89,18 @@ def index():
 @sales_bp.route("/crm/")
 @login_required
 def crm():
-    return render_template("sales/crm.html")
+    customer_fields = [
+        {
+            "name": field.name,
+            "label": field.label,
+            "type": field.data_type,
+            "required": field.is_required,
+            "max_length": field.max_length,
+            "help_text": field.help_text,
+        }
+        for field in get_visible_fields("customers")
+    ]
+    return render_template("sales/crm.html", customer_fields=customer_fields)
 
 
 @sales_bp.route("/orders")
@@ -100,16 +139,23 @@ def orders():
 @sales_bp.route("/api/customers")
 @login_required
 def search_customers():
+    """
+    Search for customers by name field (searchable field from MDM schema).
+    Returns results with all schema-defined visible fields.
+    """
     q = request.args.get("q", "").strip()
     customers = Customer.query.filter(Customer.name.ilike(f"%{q}%")).order_by(Customer.name.asc()).limit(20).all()
+    
+    # Get schema fields for response serialization
+    schema_fields = get_visible_fields('customers')
+    
     return jsonify(
         [
             {
-                "id": customer.id,
-                "name": customer.name,
-                "phone": customer.phone or "",
-                "email": customer.email or "",
-            }
+                field.name: str(getattr(customer, field.name) or "")
+                for field in schema_fields
+                if hasattr(customer, field.name)
+            } | {"id": customer.id}
             for customer in customers
         ]
     )
@@ -138,30 +184,57 @@ def search_products():
 @sales_bp.route("/api/customers", methods=["POST"])
 @login_required
 def create_customer():
+    """
+    Create a customer using fields defined in the MDM schema.
+    Dynamically extracts only schema-defined fields from the payload.
+    """
     payload = request.get_json(silent=True) or {}
-    name = (payload.get("name") or "").strip()
-    phone = (payload.get("phone") or "").strip() or None
-    email = (payload.get("email") or "").strip() or None
-    if not name:
-        return jsonify({"error": "ФИО клиента обязательно"}), 400
-    customer = Customer(
-        name=name,
-        phone=phone,
-        email=email,
-        birth_date=_parse_date(payload.get("birth_date")),
-        registration_address=(payload.get("registration_address") or "").strip() or None,
-        passport_series_number=(payload.get("passport_series_number") or "").strip() or None,
-        passport_issued_by=(payload.get("passport_issued_by") or "").strip() or None,
-        passport_issue_date=_parse_date(payload.get("passport_issue_date")),
-        snils=(payload.get("snils") or "").strip() or None,
-        customer_inn=(payload.get("customer_inn") or "").strip() or None,
-        notes=(payload.get("notes") or "").strip() or None,
-        type="individual",
-        is_active=True,
-    )
-    db.session.add(customer)
-    db.session.commit()
-    return jsonify({"id": customer.id, "name": customer.name, "phone": customer.phone or "", "email": customer.email or ""})
+    
+    # Get schema fields for customers
+    schema_fields = get_visible_fields('customers')
+    
+    # Extract only schema-defined fields
+    customer_data = {}
+    for field in schema_fields:
+        raw_value = payload.get(field.name, "")
+        
+        # Basic type conversion based on field definition
+        if field.data_type == 'boolean':
+            customer_data[field.name] = raw_value in [True, 'true', 'on', '1', 1]
+        elif field.data_type == 'date':
+            customer_data[field.name] = _parse_date(raw_value) if raw_value else None
+        elif field.data_type in ['integer', 'float']:
+            try:
+                customer_data[field.name] = float(raw_value) if raw_value else None
+            except (ValueError, TypeError):
+                customer_data[field.name] = None
+        else:
+            customer_data[field.name] = (raw_value or "").strip() or None
+    
+    # Validate required fields
+    name_field = get_field_by_name('customers', 'name')
+    if name_field and name_field.is_required and not customer_data.get('name'):
+        return jsonify({"error": f"{name_field.label} обязательно"}), 400
+    
+    # Create customer with schema-defined fields
+    try:
+        customer = Customer(
+            **customer_data,
+            type="individual",
+            is_active=True,
+        )
+        db.session.add(customer)
+        db.session.commit()
+        
+        # Return response with only schema-defined fields
+        response = {"id": customer.id}
+        for field in schema_fields:
+            if hasattr(customer, field.name):
+                response[field.name] = str(getattr(customer, field.name) or "")
+        return jsonify(response)
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
 
 
 @sales_bp.route("/api/orders", methods=["POST"])
@@ -171,6 +244,7 @@ def create_order():
     customer_id = payload.get("customer_id")
     items_payload = payload.get("items") or []
     delivery_address = (payload.get("delivery_address") or "").strip()
+    delivery_date_str = (payload.get("delivery_date") or "").strip()
     needs_assembly = bool(payload.get("needs_assembly"))
 
     if not customer_id:
@@ -184,11 +258,21 @@ def create_order():
     if not customer:
         return jsonify({"error": "Клиент не найден"}), 404
 
+    # Calculate delivery date: if not provided, set to 2 days from now
+    if delivery_date_str:
+        try:
+            delivery_date = datetime.strptime(delivery_date_str, "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"error": "Неверный формат даты доставки"}), 400
+    else:
+        delivery_date = datetime.utcnow() + timedelta(days=2)
+
     order = SalesOrder(
         order_number=_next_order_number(),
         customer_id=customer.id,
         status="unpaid",
         delivery_address=delivery_address,
+        delivery_date=delivery_date,
         needs_assembly=needs_assembly,
         created_at=datetime.utcnow(),
     )

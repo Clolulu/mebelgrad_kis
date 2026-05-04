@@ -101,4 +101,79 @@
         </table>
     </div>
 </section>
+
+<section class="surface p-4 mt-4">
+    <h2 class="h5 mb-4">Статистика и аналитика</h2>
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="surface p-3 h-100">
+                <div class="text-secondary small">Заказов за последний месяц</div>
+                <div class="display-6">{{ orders_this_month or 0 }}</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="surface p-3 h-100">
+                <div class="text-secondary small">Заказов за последнюю неделю</div>
+                <div class="display-6">{{ orders_this_week or 0 }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="surface p-3">
+                <h3 class="h6 mb-3">Топ продаваемых товаров</h3>
+                {% if selling_products %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                            <tr>
+                                <th>Товар</th>
+                                <th>Продано</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for product, total_qty in selling_products %}
+                                <tr>
+                                    <td>{{ product.name }}</td>
+                                    <td>{{ total_qty or 0 }} шт.</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="small text-secondary">Нет данных о продажах.</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="surface p-3">
+                <h3 class="h6 mb-3">Менее продаваемые товары</h3>
+                {% if least_selling_products %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                            <tr>
+                                <th>Товар</th>
+                                <th>Продано</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for product, total_qty in least_selling_products %}
+                                <tr>
+                                    <td>{{ product.name }}</td>
+                                    <td>{{ total_qty or 0 }} шт.</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="small text-secondary">Нет данных о продажах.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
 {% endblock %}
