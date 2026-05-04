@@ -126,6 +126,185 @@ def _sig_block(table, col_idx, title: str, name: str, sig_url: str | None, date_
     _add_run(p5, date_str, size=8, color='888888')
 
 
+# ── picking doc generator ─────────────────────────────────────────────────────
+
+def generate_picking_docx(pk, company) -> BytesIO:
+    """Generate a picking slip .docx for the given PickingOrder."""
+    doc = Document()
+    for section in doc.sections:
+        section.top_margin = Cm(2)
+        section.bottom_margin = Cm(2)
+        section.left_margin = Cm(2.5)
+        section.right_margin = Cm(1.5)
+    style = doc.styles['Normal']
+    style.font.name = 'Times New Roman'
+    style.font.size = Pt(10)
+
+    order = pk.sales_order
+    customer = order.customer if order else None
+
+    # ── Header ────────────────────────────────────────────────────────────────
+    hdr_table = doc.add_table(rows=1, cols=2)
+    hdr_table.alignment = WD_TABLE_ALIGNMENT.LEFT
+    hdr_table.columns[0].width = Cm(3.5)
+    hdr_table.columns[1].width = Cm(13)
+
+    logo_cell = hdr_table.cell(0, 0)
+    logo_cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
+    if company and company.logo_url:
+        img_path = _download_image(company.logo_url)
+        if img_path:
+            try:
+                logo_cell.paragraphs[0].add_run().add_picture(img_path, width=Cm(3))
+            except Exception:
+                pass
+
+    req_cell = hdr_table.cell(0, 1)
+    req_cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
+    rp = req_cell.paragraphs[0]
+    if company:
+        name_line = f'{company.legal_form} «{company.company_name}»' if company.legal_form and company.company_name else (company.company_name or '')
+        _add_run(rp, name_line + '\n', bold=True, size=11)
+        reqs = []
+        if company.inn: reqs.append(f'ИНН {company.inn}')
+        if company.kpp: reqs.append(f'КПП {company.kpp}')
+        if reqs:
+            _add_run(rp, '  '.join(reqs) + '\n', size=9, color='444444')
+        if company.legal_address:
+            _add_run(rp, f'Адрес: {company.legal_address}\n', size=9, color='444444')
+    else:
+        _add_run(rp, 'Организация не указана', size=10, color='888888')
+
+    doc.add_paragraph()
+
+    # ── Title ─────────────────────────────────────────────────────────────────
+    created_str = pk.created_at.strftime('%d.%m.%Y') if pk.created_at else datetime.utcnow().strftime('%d.%m.%Y')
+    tp = doc.add_paragraph()
+    tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _add_run(tp, 'ЗАДАНИЕ НА КОМПЛЕКТОВКУ', bold=True, size=14)
+    sp = doc.add_paragraph()
+    sp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _add_run(sp, f'№ {pk.picking_number}  от  {created_str}', size=12)
+    doc.add_paragraph()
+
+    # ── Order / customer info ─────────────────────────────────────────────────
+    info = doc.add_table(rows=6, cols=2)
+    info.style = 'Table Grid'
+    info.columns[0].width = Cm(5)
+    info.columns[1].width = Cm(11.5)
+
+    def _ir(row_idx, label, value):
+        lc = info.cell(row_idx, 0)
+        _set_cell_bg(lc, 'EBF3FA')
+        _add_run(lc.paragraphs[0], label, bold=True, size=9)
+        _add_run(info.cell(row_idx, 1).paragraphs[0], value or '—', size=9)
+
+    _ir(0, 'Номер заказа', order.order_number if order else '—')
+    _ir(1, 'Дата заказа', order.order_date.strftime('%d.%m.%Y') if order and order.order_date else '—')
+    _ir(2, 'Клиент', customer.name if customer else '—')
+    _ir(3, 'Телефон клиента', customer.phone if customer else '—')
+    _ir(4, 'Адрес доставки', order.delivery_address if order and order.delivery_address else '—')
+    _ir(5, 'Комплектовщик', pk.picker.username if pk.picker else '—')
+
+    doc.add_paragraph()
+
+    # ── Items table ───────────────────────────────────────────────────────────
+    items_title = doc.add_paragraph()
+    _add_run(items_title, 'Состав заказа:', bold=True, size=10)
+
+    items = order.items if order else []
+    col_widths2 = [Cm(0.8), Cm(2.2), Cm(6.0), Cm(1.5), Cm(1.5), Cm(2.0), Cm(2.5)]
+    headers2 = ['№', 'Артикул', 'Наименование товара', 'Ед.', 'Кол-во', 'На складе', '✓ Выдано']
+    tbl = doc.add_table(rows=1 + len(items), cols=7)
+    tbl.style = 'Table Grid'
+
+    for ci, hdr in enumerate(headers2):
+        cell = tbl.cell(0, ci)
+        _set_cell_bg(cell, TABLE_HEADER_COLOR)
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _add_run(p, hdr, bold=True, size=9)
+
+    for ri, item in enumerate(items, start=1):
+        bg = ALT_ROW_COLOR if ri % 2 == 0 else 'FFFFFF'
+        stock_qty = item.product.qty_on_hand if item.product else 0
+        ok = stock_qty >= (item.quantity or 0)
+        vals2 = [
+            (str(ri), WD_ALIGN_PARAGRAPH.CENTER),
+            (item.product.sku if item.product else '—', WD_ALIGN_PARAGRAPH.CENTER),
+            (item.product.name if item.product else '—', WD_ALIGN_PARAGRAPH.LEFT),
+            (item.product.unit if item.product else '—', WD_ALIGN_PARAGRAPH.CENTER),
+            (str(item.quantity or 0), WD_ALIGN_PARAGRAPH.CENTER),
+            (str(stock_qty), WD_ALIGN_PARAGRAPH.CENTER),
+            ('', WD_ALIGN_PARAGRAPH.CENTER),
+        ]
+        for ci, (val, align) in enumerate(vals2):
+            cell2 = tbl.cell(ri, ci)
+            _set_cell_bg(cell2, bg)
+            p2 = cell2.paragraphs[0]
+            p2.alignment = align
+            run = _add_run(p2, val, size=9)
+            if ci == 5:
+                run.font.color.rgb = RGBColor(0x19, 0x87, 0x54) if ok else RGBColor(0xDC, 0x35, 0x45)
+
+    doc.add_paragraph()
+    doc.add_paragraph()
+
+    # ── Timeline log ──────────────────────────────────────────────────────────
+    log_p = doc.add_paragraph()
+    _add_run(log_p, 'Журнал выполнения:', bold=True, size=10)
+    log_tbl = doc.add_table(rows=4, cols=3)
+    log_tbl.style = 'Table Grid'
+    log_tbl.columns[0].width = Cm(5)
+    log_tbl.columns[1].width = Cm(5)
+    log_tbl.columns[2].width = Cm(6.5)
+
+    def _lr(row_idx, label, value):
+        lc = log_tbl.cell(row_idx, 0)
+        _set_cell_bg(lc, 'EBF3FA')
+        _add_run(lc.paragraphs[0], label, bold=True, size=9)
+        _add_run(log_tbl.cell(row_idx, 1).paragraphs[0], value or '—', size=9)
+        _add_run(log_tbl.cell(row_idx, 2).paragraphs[0], '', size=9)
+
+    _lr(0, 'Задание создано', pk.created_at.strftime('%d.%m.%Y %H:%M') if pk.created_at else '—')
+    _lr(1, 'Комплектовка начата', pk.started_at.strftime('%d.%m.%Y %H:%M') if pk.started_at else '—')
+    _lr(2, 'Собрано', pk.assembled_at.strftime('%d.%m.%Y %H:%M') if pk.assembled_at else '—')
+    _lr(3, 'Отгружено', pk.shipped_at.strftime('%d.%m.%Y %H:%M') if pk.shipped_at else '—')
+
+    doc.add_paragraph()
+    doc.add_paragraph()
+
+    # ── Signatures ────────────────────────────────────────────────────────────
+    sig_p = doc.add_paragraph()
+    _add_run(sig_p, 'Подписи:', bold=True, size=10)
+    sig_tbl = doc.add_table(rows=1, cols=3)
+    sig_tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+    for col in sig_tbl.columns:
+        col.width = Cm(5.5)
+
+    picker_name = pk.picker.username if pk.picker else '________________________'
+    _sig_block(sig_tbl, 0, 'Комплектовал:', picker_name, None,
+               pk.assembled_at.strftime('%d.%m.%Y') if pk.assembled_at else '«__» ________ 20__ г.')
+    _sig_block(sig_tbl, 1, 'Проверил:', '________________________', None, '«__» ________ 20__ г.')
+    _sig_block(sig_tbl, 2, 'Отгрузил:', '________________________', None,
+               pk.shipped_at.strftime('%d.%m.%Y') if pk.shipped_at else '«__» ________ 20__ г.')
+
+    if company and company.seal_url:
+        img_path = _download_image(company.seal_url)
+        if img_path:
+            doc.add_paragraph()
+            seal_p = doc.add_paragraph()
+            try:
+                seal_p.add_run().add_picture(img_path, width=Cm(3.5))
+            except Exception:
+                pass
+
+    buf = BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf
+
+
 # ── main generator ─────────────────────────────────────────────────────────────
 
 PRIORITY_LABELS = {

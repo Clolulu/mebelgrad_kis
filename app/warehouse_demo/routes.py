@@ -8,10 +8,10 @@ from app.warehouse_demo import warehouse_bp
 from app.models import (
     CompanyProfile,
     GoodsReceipt, GoodsReceiptItem, InventoryCount, InventoryCountItem,
-    Product, PurchaseOrder, PurchaseOrderItem, PurchaseRequest, PurchaseRequestItem,
-    SalesOrder, Stock, Supplier, db,
+    PickingOrder, Product, PurchaseOrder, PurchaseOrderItem, PurchaseRequest,
+    PurchaseRequestItem, SalesOrder, Stock, Supplier, User, db,
 )
-from app.warehouse_demo.docx_utils import generate_purchase_request_docx
+from app.warehouse_demo.docx_utils import generate_purchase_request_docx, generate_picking_docx
 
 PR_STATUS_LABELS = {
     'draft': 'Черновик',
@@ -35,6 +35,18 @@ INV_STATUS_LABELS = {
     'draft': 'Черновик',
     'in_progress': 'В работе',
     'completed': 'Завершена',
+}
+PICKING_STATUS_LABELS = {
+    'new': 'Новое',
+    'in_progress': 'В работе',
+    'assembled': 'Собрано',
+    'shipped': 'Отгружено',
+}
+PICKING_STATUS_BADGE = {
+    'new': 'bg-secondary',
+    'in_progress': 'bg-warning text-dark',
+    'assembled': 'bg-success',
+    'shipped': 'bg-info text-dark',
 }
 
 
@@ -559,6 +571,134 @@ def receipt_post(receipt_id):
     return redirect(url_for('warehouse_demo.receipt_detail', receipt_id=receipt_id))
 
 
+# ── Picking Orders ────────────────────────────────────────────────────────────
+
+@warehouse_bp.route('/picking')
+@login_required
+def picking_list():
+    status = request.args.get('status', '').strip()
+    q = PickingOrder.query
+    if status:
+        q = q.filter(PickingOrder.status == status)
+    picking_orders = q.order_by(PickingOrder.created_at.desc()).all()
+    pickers = User.query.filter_by(is_active=True).order_by(User.username).all()
+    return render_template('warehouse/picking_list.html',
+                           picking_orders=picking_orders,
+                           status_labels=PICKING_STATUS_LABELS,
+                           status_badge=PICKING_STATUS_BADGE,
+                           current_status=status,
+                           pickers=pickers)
+
+
+@warehouse_bp.route('/picking/create/<int:order_id>', methods=['POST'])
+@login_required
+def picking_create(order_id):
+    order = SalesOrder.query.get_or_404(order_id)
+    existing = PickingOrder.query.filter_by(sales_order_id=order.id).filter(
+        PickingOrder.status.in_(['new', 'in_progress', 'assembled'])
+    ).first()
+    if existing:
+        flash(f'Для заказа {order.order_number} уже существует задание {existing.picking_number}.', 'warning')
+        return redirect(url_for('warehouse_demo.picking_detail', pk_id=existing.id))
+
+    pk = PickingOrder(
+        picking_number=_next_picking_number(),
+        sales_order_id=order.id,
+        status='new',
+        created_by=current_user.id,
+    )
+    db.session.add(pk)
+    db.session.commit()
+    flash(f'Задание на комплектовку {pk.picking_number} создано.', 'success')
+    return redirect(url_for('warehouse_demo.picking_detail', pk_id=pk.id))
+
+
+@warehouse_bp.route('/picking/<int:pk_id>')
+@login_required
+def picking_detail(pk_id):
+    pk = PickingOrder.query.get_or_404(pk_id)
+    pickers = User.query.filter_by(is_active=True).order_by(User.username).all()
+    return render_template('warehouse/picking_detail.html',
+                           pk=pk,
+                           status_labels=PICKING_STATUS_LABELS,
+                           status_badge=PICKING_STATUS_BADGE,
+                           pickers=pickers)
+
+
+@warehouse_bp.route('/picking/<int:pk_id>/start', methods=['POST'])
+@login_required
+def picking_start(pk_id):
+    pk = PickingOrder.query.get_or_404(pk_id)
+    if pk.status != 'new':
+        flash('Начать можно только новое задание.', 'warning')
+        return redirect(url_for('warehouse_demo.picking_detail', pk_id=pk_id))
+    picker_id = request.form.get('picker_id', '').strip()
+    pk.picker_id = int(picker_id) if picker_id else current_user.id
+    pk.status = 'in_progress'
+    pk.started_at = datetime.utcnow()
+    pk.sales_order.status = 'picking'
+    db.session.commit()
+    flash(f'Комплектовка {pk.picking_number} начата.', 'success')
+    return redirect(url_for('warehouse_demo.picking_detail', pk_id=pk_id))
+
+
+@warehouse_bp.route('/picking/<int:pk_id>/assemble', methods=['POST'])
+@login_required
+def picking_assemble(pk_id):
+    pk = PickingOrder.query.get_or_404(pk_id)
+    if pk.status != 'in_progress':
+        flash('Завершить сборку можно только для задания «В работе».', 'warning')
+        return redirect(url_for('warehouse_demo.picking_detail', pk_id=pk_id))
+
+    order = pk.sales_order
+    for item in order.items:
+        stock = item.product.stock if item.product else None
+        if stock:
+            if stock.qty_on_hand < item.quantity:
+                flash(f'Недостаточно «{item.product.name}»: на складе {stock.qty_on_hand} шт., нужно {item.quantity}.', 'danger')
+                return redirect(url_for('warehouse_demo.picking_detail', pk_id=pk_id))
+            stock.qty_on_hand -= item.quantity
+            stock.qty_reserved = max(0, (stock.qty_reserved or 0) - item.quantity)
+            stock.last_updated = datetime.utcnow()
+
+    pk.status = 'assembled'
+    pk.assembled_at = datetime.utcnow()
+    order.status = 'assembled'
+    db.session.commit()
+    flash(f'Заказ {order.order_number} собран, остатки списаны.', 'success')
+    return redirect(url_for('warehouse_demo.picking_detail', pk_id=pk_id))
+
+
+@warehouse_bp.route('/picking/<int:pk_id>/ship', methods=['POST'])
+@login_required
+def picking_ship(pk_id):
+    pk = PickingOrder.query.get_or_404(pk_id)
+    if pk.status != 'assembled':
+        flash('Отгрузить можно только собранный заказ.', 'warning')
+        return redirect(url_for('warehouse_demo.picking_detail', pk_id=pk_id))
+    pk.status = 'shipped'
+    pk.shipped_at = datetime.utcnow()
+    pk.sales_order.status = 'in_transit'
+    db.session.commit()
+    flash(f'Заказ {pk.sales_order.order_number} отгружен.', 'success')
+    return redirect(url_for('warehouse_demo.picking_detail', pk_id=pk_id))
+
+
+@warehouse_bp.route('/picking/<int:pk_id>/export-docx')
+@login_required
+def picking_export_docx(pk_id):
+    pk = PickingOrder.query.get_or_404(pk_id)
+    company = CompanyProfile.query.first()
+    buf = generate_picking_docx(pk, company)
+    filename = f'Комплектовка_{pk.picking_number}.docx'
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    )
+
+
 # ── Order Assembly ────────────────────────────────────────────────────────────
 
 @warehouse_bp.route('/assembly')
@@ -845,6 +985,20 @@ def _next_po_number():
         except ValueError:
             pass
     return f'PO-{stamp}-001'
+
+
+def _next_picking_number():
+    stamp = datetime.now().strftime('%y%m')
+    latest = (PickingOrder.query
+               .filter(PickingOrder.picking_number.like(f'PK-{stamp}-%'))
+               .order_by(PickingOrder.id.desc()).first())
+    if latest:
+        try:
+            suffix = int(latest.picking_number.split('-')[-1])
+            return f'PK-{stamp}-{suffix + 1:03d}'
+        except ValueError:
+            pass
+    return f'PK-{stamp}-001'
 
 
 def _next_receipt_number():

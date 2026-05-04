@@ -84,19 +84,29 @@
                 </table>
             </div>
 
-            <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div class="text-secondary small">
                     Адрес: {{ order.delivery_address or '—' }}<br>
                     Сумма: <strong>{{ '{:,.0f}'.format(order.total_amount or 0) }} ₽</strong>
                 </div>
-                {% if order.status == 'picking' %}
-                <form method="post" action="{{ url_for('warehouse_demo.assembly_mark_assembled', order_id=order.id) }}"
-                      onsubmit="return confirm('Отметить заказ {{ order.order_number }} как собранный? Остатки будут списаны со склада.')">
-                    <button class="btn btn-success btn-sm">✅ Комплектация завершена</button>
-                </form>
-                {% elif order.status == 'assembled' %}
-                <a href="{{ url_for('sales_demo.orders') }}?status=assembled" class="btn btn-outline-dark btn-sm">📦 К отгрузке →</a>
-                {% endif %}
+                <div class="d-flex gap-2 flex-wrap">
+                    {% set pk_active = order.picking_orders | selectattr('status', 'in', ['new','in_progress','assembled']) | list %}
+                    {% if pk_active %}
+                    <a href="{{ url_for('warehouse_demo.picking_detail', pk_id=pk_active[0].id) }}" class="btn btn-outline-dark btn-sm">📋 Задание {{ pk_active[0].picking_number }}</a>
+                    {% else %}
+                    <form method="post" action="{{ url_for('warehouse_demo.picking_create', order_id=order.id) }}">
+                        <button class="btn btn-primary btn-sm">+ Создать задание</button>
+                    </form>
+                    {% endif %}
+                    {% if order.status == 'picking' %}
+                    <form method="post" action="{{ url_for('warehouse_demo.assembly_mark_assembled', order_id=order.id) }}"
+                          onsubmit="return confirm('Отметить заказ {{ order.order_number }} как собранный? Остатки будут списаны со склада.')">
+                        <button class="btn btn-success btn-sm">✅ Завершить сборку</button>
+                    </form>
+                    {% elif order.status == 'assembled' %}
+                    <a href="{{ url_for('sales_demo.orders') }}?status=assembled" class="btn btn-outline-dark btn-sm">📦 К отгрузке →</a>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>

@@ -892,6 +892,30 @@ class InventoryCountItem(db.Model):
         return f'<InventoryCountItem count={self.count_id} prod={self.product_id}>'
 
 
+class PickingOrder(db.Model):
+    """Задание на комплектовку заказа покупателя."""
+    __tablename__ = 'picking_orders'
+
+    id = db.Column(db.Integer, primary_key=True)
+    picking_number = db.Column(db.String(50), unique=True, nullable=False)
+    sales_order_id = db.Column(db.Integer, db.ForeignKey('sales_orders.id'), nullable=False)
+    status = db.Column(db.String(20), default='new')  # new/in_progress/assembled/shipped
+    picker_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime, nullable=True)
+    assembled_at = db.Column(db.DateTime, nullable=True)
+    shipped_at = db.Column(db.DateTime, nullable=True)
+    comment = db.Column(db.Text)
+
+    sales_order = db.relationship('SalesOrder', backref='picking_orders')
+    picker = db.relationship('User', foreign_keys=[picker_id], backref='picking_tasks')
+    creator = db.relationship('User', foreign_keys=[created_by], backref='created_picking_orders')
+
+    def __repr__(self):
+        return f'<PickingOrder {self.picking_number}: {self.status}>'
+
+
 def _normalize_phone_value(value):
     if not value:
         return None

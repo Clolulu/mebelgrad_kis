@@ -86,6 +86,12 @@
                     </a>
                 </div>
                 <div class="col-6">
+                    <a href="{{ url_for('warehouse_demo.picking_list') }}" class="surface p-3 d-block text-decoration-none h-100">
+                        <div class="fw-semibold">📋 Задания на комплектовку</div>
+                        <div class="small text-secondary">Кто, когда, что собрал</div>
+                    </a>
+                </div>
+                <div class="col-6">
                     <a href="{{ url_for('warehouse_demo.assembly') }}?status=assembled" class="surface p-3 d-block text-decoration-none h-100">
                         <div class="fw-semibold">🚚 Отгрузка</div>
                         <div class="small text-secondary">Собранные заказы</div>
