@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import (
     current_app,
@@ -33,6 +33,8 @@ ALLOWED_UPLOAD_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "doc", "docx"}
 @sales_bp.route("/")
 @login_required
 def index():
+    from sqlalchemy import func
+    
     total_orders = SalesOrder.query.count()
     unpaid_orders = SalesOrder.query.filter(SalesOrder.status.in_(["pending", "unpaid"])).count()
     assembling_orders = SalesOrder.query.filter_by(status="picking").count()
@@ -42,6 +44,27 @@ def index():
     active_customers = Customer.query.filter_by(is_active=True).count()
     active_products = Product.query.filter_by(is_active=True).count()
     recent_orders = SalesOrder.query.order_by(SalesOrder.created_at.desc()).limit(6).all()
+    
+    # Statistics: orders for month and week
+    now = datetime.utcnow()
+    month_ago = now - timedelta(days=30)
+    week_ago = now - timedelta(days=7)
+    
+    orders_this_month = SalesOrder.query.filter(SalesOrder.created_at >= month_ago).count()
+    orders_this_week = SalesOrder.query.filter(SalesOrder.created_at >= week_ago).count()
+    
+    # Top selling and least selling products
+    from sqlalchemy import func, desc
+    selling_products = db.session.query(
+        Product,
+        func.sum(SalesOrderItem.quantity).label('total_qty')
+    ).join(SalesOrderItem).group_by(Product.id).order_by(desc('total_qty')).limit(5).all()
+    
+    least_selling_products = db.session.query(
+        Product,
+        func.sum(SalesOrderItem.quantity).label('total_qty')
+    ).join(SalesOrderItem).group_by(Product.id).order_by('total_qty').limit(5).all()
+    
     return render_template(
         "sales/index.html",
         total_orders=total_orders,
@@ -54,6 +77,10 @@ def index():
         active_products=active_products,
         recent_orders=recent_orders,
         status_labels=STATUS_LABELS,
+        orders_this_month=orders_this_month,
+        orders_this_week=orders_this_week,
+        selling_products=selling_products,
+        least_selling_products=least_selling_products,
     )
 
 
@@ -171,6 +198,7 @@ def create_order():
     customer_id = payload.get("customer_id")
     items_payload = payload.get("items") or []
     delivery_address = (payload.get("delivery_address") or "").strip()
+    delivery_date_str = (payload.get("delivery_date") or "").strip()
     needs_assembly = bool(payload.get("needs_assembly"))
 
     if not customer_id:
@@ -184,11 +212,21 @@ def create_order():
     if not customer:
         return jsonify({"error": "Клиент не найден"}), 404
 
+    # Calculate delivery date: if not provided, set to 2 days from now
+    if delivery_date_str:
+        try:
+            delivery_date = datetime.strptime(delivery_date_str, "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"error": "Неверный формат даты доставки"}), 400
+    else:
+        delivery_date = datetime.utcnow() + timedelta(days=2)
+
     order = SalesOrder(
         order_number=_next_order_number(),
         customer_id=customer.id,
         status="unpaid",
         delivery_address=delivery_address,
+        delivery_date=delivery_date,
         needs_assembly=needs_assembly,
         created_at=datetime.utcnow(),
     )

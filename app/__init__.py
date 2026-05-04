@@ -210,6 +210,14 @@ def register_routes(app):
         products = Product.query.all()
         customers = Customer.query.all()
         employees = Employee.query.all()
+        
+        # Sales data for the main page
+        total_orders = SalesOrder.query.count()
+        unpaid_orders = SalesOrder.query.filter(SalesOrder.status.in_(["pending", "unpaid"])).count()
+        assembled_orders = SalesOrder.query.filter_by(status="assembled").count()
+        in_transit_orders = SalesOrder.query.filter_by(status="in_transit").count()
+        recent_sales_orders = SalesOrder.query.order_by(SalesOrder.created_at.desc()).limit(5).all()
+        
         return render_template(
             "index.html",
             current_user=current_user,
@@ -229,6 +237,11 @@ def register_routes(app):
             unpaid_purchase_orders=PurchaseOrder.query.filter_by(is_paid=False).count(),
             sales_orders_count=SalesOrder.query.count(),
             budget_items_count=BudgetItem.query.count(),
+            total_sales_orders=total_orders,
+            unpaid_sales_orders=unpaid_orders,
+            assembled_sales_orders=assembled_orders,
+            in_transit_sales_orders=in_transit_orders,
+            recent_sales_orders=recent_sales_orders,
         )
 
     @app.errorhandler(403)

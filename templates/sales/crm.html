@@ -28,8 +28,10 @@
 
         <div class="surface p-4">
             <h2 class="h6">Адрес доставки</h2>
-            <textarea id="deliveryAddress" class="form-control" rows="3" placeholder="Город, улица, дом, квартира"></textarea>
-            <div class="form-check mt-3">
+            <textarea id="deliveryAddress" class="form-control mb-2" rows="3" placeholder="Город, улица, дом, квартира"></textarea>
+            <label for="deliveryDate" class="form-label">Дата доставки</label>
+            <input id="deliveryDate" class="form-control mb-3" type="date">
+            <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="assemblyCheck">
                 <label class="form-check-label" for="assemblyCheck">Сборка (1000 руб.)</label>
             </div>
@@ -155,6 +157,7 @@ function orderPayload() {
     return {
         customer_id: selectedCustomerId(),
         delivery_address: document.getElementById('deliveryAddress').value.trim(),
+        delivery_date: document.getElementById('deliveryDate').value || null,
         needs_assembly: assemblyCheck.checked,
         items: orderItems.map(item => ({
             product_id: item.product_id,

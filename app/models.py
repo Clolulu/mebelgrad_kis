@@ -287,6 +287,7 @@ class SalesOrder(db.Model):
     needs_assembly = db.Column(db.Boolean, default=False)
     cancel_reason = db.Column(db.Text)
     delivery_address = db.Column(db.String(255))
+    delivery_date = db.Column(db.DateTime)
     delivery_confirmed_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
