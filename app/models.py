@@ -259,6 +259,52 @@ class Product(db.Model):
         return f'<Product {self.sku} - {self.name}>'
 
 
+class DataModel(db.Model):
+    __tablename__ = 'data_models'
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(50), nullable=False, unique=True)
+    label = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(255))
+
+    fields = db.relationship(
+        'DataModelField',
+        backref='model',
+        lazy='dynamic',
+        cascade='all, delete-orphan',
+        order_by='DataModelField.order',
+    )
+
+    def __repr__(self):
+        return f'<DataModel {self.key}>'
+
+
+class DataModelField(db.Model):
+    __tablename__ = 'data_model_fields'
+
+    id = db.Column(db.Integer, primary_key=True)
+    model_id = db.Column(db.Integer, db.ForeignKey('data_models.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    label = db.Column(db.String(150), nullable=False)
+    data_type = db.Column(db.String(20), nullable=False, default='string')
+    field_type = db.Column(db.String(50), nullable=False, default='string')
+    max_length = db.Column(db.Integer)
+    options = db.Column(db.Text)
+    lookup_source = db.Column(db.String(255))
+    default_value = db.Column(db.String(255))
+    validation_regex = db.Column(db.String(255))
+    placeholder = db.Column(db.String(255))
+    group = db.Column(db.String(100))
+    readonly = db.Column(db.Boolean, default=False)
+    is_required = db.Column(db.Boolean, default=False)
+    is_visible = db.Column(db.Boolean, default=True)
+    order = db.Column(db.Integer, default=0)
+    help_text = db.Column(db.String(255))
+
+    def __repr__(self):
+        return f'<DataModelField {self.name} ({self.field_type or self.data_type})>'
+
+
 class Stock(db.Model):
     """Stock/Warehouse model"""
     __tablename__ = 'stock'
@@ -287,6 +333,7 @@ class SalesOrder(db.Model):
     needs_assembly = db.Column(db.Boolean, default=False)
     cancel_reason = db.Column(db.Text)
     delivery_address = db.Column(db.String(255))
+    delivery_date = db.Column(db.DateTime)
     delivery_confirmed_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     

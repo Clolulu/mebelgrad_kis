@@ -388,10 +388,7 @@ def stock():
     products = q.filter(Product.is_active.is_(True)).order_by(Product.name).all()
     total_value = sum((p.qty_on_hand * p.retail_price) for p in products)
 
-    return render_template('warehouse/stock.html', products=products, total_value=total_value)
-
-
-@warehouse_bp.route('/stock/<int:product_id>/adjust', methods=['POST'])
+@warehouse_bp.route("/", methods=["GET"])
 @login_required
 def stock_adjust(product_id):
     product = Product.query.get_or_404(product_id)

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}{% if action == 'create' %}Новое поле{% else %}Редактирование поля{% endif %} | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Управление данными / Схема данных</div>
+            <h1 class="h3 mb-2">{% if action == 'create' %}Добавление нового поля{% else %}Редактирование поля{% endif %}</h1>
+            <p class="mb-0">{% if action == 'create' %}Создайте новое поле для модели {{ model.label }}.{% else %}Обновите параметры существующего поля.{% endif %}</p>
+        </div>
+        <a href="{{ url_for('mdm.schema_fields', entity_key=model.key) }}" class="btn btn-outline-dark">Назад к полям</a>
+    </div>
+</section>
+
+<div class="surface p-4">
+    <form method="post" class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label" for="name">Техническое имя</label>
+            <input id="name" name="name" class="form-control" value="{{ field.name if field else '' }}" {% if action == 'edit' %}readonly{% endif %}>
+            <div class="form-text">Латинские буквы, цифры и подчеркивания; должно начинаться с буквы или _. </div>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="label">Метка</label>
+            <input id="label" name="label" class="form-control" value="{{ field.label if field else '' }}" required>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="data_type">Тип данных</label>
+            <select id="data_type" name="data_type" class="form-select">
+                {% for value, label in data_types %}
+                    <option value="{{ value }}" {% if field and field.data_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="field_type">Вид элемента</label>
+            <select id="field_type" name="field_type" class="form-select">
+                {% for value, label in field_types %}
+                    <option value="{{ value }}" {% if field and field.field_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label" for="max_length">Максимальная длина</label>
+            <input id="max_length" name="max_length" class="form-control" value="{{ field.max_length if field and field.max_length is not none else '' }}" type="number" min="1">
+            <div class="form-text">Только для строковых полей.</div>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="order">Порядок</label>
+            <input id="order" name="order" class="form-control" value="{{ field.order if field else 0 }}" type="number">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="group">Группа</label>
+            <input id="group" name="group" class="form-control" value="{{ field.group if field and field.group else '' }}">
+            <div class="form-text">Группировка полей в форме.</div>
+        </div>
+        <div class="col-md-3 form-check align-items-center d-flex">
+            <input class="form-check-input me-2" type="checkbox" id="readonly" name="readonly" {% if field and field.readonly %}checked{% endif %}>
+            <label class="form-check-label" for="readonly">Только для чтения</label>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label" for="placeholder">Плейсхолдер</label>
+            <input id="placeholder" name="placeholder" class="form-control" value="{{ field.placeholder if field and field.placeholder else '' }}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="default_value">Значение по умолчанию</label>
+            <input id="default_value" name="default_value" class="form-control" value="{{ field.default_value if field and field.default_value else '' }}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="validation_regex">Регулярное выражение</label>
+            <input id="validation_regex" name="validation_regex" class="form-control" value="{{ field.validation_regex if field and field.validation_regex else '' }}">
+            <div class="form-text">Введите регулярное выражение для дополнительной проверки.</div>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="lookup_source">Источник данных</label>
+            <input id="lookup_source" name="lookup_source" class="form-control" value="{{ field.lookup_source if field and field.lookup_source else '' }}">
+            <div class="form-text">URL или ключ для автодополнения/поиска справочника.</div>
+        </div>
+        <div class="col-12">
+            <label class="form-label" for="options">Опции</label>
+            <textarea id="options" name="options" class="form-control" rows="3">{{ field.options if field and field.options else '' }}</textarea>
+            <div class="form-text">Каждая опция на новой строке. Используется для select, radio и autocomplete.</div>
+        </div>
+        <div class="col-12">
+            <label class="form-label" for="help_text">Справочный текст</label>
+            <textarea id="help_text" name="help_text" class="form-control" rows="2">{{ field.help_text if field else '' }}</textarea>
+        </div>
+        <div class="col-md-6 form-check">
+            <input class="form-check-input" type="checkbox" id="is_required" name="is_required" {% if field and field.is_required %}checked{% endif %}>
+            <label class="form-check-label" for="is_required">Обязательное поле</label>
+        </div>
+        <div class="col-md-6 form-check">
+            <input class="form-check-input" type="checkbox" id="is_visible" name="is_visible" {% if field is none or field.is_visible %}checked{% endif %}>
+            <label class="form-check-label" for="is_visible">Видимое в форме</label>
+        </div>
+        <div class="col-12 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <a href="{{ url_for('mdm.schema_fields', entity_key=model.key) }}" class="btn btn-outline-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

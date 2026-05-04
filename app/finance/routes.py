@@ -53,6 +53,7 @@ from app.models import (
     Supplier,
     db,
 )
+from app.schema_utils import extract_typed_fields_from_form, get_visible_fields
 
 
 DEFAULT_SEAL_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQAM2ekfbi4aBiiUKUq6NJLKjJAorMhwJiTqQ&s"
@@ -1300,21 +1301,31 @@ def profitability_report_print():
 @finance_required
 def indirect_expenses():
     period = request.args.get("period", datetime.now().strftime("%Y-%m"))
+    fields = get_visible_fields("indirect_expenses")
     if request.method == "POST":
-        category = request.form.get("category", "").strip()
-        amount = float(request.form.get("amount", 0) or 0)
-        description = request.form.get("description", "").strip()
+        values = extract_typed_fields_from_form("indirect_expenses", request.form)
+        values["period"] = period
+        category = values.get("category") or ""
+        amount = values.get("amount") or 0
         if not category or amount <= 0:
             flash("Категория и сумма обязательны.", "warning")
             return redirect(url_for("finance.indirect_expenses", period=period))
-        exp = IndirectExpense(period=period, category=category, amount=amount, description=description)
+
+        exp = IndirectExpense(**values)
         db.session.add(exp)
         db.session.commit()
         flash("Косвенная статья добавлена.", "success")
         return redirect(url_for("finance.indirect_expenses", period=period))
 
     items = IndirectExpense.query.filter_by(period=period).order_by(IndirectExpense.category.asc()).all()
-    return render_template("finance/indirect_expenses.html", period=period, items=items)
+    return render_template(
+        "finance/indirect_expenses.html",
+        period=period,
+        items=items,
+        fields=fields,
+        form_action=url_for("finance.indirect_expenses", period=period),
+        entity={},
+    )
 
 
 @finance_bp.route("/indirect-expenses/<int:expense_id>/delete", methods=["POST"])
@@ -1335,33 +1346,33 @@ def delete_indirect_expense(expense_id):
 def cash_calendar():
     period = request.args.get("period", datetime.now().strftime("%Y-%m"))
     start_date, end_date = get_period_bounds(period)
+    fields = get_visible_fields("cash_calendar_items")
 
     if request.method == "POST":
-        date_str = request.form.get("date")
-        amount = float(request.form.get("amount", 0) or 0)
-        direction = request.form.get("direction")
-        cash_type = request.form.get("cash_type")
-        counterparty_id = request.form.get("counterparty_id") or None
-        supplier_id = request.form.get("supplier_id") or None
-        probability = float(request.form.get("probability", 1.0) or 1.0)
-        comment = request.form.get("comment", "").strip()
+        values = extract_typed_fields_from_form("cash_calendar_items", request.form)
+        date_value = values.get("date")
+        amount = values.get("amount") or 0
+        direction = values.get("direction")
+        cash_type = values.get("cash_type")
 
-        try:
-            date = datetime.strptime(date_str, "%Y-%m-%d")
-        except (ValueError, TypeError):
+        if not date_value or not isinstance(date_value, datetime):
             flash("Неправильная дата", "warning")
             return redirect(url_for("finance.cash_calendar", period=period))
 
+        if amount <= 0 or not direction or not cash_type:
+            flash("Дата, сумма, направление и тип платежа обязательны.", "warning")
+            return redirect(url_for("finance.cash_calendar", period=period))
+
         item = CashCalendarItem(
-            date=date,
+            date=date_value,
             amount=amount,
             direction=direction,
             cash_type=cash_type,
-            counterparty_id=counterparty_id,
-            supplier_id=supplier_id,
+            counterparty_id=values.get("counterparty_id") or None,
+            supplier_id=values.get("supplier_id") or None,
             status="planned",
-            probability=probability,
-            comment=comment,
+            probability=values.get("probability") or 1.0,
+            comment=values.get("comment"),
         )
         db.session.add(item)
         db.session.commit()
@@ -1369,7 +1380,14 @@ def cash_calendar():
         return redirect(url_for("finance.cash_calendar", period=period))
 
     items = CashCalendarItem.query.filter(CashCalendarItem.date >= start_date, CashCalendarItem.date < end_date).order_by(CashCalendarItem.date).all()
-    return render_template("finance/cash_calendar.html", period=period, items=items)
+    return render_template(
+        "finance/cash_calendar.html",
+        period=period,
+        items=items,
+        fields=fields,
+        form_action=url_for("finance.cash_calendar", period=period),
+        entity={},
+    )
 
 
 @finance_bp.route("/cash-calendar/<int:item_id>/delete", methods=["POST"])

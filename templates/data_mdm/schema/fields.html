@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Поля схемы данных | КИС "МебельГрад"{% endblock %}
+
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">Управление данными / Схема данных</div>
+            <h1 class="h3 mb-2">Поля модели «{{ model.label }}»</h1>
+            <p class="mb-0">Здесь задаются технические имена, типы данных и правила обязательности для полей справочника.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('mdm.schema_index') }}" class="btn btn-outline-dark">Все модели</a>
+            {% if current_user.can_edit_mdm %}
+                <a href="{{ url_for('mdm.create_schema_field', entity_key=model.key) }}" class="btn btn-primary">Добавить поле</a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<div class="surface p-4 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Порядок</th>
+                    <th>Название</th>
+                    <th>Техническое имя</th>
+                    <th>Тип данных</th>
+                    <th>Вид элемента</th>
+                    <th>Группа</th>
+                    <th>Обязательное</th>
+                    <th>Видимое</th>
+                    <th>Только чтение</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for field in fields %}
+                    <tr>
+                        <td>{{ field.order }}</td>
+                        <td>
+                            <strong>{{ field.label }}</strong>
+                            {% if field.help_text %}
+                                <div class="small text-secondary">{{ field.help_text }}</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ field.name }}</td>
+                        <td>{{ field.data_type }}</td>
+                        <td>{{ field.field_type or field.data_type }}</td>
+                        <td>{{ field.group or '-' }}</td>
+                        <td>
+                            {% if field.is_required %}
+                                <span class="badge bg-danger">Да</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Нет</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if field.is_visible %}
+                                <span class="badge bg-success">Да</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Нет</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if field.readonly %}
+                                <span class="badge bg-info">Да</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Нет</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{{ url_for('mdm.edit_schema_field', entity_key=model.key, field_id=field.id) }}" class="btn btn-sm btn-outline-primary">Изменить</a>
+                            {% if current_user.can_edit_mdm %}
+                                <form method="post" action="{{ url_for('mdm.delete_schema_field', entity_key=model.key, field_id=field.id) }}" style="display: inline;" onsubmit="return confirm('Удалить поле схемы данных?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-secondary">Поля не заданы.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

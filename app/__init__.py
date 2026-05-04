@@ -43,6 +43,8 @@ from app.models import (
     User,
     RolePermission,
     BalanceSnapshot,
+    DataModel,
+    DataModelField,
     db,
 )
 from config import config
@@ -80,11 +82,13 @@ def create_app(config_name="development"):
 
     register_blueprints(app)
     register_routes(app)
+    app.jinja_env.globals["get_entity_value"] = get_entity_value
 
     with app.app_context():
         db.create_all()
         try:
             sync_user_schema()
+            sync_data_model_fields_schema()
             sync_sales_schema()
             seed_database()
         except OperationalError as exc:
@@ -95,6 +99,7 @@ def create_app(config_name="development"):
             db.drop_all()
             db.create_all()
             sync_user_schema()
+            sync_data_model_fields_schema()
             sync_sales_schema()
             seed_database()
 
@@ -152,6 +157,29 @@ def sync_products_schema():
             db.session.commit()
 
 
+def sync_data_model_fields_schema():
+    """Проверяем и создаем новые метаданные полей схемы для старых БД."""
+    existing_columns = [
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info('data_model_fields');")).fetchall()
+    ]
+    required_columns = {
+        'field_type': "VARCHAR(50) DEFAULT 'string'",
+        'options': 'TEXT',
+        'lookup_source': 'VARCHAR(255)',
+        'default_value': 'VARCHAR(255)',
+        'validation_regex': 'VARCHAR(255)',
+        'placeholder': 'VARCHAR(255)',
+        'group': 'VARCHAR(100)',
+        'readonly': 'BOOLEAN DEFAULT 0',
+    }
+
+    for column, definition in required_columns.items():
+        if column not in existing_columns:
+            db.session.execute(text(f"ALTER TABLE data_model_fields ADD COLUMN {column} {definition}"))
+            db.session.commit()
+
+
 def sync_sales_schema():
     """Apply additive schema updates for sales workflow tables."""
     customer_columns = _get_existing_columns('customers')
@@ -186,6 +214,15 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
+def get_entity_value(entity, field_name):
+    if entity is None:
+        return ""
+    getter = getattr(entity, "get", None)
+    if callable(getter):
+        return getter(field_name, "") or ""
+    return getattr(entity, field_name, "") or ""
+
+
 def register_blueprints(app):
     from app.auth import auth_bp
     from app.data_mdm import mdm_bp
@@ -211,6 +248,7 @@ def register_routes(app):
         return {
             "current_year": datetime.now().year,
             "company_profile": company_profile,
+            "get_entity_value": get_entity_value,
         }
 
     @app.route("/")
@@ -218,6 +256,14 @@ def register_routes(app):
         products = Product.query.all()
         customers = Customer.query.all()
         employees = Employee.query.all()
+        
+        # Sales data for the main page
+        total_orders = SalesOrder.query.count()
+        unpaid_orders = SalesOrder.query.filter(SalesOrder.status.in_(["pending", "unpaid"])).count()
+        assembled_orders = SalesOrder.query.filter_by(status="assembled").count()
+        in_transit_orders = SalesOrder.query.filter_by(status="in_transit").count()
+        recent_sales_orders = SalesOrder.query.order_by(SalesOrder.created_at.desc()).limit(5).all()
+        
         return render_template(
             "index.html",
             current_user=current_user,
@@ -237,6 +283,11 @@ def register_routes(app):
             unpaid_purchase_orders=PurchaseOrder.query.filter_by(is_paid=False).count(),
             sales_orders_count=SalesOrder.query.count(),
             budget_items_count=BudgetItem.query.count(),
+            total_sales_orders=total_orders,
+            unpaid_sales_orders=unpaid_orders,
+            assembled_sales_orders=assembled_orders,
+            in_transit_sales_orders=in_transit_orders,
+            recent_sales_orders=recent_sales_orders,
         )
 
     @app.errorhandler(403)
@@ -391,6 +442,154 @@ def seed_database():
         can_view_sales=True,
         can_edit_sales=True,
     )
+
+    def ensure_data_model(key, label, description=""):
+        model = DataModel.query.filter_by(key=key).first()
+        if model is None:
+            model = DataModel(key=key, label=label, description=description)
+            db.session.add(model)
+            db.session.flush()
+        else:
+            model.label = label
+            model.description = description
+        return model
+
+    def ensure_data_field(
+        model,
+        name,
+        label,
+        data_type="string",
+        field_type=None,
+        max_length=None,
+        options=None,
+        lookup_source=None,
+        default_value=None,
+        validation_regex=None,
+        placeholder=None,
+        group=None,
+        readonly=False,
+        required=False,
+        visible=True,
+        order=0,
+        help_text=None,
+    ):
+        field = DataModelField.query.filter_by(model_id=model.id, name=name).first()
+        if field is None:
+            field = DataModelField(
+                model=model,
+                name=name,
+                label=label,
+                data_type=data_type,
+                field_type=field_type or data_type,
+                max_length=max_length,
+                options=options,
+                lookup_source=lookup_source,
+                default_value=default_value,
+                validation_regex=validation_regex,
+                placeholder=placeholder,
+                group=group,
+                readonly=readonly,
+                is_required=required,
+                is_visible=visible,
+                order=order,
+                help_text=help_text,
+            )
+            db.session.add(field)
+        else:
+            field.label = label
+            field.data_type = data_type
+            field.field_type = field_type or data_type
+            field.max_length = max_length
+            field.options = options
+            field.lookup_source = lookup_source
+            field.default_value = default_value
+            field.validation_regex = validation_regex
+            field.placeholder = placeholder
+            field.group = group
+            field.readonly = readonly
+            field.is_required = required
+            field.is_visible = visible
+            field.order = order
+            field.help_text = help_text
+        return field
+
+    product_schema = ensure_data_model(
+        "products",
+        "Номенклатура",
+        "Карточка товара: SKU, наименование, единица, цена и атрибуты для покрытия складских данных.",
+    )
+    ensure_data_field(product_schema, "sku", "Артикул", "string", max_length=50, required=True, order=10)
+    ensure_data_field(product_schema, "name", "Наименование", "string", max_length=255, required=True, order=20)
+    ensure_data_field(product_schema, "unit", "Единица измерения", "string", max_length=20, required=True, order=30)
+    ensure_data_field(product_schema, "retail_price", "Розничная цена", "float", required=True, order=40)
+    ensure_data_field(product_schema, "certificate_link", "Ссылка на сертификат", "string", max_length=500, order=50)
+    ensure_data_field(product_schema, "is_active", "Активность", "boolean", order=60)
+
+    customer_schema = ensure_data_model(
+        "customers",
+        "Клиенты",
+        "Структура карточки клиента: контакты, тип, адрес и дополнительные реквизиты.",
+    )
+    ensure_data_field(customer_schema, "name", "ФИО / наименование", "string", max_length=255, required=True, order=10)
+    ensure_data_field(customer_schema, "phone", "Телефон", "string", max_length=20, order=20)
+    ensure_data_field(customer_schema, "email", "Email", "string", max_length=120, order=30)
+    ensure_data_field(customer_schema, "type", "Тип клиента", "string", max_length=50, order=40)
+    ensure_data_field(customer_schema, "birth_date", "Дата рождения", "date", order=50)
+    ensure_data_field(customer_schema, "registration_address", "Адрес регистрации", "string", max_length=255, order=60)
+    ensure_data_field(customer_schema, "passport_series_number", "Паспорт", "string", max_length=20, order=70)
+    ensure_data_field(customer_schema, "passport_issued_by", "Кем выдан паспорт", "string", max_length=255, order=80)
+    ensure_data_field(customer_schema, "passport_issue_date", "Дата выдачи паспорта", "date", order=90)
+    ensure_data_field(customer_schema, "snils", "СНИЛС", "string", max_length=20, order=100)
+    ensure_data_field(customer_schema, "customer_inn", "ИНН", "string", max_length=12, order=110)
+    ensure_data_field(customer_schema, "notes", "Примечания", "text", order=120)
+    ensure_data_field(customer_schema, "is_active", "Активность", "boolean", order=130)
+
+    supplier_schema = ensure_data_model(
+        "suppliers",
+        "Поставщики",
+        "Профайл поставщика: ИНН, контакты и признаки актуальности.",
+    )
+    ensure_data_field(supplier_schema, "name", "Наименование", "string", max_length=255, required=True, order=10)
+    ensure_data_field(supplier_schema, "phone", "Телефон", "string", max_length=20, order=20)
+    ensure_data_field(supplier_schema, "email", "Email", "string", max_length=120, order=30)
+    ensure_data_field(supplier_schema, "inn", "ИНН", "string", max_length=12, required=True, order=40)
+    ensure_data_field(supplier_schema, "is_active", "Активность", "boolean", order=50)
+
+    employee_schema = ensure_data_model(
+        "employees",
+        "Сотрудники",
+        "Кадровая карточка: ФИО, должность, контакты и статус активности.",
+    )
+    ensure_data_field(employee_schema, "name", "ФИО", "string", max_length=255, required=True, order=10)
+    ensure_data_field(employee_schema, "position", "Должность", "string", max_length=100, order=20)
+    ensure_data_field(employee_schema, "phone", "Телефон", "string", max_length=20, order=30)
+    ensure_data_field(employee_schema, "email", "Email", "string", max_length=120, order=40)
+    ensure_data_field(employee_schema, "is_active", "Активность", "boolean", order=50)
+
+    cash_calendar_schema = ensure_data_model(
+        "cash_calendar_items",
+        "Платежный календарь",
+        "Схема платежного календаря для учета планируемых поступлений и выплат.",
+    )
+    ensure_data_field(cash_calendar_schema, "date", "Дата", "date", required=True, order=10, help_text="Дата планируемого платежа.")
+    ensure_data_field(cash_calendar_schema, "amount", "Сумма", "float", required=True, order=20, help_text="Сумма платежа в рублях.")
+    ensure_data_field(cash_calendar_schema, "direction", "Направление", "string", required=True, order=30, help_text="incoming или outgoing.")
+    ensure_data_field(cash_calendar_schema, "cash_type", "Тип платежа", "string", required=True, order=40, help_text="operational, investment или financial.")
+    ensure_data_field(cash_calendar_schema, "probability", "Вероятность", "float", required=True, order=50, help_text="Шанс выполнения платежа (0.0–1.0).")
+    ensure_data_field(cash_calendar_schema, "comment", "Комментарий", "string", max_length=255, order=60)
+    ensure_data_field(cash_calendar_schema, "counterparty_id", "Контрагент", "string", visible=False, order=70, help_text="ID клиента для входящего платежа.")
+    ensure_data_field(cash_calendar_schema, "supplier_id", "Поставщик", "string", visible=False, order=80, help_text="ID поставщика для исходящего платежа.")
+    ensure_data_field(cash_calendar_schema, "status", "Статус", "string", visible=False, order=90, help_text="Статус платежного пункта.")
+
+    indirect_expense_schema = ensure_data_model(
+        "indirect_expenses",
+        "Косвенные расходы",
+        "Схема косвенных расходов для план-факт анализа.",
+    )
+    ensure_data_field(indirect_expense_schema, "category", "Категория", "string", max_length=100, required=True, order=10)
+    ensure_data_field(indirect_expense_schema, "amount", "Сумма", "float", required=True, order=20)
+    ensure_data_field(indirect_expense_schema, "description", "Описание", "string", max_length=255, order=30)
+    ensure_data_field(indirect_expense_schema, "period", "Период", "string", max_length=20, visible=False, order=40, help_text="Период выбирается в фильтре.")
 
     customers_data = [
         {"name": "ООО СтройКорп", "phone": "+7 (800) 123-45-67", "email": "info@stroycorp.ru", "type": "legal_entity"},

@@ -12,7 +12,7 @@
         </div>
         {% set can_edit = current_user.can_edit_mdm %}
         {% if can_edit %}
-            <a href="{{ url_for('mdm.create_employee') }}" class="btn btn-primary">Добавить сотрудника</a>
+            <a href="{{ url_for('mdm.schema_fields', entity_key='employees') }}" class="btn btn-primary">Открыть схему данных</a>
         {% else %}
             <span class="badge bg-secondary">Только просмотр</span>
         {% endif %}
@@ -63,14 +63,7 @@
                         <td><span class="badge {% if employee.is_active %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ "Активен" if employee.is_active else "Неактивен" }}</span></td>
                         <td class="text-end">
                             <div class="d-flex gap-2 justify-content-end">
-                                {% if can_edit %}
-                                    <a href="{{ url_for('mdm.edit_employee', employee_id=employee.id) }}" class="btn btn-sm btn-outline-dark">Изменить</a>
-                                    <form method="post" action="{{ url_for('mdm.delete_employee', employee_id=employee.id) }}" onsubmit="return confirm('Удалить сотрудника из справочника?');">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                                    </form>
-                                {% else %}
-                                    <span class="text-secondary small">Только просмотр</span>
-                                {% endif %}
+                                <a href="{{ url_for('mdm.schema_fields', entity_key='employees') }}" class="btn btn-sm btn-outline-dark">Схема данных</a>
                             </div>
                         </td>
                     </tr>
