@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}{{ ic.count_number }} — заполнение | Склад{% endblock %}
+{% block extra_css %}
+<style>
+.discrepancy-negative { color: #dc3545 !important; font-weight: 600; }
+.discrepancy-positive { color: #198754 !important; font-weight: 600; }
+</style>
+{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">
+                <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад</a> /
+                <a href="{{ url_for('warehouse_demo.inventory') }}" class="text-secondary text-decoration-none">Инвентаризация</a> /
+                {{ ic.count_number }}
+            </div>
+            <h1 class="h3 mb-0">{{ ic.count_number }} — ввод фактических остатков</h1>
+        </div>
+        <div class="d-flex gap-2">
+            <button form="inventoryForm" class="btn btn-outline-dark">💾 Сохранить</button>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#completeModal">✅ Завершить</button>
+        </div>
+    </div>
+</section>
+
+<div class="surface p-3 mb-3">
+    <div class="row g-3 align-items-center">
+        <div class="col-md-4">
+            <input type="text" id="filterName" class="form-control form-control-sm" placeholder="Фильтр по наименованию или артикулу...">
+        </div>
+        <div class="col-md-3">
+            <select id="filterDisc" class="form-select form-select-sm">
+                <option value="">Все позиции</option>
+                <option value="diff">С расхождениями</option>
+                <option value="zero">Нулевые остатки</option>
+            </select>
+        </div>
+        <div class="col-md-5 text-secondary small">
+            Дата: {{ ic.count_date.strftime('%d.%m.%Y') }} |
+            Позиций: {{ ic.items|length }} |
+            Комментарий: {{ ic.comment or '—' }}
+        </div>
+    </div>
+</div>
+
+<form method="post" id="inventoryForm">
+<div class="surface p-0">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0" id="invTable">
+            <thead class="table-light sticky-top">
+                <tr>
+                    <th>Артикул</th>
+                    <th>Наименование</th>
+                    <th class="text-center">По системе</th>
+                    <th class="text-center" style="width:150px;">Факт (введите)</th>
+                    <th class="text-center">Расхождение</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in ic.items %}
+            <tr class="inv-row"
+                data-name="{{ item.product.name|lower if item.product else '' }}"
+                data-sku="{{ item.product.sku|lower if item.product else '' }}"
+                data-disc="{{ item.discrepancy }}">
+                <td class="text-secondary small align-middle">{{ item.product.sku if item.product else '—' }}</td>
+                <td class="align-middle">{{ item.product.name if item.product else '—' }}</td>
+                <td class="text-center align-middle">{{ item.qty_system }}</td>
+                <td class="text-center">
+                    <input type="number" name="qty_actual_{{ item.id }}"
+                           class="form-control form-control-sm text-center actual-input"
+                           min="0" value="{{ item.qty_actual }}"
+                           data-system="{{ item.qty_system }}"
+                           oninput="updateDisc(this)">
+                </td>
+                <td class="text-center align-middle disc-cell">
+                    {% set d = item.discrepancy %}
+                    {% if d < 0 %}
+                    <span class="discrepancy-negative">{{ d }}</span>
+                    {% elif d > 0 %}
+                    <span class="discrepancy-positive">+{{ d }}</span>
+                    {% else %}
+                    <span class="text-secondary">0</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+</form>
+
+<div class="modal fade" id="completeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('warehouse_demo.inventory_complete', count_id=ic.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Завершить инвентаризацию {{ ic.count_number }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-check mb-3">
+                        <input type="checkbox" name="apply_adjustments" id="applyAdj" class="form-check-input" value="on" checked>
+                        <label for="applyAdj" class="form-check-label">
+                            <strong>Применить корректировки остатков</strong>
+                            <div class="small text-secondary">Фактические остатки заменят учётные данные на складе.</div>
+                        </label>
+                    </div>
+                    <div class="alert alert-warning mb-0">
+                        Убедитесь, что все фактические остатки введены и сохранены перед завершением.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success">Завершить инвентаризацию</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function updateDisc(input) {
+    const row = input.closest('tr');
+    const system = parseInt(input.dataset.system) || 0;
+    const actual = parseInt(input.value) || 0;
+    const diff = actual - system;
+    const cell = row.querySelector('.disc-cell');
+    if (diff < 0) cell.innerHTML = `<span class="discrepancy-negative">${diff}</span>`;
+    else if (diff > 0) cell.innerHTML = `<span class="discrepancy-positive">+${diff}</span>`;
+    else cell.innerHTML = `<span class="text-secondary">0</span>`;
+    row.dataset.disc = diff;
+}
+
+document.getElementById('filterName').addEventListener('input', filterTable);
+document.getElementById('filterDisc').addEventListener('change', filterTable);
+
+function filterTable() {
+    const q = document.getElementById('filterName').value.toLowerCase().trim();
+    const disc = document.getElementById('filterDisc').value;
+    document.querySelectorAll('.inv-row').forEach(row => {
+        const matchName = !q || row.dataset.name.includes(q) || row.dataset.sku.includes(q);
+        const d = parseInt(row.dataset.disc) || 0;
+        const matchDisc = disc === '' ||
+            (disc === 'diff' && d !== 0) ||
+            (disc === 'zero' && parseInt(row.querySelector('.actual-input').value) === 0);
+        row.style.display = matchName && matchDisc ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

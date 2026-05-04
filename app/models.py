@@ -753,6 +753,145 @@ class AuditLog(db.Model):
         return f'<AuditLog {self.entity} {self.action}>'
 
 
+class PurchaseRequest(db.Model):
+    """Заявка на закупку (до превращения в PurchaseOrder)."""
+    __tablename__ = 'purchase_requests'
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_number = db.Column(db.String(50), unique=True, nullable=False)
+    supplier_id = db.Column(db.Integer, db.ForeignKey('suppliers.id'), nullable=True)
+    request_date = db.Column(db.DateTime, default=datetime.utcnow)
+    needed_by_date = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(50), default='draft')  # draft/submitted/approved/rejected/ordered
+    priority = db.Column(db.String(20), default='normal')  # low/normal/high/urgent
+    comment = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    approved_at = db.Column(db.DateTime)
+    purchase_order_id = db.Column(db.Integer, db.ForeignKey('purchase_orders.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    items = db.relationship('PurchaseRequestItem', backref='request', lazy=True, cascade='all, delete-orphan')
+    supplier = db.relationship('Supplier', backref='purchase_requests')
+    creator = db.relationship('User', foreign_keys=[created_by], backref='created_purchase_requests')
+    approver = db.relationship('User', foreign_keys=[approved_by], backref='approved_purchase_requests')
+    purchase_order = db.relationship('PurchaseOrder', backref='purchase_request', uselist=False)
+
+    @property
+    def total_estimated(self):
+        return sum((i.estimated_cost or 0) * i.quantity for i in self.items)
+
+    def __repr__(self):
+        return f'<PurchaseRequest {self.request_number}: {self.status}>'
+
+
+class PurchaseRequestItem(db.Model):
+    """Позиция заявки на закупку."""
+    __tablename__ = 'purchase_request_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('purchase_requests.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    estimated_cost = db.Column(db.Float, default=0.0)
+    comment = db.Column(db.String(255))
+
+    product = db.relationship('Product', backref='purchase_request_items')
+
+    def __repr__(self):
+        return f'<PurchaseRequestItem req={self.request_id} prod={self.product_id} qty={self.quantity}>'
+
+
+class GoodsReceipt(db.Model):
+    """Приёмка товара от поставщика."""
+    __tablename__ = 'goods_receipts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    receipt_number = db.Column(db.String(50), unique=True, nullable=False)
+    purchase_order_id = db.Column(db.Integer, db.ForeignKey('purchase_orders.id'), nullable=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey('suppliers.id'), nullable=False)
+    receipt_date = db.Column(db.DateTime, default=datetime.utcnow)
+    doc_number = db.Column(db.String(50))
+    status = db.Column(db.String(20), default='draft')  # draft/verified/posted
+    comment = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    posted_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    items = db.relationship('GoodsReceiptItem', backref='receipt', lazy=True, cascade='all, delete-orphan')
+    supplier = db.relationship('Supplier', backref='goods_receipts')
+    purchase_order = db.relationship('PurchaseOrder', backref='goods_receipts')
+    creator = db.relationship('User', foreign_keys=[created_by], backref='created_goods_receipts')
+
+    @property
+    def total_amount(self):
+        return sum((i.unit_cost or 0) * i.quantity_received for i in self.items)
+
+    def __repr__(self):
+        return f'<GoodsReceipt {self.receipt_number}: {self.status}>'
+
+
+class GoodsReceiptItem(db.Model):
+    """Позиция приёмки товара."""
+    __tablename__ = 'goods_receipt_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    receipt_id = db.Column(db.Integer, db.ForeignKey('goods_receipts.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    quantity_expected = db.Column(db.Integer, default=0)
+    quantity_received = db.Column(db.Integer, nullable=False, default=0)
+    unit_cost = db.Column(db.Float, default=0.0)
+
+    product = db.relationship('Product', backref='goods_receipt_items')
+
+    @property
+    def discrepancy(self):
+        return self.quantity_received - self.quantity_expected
+
+    def __repr__(self):
+        return f'<GoodsReceiptItem receipt={self.receipt_id} prod={self.product_id}>'
+
+
+class InventoryCount(db.Model):
+    """Инвентаризация складских запасов."""
+    __tablename__ = 'inventory_counts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    count_number = db.Column(db.String(50), unique=True, nullable=False)
+    count_date = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='draft')  # draft/in_progress/completed
+    comment = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    completed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    items = db.relationship('InventoryCountItem', backref='count', lazy=True, cascade='all, delete-orphan')
+    creator = db.relationship('User', foreign_keys=[created_by], backref='created_inventory_counts')
+
+    def __repr__(self):
+        return f'<InventoryCount {self.count_number}: {self.status}>'
+
+
+class InventoryCountItem(db.Model):
+    """Позиция инвентаризации."""
+    __tablename__ = 'inventory_count_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    count_id = db.Column(db.Integer, db.ForeignKey('inventory_counts.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    qty_system = db.Column(db.Integer, default=0)
+    qty_actual = db.Column(db.Integer, default=0)
+
+    product = db.relationship('Product', backref='inventory_count_items')
+
+    @property
+    def discrepancy(self):
+        return self.qty_actual - self.qty_system
+
+    def __repr__(self):
+        return f'<InventoryCountItem count={self.count_id} prod={self.product_id}>'
+
+
 def _normalize_phone_value(value):
     if not value:
         return None
