@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}{{ pk.picking_number }} | Комплектовка{% endblock %}
+{% block extra_css %}
+<style>
+.timeline { position:relative; padding-left:2rem; }
+.timeline::before { content:''; position:absolute; left:.65rem; top:0; bottom:0; width:2px; background:#dee2e6; }
+.tl-step { position:relative; margin-bottom:1.25rem; }
+.tl-dot { position:absolute; left:-1.45rem; top:.25rem; width:1rem; height:1rem; border-radius:50%;
+           background:#dee2e6; border:2px solid #fff; box-shadow:0 0 0 2px #dee2e6; }
+.tl-dot.done { background:var(--mg-accent); box-shadow:0 0 0 2px var(--mg-accent); }
+.tl-dot.active { background:#ffc107; box-shadow:0 0 0 2px #ffc107; }
+.tl-label { font-weight:600; font-size:.9rem; }
+.tl-meta { font-size:.8rem; color:var(--bs-secondary); }
+.stock-ok { color:#198754; }
+.stock-low { color:#dc3545; font-weight:600; }
+</style>
+{% endblock %}
+{% block content %}
+{% set so = pk.sales_order %}
+{% set customer = so.customer if so else none %}
+
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">
+                <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад</a> /
+                <a href="{{ url_for('warehouse_demo.picking_list') }}" class="text-secondary text-decoration-none">Комплектовка</a> /
+                {{ pk.picking_number }}
+            </div>
+            <h1 class="h3 mb-1">{{ pk.picking_number }}</h1>
+            <span class="badge {{ status_badge.get(pk.status, 'bg-secondary') }} fs-6">
+                {{ status_labels.get(pk.status, pk.status) }}
+            </span>
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-start">
+            <a href="{{ url_for('warehouse_demo.picking_export_docx', pk_id=pk.id) }}"
+               class="btn btn-outline-secondary">📄 Скачать Word</a>
+        </div>
+    </div>
+</section>
+
+<div class="row g-4">
+<div class="col-lg-8">
+
+    <!-- Items -->
+    <div class="surface p-4 mb-4">
+        <h2 class="h5 mb-3">Состав заказа</h2>
+        {% if so and so.items %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Артикул</th><th>Товар</th><th class="text-center">Ед.</th>
+                        <th class="text-center">Кол-во</th><th class="text-center">На складе</th>
+                        <th class="text-center">Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for item in so.items %}
+                {% set stock = item.product.qty_on_hand if item.product else 0 %}
+                {% set ok = stock >= item.quantity %}
+                <tr>
+                    <td class="text-secondary small">{{ item.product.sku if item.product else '—' }}</td>
+                    <td>{{ item.product.name if item.product else '—' }}</td>
+                    <td class="text-center text-secondary">{{ item.product.unit if item.product else '—' }}</td>
+                    <td class="text-center fw-semibold">{{ item.quantity }}</td>
+                    <td class="text-center {{ 'stock-ok' if ok else 'stock-low' }}">{{ stock }}</td>
+                    <td class="text-center">
+                        {% if ok %}
+                        <span class="badge bg-success">✓ Достаточно</span>
+                        {% else %}
+                        <span class="badge bg-danger">✗ Нехватка {{ item.quantity - stock }} шт.</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="3" class="fw-bold">Итого</td>
+                        <td class="text-center fw-bold">{{ so.items | sum(attribute='quantity') }}</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-secondary">Позиций нет.</p>
+        {% endif %}
+    </div>
+
+    <!-- Actions -->
+    <div class="surface p-4 mb-4">
+        <h2 class="h5 mb-3">Действия</h2>
+
+        {% if pk.status == 'new' %}
+        <form method="post" action="{{ url_for('warehouse_demo.picking_start', pk_id=pk.id) }}" class="row g-3">
+            <div class="col-md-5">
+                <label class="form-label">Назначить комплектовщика</label>
+                <select name="picker_id" class="form-select">
+                    <option value="">— Я выполняю сам —</option>
+                    {% for u in pickers %}
+                    <option value="{{ u.id }}">{{ u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button class="btn btn-warning w-100">▶ Начать комплектовку</button>
+            </div>
+        </form>
+
+        {% elif pk.status == 'in_progress' %}
+        <div class="d-flex gap-3 flex-wrap">
+            <form method="post" action="{{ url_for('warehouse_demo.picking_assemble', pk_id=pk.id) }}"
+                  onsubmit="return confirm('Отметить сборку завершённой? Остатки будут списаны со склада.')">
+                <button class="btn btn-success">✅ Сборка завершена — списать остатки</button>
+            </form>
+        </div>
+
+        {% elif pk.status == 'assembled' %}
+        <div class="d-flex gap-3 flex-wrap">
+            <form method="post" action="{{ url_for('warehouse_demo.picking_ship', pk_id=pk.id) }}"
+                  onsubmit="return confirm('Подтвердить отгрузку заказа {{ so.order_number if so else "" }}?')">
+                <button class="btn btn-primary">🚚 Подтвердить отгрузку</button>
+            </form>
+        </div>
+
+        {% elif pk.status == 'shipped' %}
+        <div class="alert alert-success mb-0">
+            Заказ отгружен {{ pk.shipped_at.strftime('%d.%m.%Y в %H:%M') if pk.shipped_at else '' }}.
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+<div class="col-lg-4">
+
+    <!-- Customer / order info -->
+    <div class="surface p-4 mb-3">
+        <div class="text-uppercase text-secondary small mb-2">Клиент и заказ</div>
+        <dl class="mb-0">
+            <dt class="small text-secondary">Заказ</dt>
+            <dd class="fw-semibold">{{ so.order_number if so else '—' }}</dd>
+            <dt class="small text-secondary">Клиент</dt>
+            <dd>{{ customer.name if customer else '—' }}</dd>
+            <dt class="small text-secondary">Телефон</dt>
+            <dd>{{ customer.phone if customer else '—' }}</dd>
+            <dt class="small text-secondary">E-mail</dt>
+            <dd>{{ customer.email if customer else '—' }}</dd>
+            <dt class="small text-secondary">Адрес доставки</dt>
+            <dd>{{ so.delivery_address if so and so.delivery_address else '—' }}</dd>
+            <dt class="small text-secondary">Сумма заказа</dt>
+            <dd>{{ '{:,.0f}'.format(so.total_amount or 0) }} ₽</dd>
+        </dl>
+    </div>
+
+    <!-- Picking info -->
+    <div class="surface p-4 mb-3">
+        <div class="text-uppercase text-secondary small mb-2">Задание</div>
+        <dl class="mb-0">
+            <dt class="small text-secondary">Номер</dt>
+            <dd class="fw-semibold">{{ pk.picking_number }}</dd>
+            <dt class="small text-secondary">Комплектовщик</dt>
+            <dd>{{ pk.picker.username if pk.picker else '<em class="text-secondary">не назначен</em>' | safe }}</dd>
+            <dt class="small text-secondary">Создал</dt>
+            <dd>{{ pk.creator.username if pk.creator else '—' }}</dd>
+        </dl>
+    </div>
+
+    <!-- Timeline -->
+    <div class="surface p-4 mb-3">
+        <div class="text-uppercase text-secondary small mb-3">Хронология</div>
+        <div class="timeline">
+            <div class="tl-step">
+                <div class="tl-dot done"></div>
+                <div class="tl-label">Создано</div>
+                <div class="tl-meta">{{ pk.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+            </div>
+            <div class="tl-step">
+                <div class="tl-dot {{ 'done' if pk.started_at else ('active' if pk.status == 'new' else '') }}"></div>
+                <div class="tl-label">Комплектовка начата</div>
+                <div class="tl-meta">
+                    {% if pk.started_at %}{{ pk.started_at.strftime('%d.%m.%Y %H:%M') }}
+                    {% else %}<em>ожидает</em>{% endif %}
+                </div>
+            </div>
+            <div class="tl-step">
+                <div class="tl-dot {{ 'done' if pk.assembled_at else ('active' if pk.status == 'in_progress' else '') }}"></div>
+                <div class="tl-label">Собрано</div>
+                <div class="tl-meta">
+                    {% if pk.assembled_at %}{{ pk.assembled_at.strftime('%d.%m.%Y %H:%M') }}
+                    {% else %}<em>ожидает</em>{% endif %}
+                </div>
+            </div>
+            <div class="tl-step">
+                <div class="tl-dot {{ 'done' if pk.shipped_at else ('active' if pk.status == 'assembled' else '') }}"></div>
+                <div class="tl-label">Отгружено</div>
+                <div class="tl-meta">
+                    {% if pk.shipped_at %}{{ pk.shipped_at.strftime('%d.%m.%Y %H:%M') }}
+                    {% else %}<em>ожидает</em>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</div>
+{% endblock %}

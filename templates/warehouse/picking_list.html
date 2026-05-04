@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Комплектовка заказов | Склад{% endblock %}
+{% block content %}
+<section class="hero-strip">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="text-uppercase text-secondary small">
+                <a href="{{ url_for('warehouse_demo.index') }}" class="text-secondary text-decoration-none">Склад</a> / Комплектовка
+            </div>
+            <h1 class="h3 mb-0">Задания на комплектовку</h1>
+        </div>
+        <a href="{{ url_for('warehouse_demo.assembly') }}" class="btn btn-outline-dark">📋 Заказы без задания →</a>
+    </div>
+</section>
+
+<div class="surface p-3 mb-4">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label small mb-1">Статус</label>
+            <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">Все статусы</option>
+                {% for key, label in status_labels.items() %}
+                <option value="{{ key }}" {% if current_status == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <a href="{{ url_for('warehouse_demo.picking_list') }}" class="btn btn-outline-secondary btn-sm">Сбросить</a>
+        </div>
+    </form>
+</div>
+
+{% if picking_orders %}
+<div class="table-responsive">
+    <table class="table table-sm table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>Номер задания</th>
+                <th>Заказ покупателя</th>
+                <th>Клиент</th>
+                <th>Адрес доставки</th>
+                <th>Комплектовщик</th>
+                <th>Статус</th>
+                <th>Создано</th>
+                <th>Собрано</th>
+                <th>Отгружено</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for pk in picking_orders %}
+        {% set so = pk.sales_order %}
+        <tr>
+            <td><a href="{{ url_for('warehouse_demo.picking_detail', pk_id=pk.id) }}" class="fw-semibold">{{ pk.picking_number }}</a></td>
+            <td>{{ so.order_number if so else '—' }}</td>
+            <td>{{ so.customer.name if so and so.customer else '—' }}</td>
+            <td class="small text-secondary">{{ so.delivery_address or '—' if so else '—' }}</td>
+            <td>{{ pk.picker.username if pk.picker else '<span class="text-secondary">не назначен</span>' | safe }}</td>
+            <td>
+                <span class="badge {{ status_badge.get(pk.status, 'bg-secondary') }}">
+                    {{ status_labels.get(pk.status, pk.status) }}
+                </span>
+            </td>
+            <td class="small text-secondary">{{ pk.created_at.strftime('%d.%m.%y %H:%M') }}</td>
+            <td class="small text-secondary">{{ pk.assembled_at.strftime('%d.%m.%y %H:%M') if pk.assembled_at else '—' }}</td>
+            <td class="small text-secondary">{{ pk.shipped_at.strftime('%d.%m.%y %H:%M') if pk.shipped_at else '—' }}</td>
+            <td>
+                <a href="{{ url_for('warehouse_demo.picking_detail', pk_id=pk.id) }}" class="btn btn-sm btn-outline-dark py-0 px-2">Открыть</a>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="surface p-5 text-center text-secondary">
+    <div class="mb-3" style="font-size:2.5rem;">📦</div>
+    <div>Заданий на комплектовку пока нет.</div>
+    <a href="{{ url_for('warehouse_demo.assembly') }}" class="btn btn-primary mt-3">Перейти к заказам →</a>
+</div>
+{% endif %}
+{% endblock %}
