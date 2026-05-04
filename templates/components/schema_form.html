@@ -1,0 +1,185 @@
+{#
+  Reusable form template for dynamic rendering based on DataModel schema.
+  Usage in other templates:
+    {% include "components/schema_form.html" with context %}
+  Required context variables:
+    - fields: list of DataModelField objects
+    - entity: the entity object or dict for editing/creating
+    - form_action: the submit URL
+#}
+
+<form method="post" action="{{ form_action }}" class="row g-3">
+    {% set current_group = None %}
+    {% for field in fields %}
+        {% set widget_type = field.field_type or field.data_type %}
+        {% set raw_value = get_entity_value(entity, field.name) %}
+        {% set value = raw_value if raw_value != '' else field.default_value %}
+        {% set is_readonly = field.readonly %}
+        {% set pattern_attr = field.validation_regex if field.validation_regex else '' %}
+        {% set placeholder_attr = field.placeholder if field.placeholder else '' %}
+
+        {% if field.group and field.group != current_group %}
+            <div class="col-12">
+                <h2 class="h6 text-uppercase text-secondary mb-2">{{ field.group }}</h2>
+            </div>
+            {% set current_group = field.group %}
+        {% endif %}
+
+        {% if widget_type == 'select' %}
+            <div class="col-md-6">
+                <label class="form-label" for="field_{{ field.name }}">
+                    {{ field.label }}
+                    {% if field.is_required %}<span class="text-danger">*</span>{% endif %}
+                </label>
+                <select
+                    id="field_{{ field.name }}"
+                    name="{{ field.name }}"
+                    class="form-select"
+                    {% if field.is_required %}required{% endif %}
+                    {% if is_readonly %}disabled{% endif %}
+                    {% if placeholder_attr %}aria-label="{{ placeholder_attr }}"{% endif %}
+                    {% if field.lookup_source %}data-lookup-source="{{ field.lookup_source }}"{% endif %}
+                >
+                    <option value="">Выберите...</option>
+                    {% set options = field.options.replace(',','\n').splitlines() if field.options else [] %}
+                    {% for option in options %}
+                        {% set option = option.strip() %}
+                        {% if option %}
+                            <option value="{{ option }}" {% if option == value %}selected{% endif %}>{{ option }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% if is_readonly and value %}
+                    <input type="hidden" name="{{ field.name }}" value="{{ value }}">
+                {% endif %}
+            </div>
+
+        {% elif widget_type == 'radio' %}
+            <div class="col-12">
+                <label class="form-label d-block">{{ field.label }}{% if field.is_required %}<span class="text-danger">*</span>{% endif %}</label>
+                {% set options = field.options.replace(',','\n').splitlines() if field.options else [] %}
+                {% for option in options %}
+                    {% set option = option.strip() %}
+                    {% if option %}
+                        <div class="form-check form-check-inline">
+                            <input
+                                class="form-check-input"
+                                type="radio"
+                                id="field_{{ field.name }}_{{ loop.index }}"
+                                name="{{ field.name }}"
+                                value="{{ option }}"
+                                {% if value == option %}checked{% endif %}
+                                {% if field.is_required %}required{% endif %}
+                                {% if is_readonly %}disabled{% endif %}
+                            >
+                            <label class="form-check-label" for="field_{{ field.name }}_{{ loop.index }}">{{ option }}</label>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% if is_readonly and value %}
+                    <input type="hidden" name="{{ field.name }}" value="{{ value }}">
+                {% endif %}
+            </div>
+
+        {% elif widget_type == 'autocomplete' %}
+            <div class="col-md-6">
+                <label class="form-label" for="field_{{ field.name }}">
+                    {{ field.label }}
+                    {% if field.is_required %}<span class="text-danger">*</span>{% endif %}
+                </label>
+                <input
+                    type="text"
+                    id="field_{{ field.name }}"
+                    name="{{ field.name }}"
+                    class="form-control"
+                    value="{{ value }}"
+                    {% if field.is_required %}required{% endif %}
+                    {% if placeholder_attr %}placeholder="{{ placeholder_attr }}"{% endif %}
+                    {% if pattern_attr %}pattern="{{ pattern_attr }}"{% endif %}
+                    {% if is_readonly %}readonly{% endif %}
+                    {% if field.lookup_source %}data-lookup-source="{{ field.lookup_source }}"{% endif %}
+                    list="autocomplete_{{ field.name }}"
+                >
+                {% if field.options %}
+                    <datalist id="autocomplete_{{ field.name }}">
+                        {% set options = field.options.replace(',','\n').splitlines() %}
+                        {% for option in options %}
+                            {% if option.strip() %}
+                                <option value="{{ option.strip() }}"></option>
+                            {% endif %}
+                        {% endfor %}
+                    </datalist>
+                {% endif %}
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            </div>
+
+        {% elif widget_type == 'textarea' or field.data_type == 'text' %}
+            <div class="col-12">
+                <label class="form-label" for="field_{{ field.name }}">
+                    {{ field.label }}
+                    {% if field.is_required %}<span class="text-danger">*</span>{% endif %}
+                </label>
+                <textarea
+                    id="field_{{ field.name }}"
+                    name="{{ field.name }}"
+                    class="form-control"
+                    rows="4"
+                    {% if field.is_required %}required{% endif %}
+                    {% if field.max_length %}maxlength="{{ field.max_length }}"{% endif %}
+                    {% if placeholder_attr %}placeholder="{{ placeholder_attr }}"{% endif %}
+                    {% if is_readonly %}readonly{% endif %}
+                    {% if pattern_attr %}pattern="{{ pattern_attr }}"{% endif %}
+                >{{ value }}</textarea>
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            </div>
+
+        {% elif widget_type == 'boolean' or field.data_type == 'boolean' %}
+            <div class="col-12 form-check">
+                <input
+                    type="checkbox"
+                    id="field_{{ field.name }}"
+                    name="{{ field.name }}"
+                    class="form-check-input"
+                    value="on"
+                    {% if value in [true, 'true', 'on', '1', 'yes', 1] %}checked{% endif %}
+                    {% if field.is_required %}required{% endif %}
+                    {% if is_readonly %}disabled{% endif %}
+                >
+                <label class="form-check-label" for="field_{{ field.name }}">{{ field.label }}</label>
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% if is_readonly and value in [true, 'true', 'on', '1', 'yes', 1] %}
+                    <input type="hidden" name="{{ field.name }}" value="on">
+                {% endif %}
+            </div>
+
+        {% else %}
+            <div class="col-md-6">
+                <label class="form-label" for="field_{{ field.name }}">
+                    {{ field.label }}
+                    {% if field.is_required %}<span class="text-danger">*</span>{% endif %}
+                </label>
+                <input
+                    type="{{ widget_type if widget_type in ['text','email','url','number','date'] else 'text' }}"
+                    id="field_{{ field.name }}"
+                    name="{{ field.name }}"
+                    class="form-control"
+                    value="{{ value }}"
+                    {% if field.is_required %}required{% endif %}
+                    {% if field.max_length %}maxlength="{{ field.max_length }}"{% endif %}
+                    {% if placeholder_attr %}placeholder="{{ placeholder_attr }}"{% endif %}
+                    {% if pattern_attr %}pattern="{{ pattern_attr }}"{% endif %}
+                    {% if is_readonly %}readonly{% endif %}
+                    {% if field.lookup_source %}data-lookup-source="{{ field.lookup_source }}"{% endif %}
+                >
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    <div class="col-12">
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <a href="#" onclick="history.back()" class="btn btn-outline-secondary">Отмена</a>
+    </div>
+</form>

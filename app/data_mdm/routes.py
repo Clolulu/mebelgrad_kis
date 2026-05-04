@@ -9,7 +9,7 @@ import urllib.request
 
 from docx import Document
 from docx.shared import Inches
-from flask import flash, redirect, render_template, request, send_file, url_for
+from flask import abort, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import and_, func, or_
 
@@ -18,6 +18,8 @@ from app.models import (
     AuditLog,
     CompanyProfile,
     Customer,
+    DataModel,
+    DataModelField,
     DuplicateAttempt,
     Employee,
     Product,
@@ -176,6 +178,23 @@ def _entity_duplicate_exists(model, values, exclude_id=None):
     return query.first() is not None
 
 
+def _validate_schema_field_name(name):
+    return bool(re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', name))
+
+
+def _get_data_model(entity_key):
+    model = DataModel.query.filter_by(key=entity_key).first()
+    if not model:
+        abort(404)
+    return model
+
+
+def _redirect_to_schema(entity_key, message=None):
+    if message:
+        flash(message, "warning")
+    return redirect(url_for("mdm.schema_fields", entity_key=entity_key))
+
+
 def _build_mdm_audit_entries():
     entries = []
 
@@ -288,6 +307,297 @@ def _build_mdm_audit_entries():
 
     entries.sort(key=lambda item: item["timestamp"] or datetime.min, reverse=True)
     return entries
+
+
+@mdm_bp.route("/schema")
+@login_required
+@mdm_readonly_required
+def schema_index():
+    return redirect(url_for("mdm.index"))
+
+
+@mdm_bp.route("/schema/<entity_key>")
+@login_required
+@mdm_readonly_required
+def schema_fields(entity_key):
+    model = _get_data_model(entity_key)
+    fields = model.fields.order_by(DataModelField.order.asc(), DataModelField.label.asc()).all()
+    return render_template("data_mdm/schema/fields.html", model=model, fields=fields)
+
+
+@mdm_bp.route("/schema/<entity_key>/fields/create", methods=["GET", "POST"])
+@login_required
+@mdm_editor_required
+def create_schema_field(entity_key):
+    model = _get_data_model(entity_key)
+    data_types = [
+        ("string", "Строка"),
+        ("text", "Текст"),
+        ("integer", "Целое число"),
+        ("float", "Число"),
+        ("date", "Дата"),
+        ("boolean", "Флаг"),
+    ]
+    field_types = [
+        ("string", "Текстовое поле"),
+        ("textarea", "Текстовая область"),
+        ("integer", "Числовое поле"),
+        ("float", "Числовое поле"),
+        ("date", "Поле даты"),
+        ("boolean", "Чекбокс"),
+        ("select", "Список"),
+        ("radio", "Радио"),
+        ("autocomplete", "Автодополнение"),
+        ("email", "Email"),
+        ("url", "URL"),
+    ]
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        label = request.form.get("label", "").strip()
+        data_type = request.form.get("data_type", "string")
+        field_type = request.form.get("field_type", "string")
+        max_length = request.form.get("max_length", None)
+        options = request.form.get("options", "").strip() or None
+        lookup_source = request.form.get("lookup_source", "").strip() or None
+        default_value = request.form.get("default_value", "").strip() or None
+        validation_regex = request.form.get("validation_regex", "").strip() or None
+        placeholder = request.form.get("placeholder", "").strip() or None
+        group = request.form.get("group", "").strip() or None
+        readonly = request.form.get("readonly") == "on"
+        required = request.form.get("is_required") == "on"
+        visible = request.form.get("is_visible") != "off"
+        order = request.form.get("order", 0)
+        help_text = request.form.get("help_text", "").strip()
+
+        if not name or not label:
+            flash("Имя поля и метка обязательны для заполнения.", "danger")
+            return redirect(url_for("mdm.create_schema_field", entity_key=entity_key))
+        if not _validate_schema_field_name(name):
+            flash(
+                "Техническое имя поля должно начинаться с буквы или нижнего подчеркивания и содержать только латинские буквы, цифры и подчеркивания.",
+                "danger",
+            )
+            return redirect(url_for("mdm.create_schema_field", entity_key=entity_key))
+        if DataModelField.query.filter_by(model_id=model.id, name=name).first():
+            flash("Поле с таким техническим именем уже существует для этой сущности.", "danger")
+            return redirect(url_for("mdm.create_schema_field", entity_key=entity_key))
+        if field_type in ("select", "radio") and not options:
+            flash("Для списка или радио-поля необходимо задать опции.", "danger")
+            return redirect(url_for("mdm.create_schema_field", entity_key=entity_key))
+        try:
+            max_length = int(max_length) if max_length else None
+            order = int(order)
+        except ValueError:
+            flash("Длина и порядок поля должны быть целыми числами.", "danger")
+            return redirect(url_for("mdm.create_schema_field", entity_key=entity_key))
+
+        db.session.add(
+            DataModelField(
+                model=model,
+                name=name,
+                label=label,
+                data_type=data_type,
+                field_type=field_type,
+                max_length=max_length,
+                options=options,
+                lookup_source=lookup_source,
+                default_value=default_value,
+                validation_regex=validation_regex,
+                placeholder=placeholder,
+                group=group,
+                readonly=readonly,
+                is_required=required,
+                is_visible=visible,
+                order=order,
+                help_text=help_text or None,
+            )
+        )
+        db.session.commit()
+        flash("Поле схемы данных создано.", "success")
+        return redirect(url_for("mdm.schema_fields", entity_key=entity_key))
+
+    return render_template(
+        "data_mdm/schema/field_form.html",
+        model=model,
+        data_types=data_types,
+        field_types=field_types,
+        action="create",
+        field=None,
+    )
+
+
+@mdm_bp.route("/schema/<entity_key>/fields/<int:field_id>/edit", methods=["GET", "POST"])
+@login_required
+@mdm_editor_required
+def edit_schema_field(entity_key, field_id):
+    model = _get_data_model(entity_key)
+    field = DataModelField.query.filter_by(model_id=model.id, id=field_id).first_or_404()
+    data_types = [
+        ("string", "Строка"),
+        ("text", "Текст"),
+        ("integer", "Целое число"),
+        ("float", "Число"),
+        ("date", "Дата"),
+        ("boolean", "Флаг"),
+    ]
+    field_types = [
+        ("string", "Текстовое поле"),
+        ("textarea", "Текстовая область"),
+        ("integer", "Числовое поле"),
+        ("float", "Числовое поле"),
+        ("date", "Поле даты"),
+        ("boolean", "Чекбокс"),
+        ("select", "Список"),
+        ("radio", "Радио"),
+        ("autocomplete", "Автодополнение"),
+        ("email", "Email"),
+        ("url", "URL"),
+    ]
+    if request.method == "POST":
+        label = request.form.get("label", "").strip()
+        data_type = request.form.get("data_type", "string")
+        field_type = request.form.get("field_type", "string")
+        max_length = request.form.get("max_length", None)
+        options = request.form.get("options", "").strip() or None
+        lookup_source = request.form.get("lookup_source", "").strip() or None
+        default_value = request.form.get("default_value", "").strip() or None
+        validation_regex = request.form.get("validation_regex", "").strip() or None
+        placeholder = request.form.get("placeholder", "").strip() or None
+        group = request.form.get("group", "").strip() or None
+        readonly = request.form.get("readonly") == "on"
+        required = request.form.get("is_required") == "on"
+        visible = request.form.get("is_visible") != "off"
+        order = request.form.get("order", 0)
+        help_text = request.form.get("help_text", "").strip()
+
+        if not label:
+            flash("Метка поля обязательна.", "danger")
+            return redirect(url_for("mdm.edit_schema_field", entity_key=entity_key, field_id=field_id))
+        if field_type in ("select", "radio") and not options:
+            flash("Для списка или радио-поля необходимо задать опции.", "danger")
+            return redirect(url_for("mdm.edit_schema_field", entity_key=entity_key, field_id=field_id))
+        try:
+            field.max_length = int(max_length) if max_length else None
+            field.order = int(order)
+        except ValueError:
+            flash("Длина и порядок поля должны быть целыми числами.", "danger")
+            return redirect(url_for("mdm.edit_schema_field", entity_key=entity_key, field_id=field_id))
+
+        field.label = label
+        field.data_type = data_type
+        field.field_type = field_type
+        field.options = options
+        field.lookup_source = lookup_source
+        field.default_value = default_value
+        field.validation_regex = validation_regex
+        field.placeholder = placeholder
+        field.group = group
+        field.readonly = readonly
+        field.is_required = required
+        field.is_visible = visible
+        field.help_text = help_text or None
+        db.session.commit()
+
+        flash("Поле схемы данных обновлено.", "success")
+        return redirect(url_for("mdm.schema_fields", entity_key=entity_key))
+
+    return render_template(
+        "data_mdm/schema/field_form.html",
+        model=model,
+        field=field,
+        data_types=data_types,
+        field_types=field_types,
+        action="edit",
+    )
+
+
+@mdm_bp.route("/schema/<entity_key>/fields/<int:field_id>/delete", methods=["POST"])
+@login_required
+@mdm_editor_required
+def delete_schema_field(entity_key, field_id):
+    model = _get_data_model(entity_key)
+    field = DataModelField.query.filter_by(model_id=model.id, id=field_id).first_or_404()
+    db.session.delete(field)
+    db.session.commit()
+    flash("Поле схемы данных удалено.", "info")
+    return redirect(url_for("mdm.schema_fields", entity_key=entity_key))
+
+
+@mdm_bp.route("/api/schema/<entity_key>", methods=["GET"])
+@login_required
+def get_schema_api(entity_key):
+    """
+    API endpoint to retrieve schema definition for an entity.
+    Used by other modules to dynamically generate forms.
+    
+    Returns JSON with field definitions:
+    {
+        "entity_key": "customers",
+        "label": "Клиенты",
+        "fields": [
+            {
+                "name": "name",
+                "label": "ФИО / наименование",
+                "type": "string",
+                "required": true,
+                "max_length": 255,
+                "order": 10
+            },
+            ...
+        ]
+    }
+    """
+    from flask import jsonify
+    
+    model = _get_data_model(entity_key)
+    fields = model.fields.order_by(DataModelField.order.asc()).all()
+    
+    return jsonify({
+        "entity_key": model.key,
+        "label": model.label,
+        "description": model.description,
+        "fields": [
+            {
+                "name": f.name,
+                "label": f.label,
+                "type": f.data_type,
+                "required": f.is_required,
+                "visible": f.is_visible,
+                "max_length": f.max_length,
+                "help_text": f.help_text,
+                "order": f.order,
+            }
+            for f in fields
+        ]
+    })
+
+
+@mdm_bp.route("/api/schema/<entity_key>/visible", methods=["GET"])
+@login_required
+def get_visible_schema_api(entity_key):
+    """
+    API endpoint to retrieve only visible fields for an entity.
+    Used for form rendering in other modules.
+    """
+    from flask import jsonify
+    
+    model = _get_data_model(entity_key)
+    fields = [f for f in model.fields.order_by(DataModelField.order.asc()).all() if f.is_visible]
+    
+    return jsonify({
+        "entity_key": model.key,
+        "fields": [
+            {
+                "name": f.name,
+                "label": f.label,
+                "type": f.data_type,
+                "required": f.is_required,
+                "max_length": f.max_length,
+                "help_text": f.help_text,
+            }
+            for f in fields
+        ]
+    })
 
 
 @mdm_bp.route("/")
@@ -504,93 +814,30 @@ def products_list():
 @login_required
 @mdm_editor_required
 def create_product():
-    if request.method == "POST":
-        sku = request.form.get("sku", "").strip()
-        name = request.form.get("name", "").strip()
-        unit = request.form.get("unit", "шт")
-        retail_price = request.form.get("retail_price", 0)
-
-        if not sku or not name:
-            flash("Артикул и наименование обязательны для заполнения.", "danger")
-            return redirect(url_for("mdm.create_product"))
-
-        if not _validate_sku(sku):
-            flash("Артикул товара должен состоять из букв, цифр, дефисов или точек.", "danger")
-            return redirect(url_for("mdm.create_product"))
-
-        if Product.query.filter(func.lower(Product.sku) == sku.lower()).first():
-            _log_duplicate_attempt(
-                "Product",
-                sku,
-                {"sku": sku, "name": name},
-                ["sku"],
-                "Попытка создания товара с существующим артикулом.",
-            )
-            flash("Товар с таким артикулом уже существует.", "danger")
-            return redirect(url_for("mdm.create_product"))
-
-        try:
-            price = float(retail_price or 0)
-            if price < 0:
-                raise ValueError
-        except ValueError:
-            flash("Цена должна быть числом больше или равна нулю.", "danger")
-            return redirect(url_for("mdm.create_product"))
-
-        product = Product(
-            sku=sku,
-            name=name,
-            unit=unit,
-            retail_price=price,
-            is_active=request.form.get("is_active") == "on",
-        )
-        db.session.add(product)
-        db.session.flush()
-        from app.models import Stock
-
-        db.session.add(Stock(product_id=product.id, qty_on_hand=0, qty_reserved=0))
-        db.session.commit()
-
-        flash("Новая карточка номенклатуры создана.", "success")
-        return redirect(url_for("mdm.products_list"))
-
-    return render_template("data_mdm/products/create.html")
+    return _redirect_to_schema(
+        "products",
+        "Добавление новых товарных карточек в МДМ больше не выполняется. Управляйте структурой полей через схему данных.",
+    )
 
 
 @mdm_bp.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
 @login_required
 @mdm_editor_required
 def edit_product(product_id):
-    product = Product.query.get_or_404(product_id)
-
-    if request.method == "POST":
-        product.name = request.form.get("name", product.name).strip()
-        product.unit = request.form.get("unit", product.unit)
-        try:
-            product.retail_price = float(request.form.get("retail_price", product.retail_price) or 0)
-            if product.retail_price < 0:
-                raise ValueError
-        except ValueError:
-            flash("Цена должна быть числом больше или равна нулю.", "danger")
-            return redirect(url_for("mdm.edit_product", product_id=product_id))
-        product.is_active = request.form.get("is_active") == "on"
-        db.session.commit()
-
-        flash("Карточка товара обновлена.", "success")
-        return redirect(url_for("mdm.products_list"))
-
-    return render_template("data_mdm/products/edit.html", product=product)
+    return _redirect_to_schema(
+        "products",
+        "Редактирование товарных карточек в МДМ больше не выполняется. Управляйте структурой полей через схему данных.",
+    )
 
 
 @mdm_bp.route("/products/<int:product_id>/delete", methods=["POST"])
 @login_required
 @mdm_editor_required
 def delete_product(product_id):
-    product = Product.query.get_or_404(product_id)
-    db.session.delete(product)
-    db.session.commit()
-    flash("Товар удален из мастер-данных.", "info")
-    return redirect(url_for("mdm.products_list"))
+    return _redirect_to_schema(
+        "products",
+        "Удаление товарных карточек в МДМ больше не выполняется. Используйте операционные модули для управления справочными данными.",
+    )
 
 
 @mdm_bp.route("/products/<int:product_id>/certificate", methods=["GET", "POST"])
@@ -648,147 +895,30 @@ def customers_list():
 @login_required
 @mdm_editor_required
 def create_customer():
-    if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        phone = _normalize_phone(request.form.get("phone", "").strip())
-        email = _normalize_email(request.form.get("email", "").strip())
-        customer_type = request.form.get("type", "individual")
-
-        if not name:
-            flash("ФИО или наименование клиента обязательно.", "danger")
-            return redirect(url_for("mdm.create_customer"))
-        if not phone and not email:
-            flash("Укажите телефон или email клиента для уменьшения риска дубликатов.", "danger")
-            return redirect(url_for("mdm.create_customer"))
-        if not _validate_phone(phone) or not _validate_email(email):
-            flash("Проверьте корректность формата телефона и/или email.", "danger")
-            return redirect(url_for("mdm.create_customer"))
-
-        duplicate = Customer.query.filter(
-            or_(Customer.phone == phone, Customer.email == email)
-        ).first()
-        if duplicate:
-            _log_duplicate_attempt(
-                "Customer",
-                name,
-                {"name": name, "phone": phone, "email": email},
-                ["phone", "email"],
-                "Попытка создания клиента, совпадающего по телефону или email.",
-            )
-            flash("Клиент с таким телефоном или email уже существует.", "danger")
-            return redirect(url_for("mdm.create_customer"))
-
-        candidates = _find_potential_duplicates(
-            Customer,
-            {"name": name},
-            {"phone": phone, "email": email},
-        )
-        if candidates:
-            _log_duplicate_attempt(
-                "Customer",
-                name,
-                {"name": name, "phone": phone, "email": email},
-                ["name", "phone", "email"],
-                "Найдены потенциальные дубли клиента по имени и контакту.",
-            )
-            flash(
-                "Найдены похожие записи клиента. Проверьте данные, чтобы избежать дубликатов.",
-                "warning",
-            )
-            return redirect(url_for("mdm.create_customer"))
-
-        customer = Customer(
-            name=name,
-            phone=phone,
-            email=email,
-            type=customer_type,
-            is_active=request.form.get("is_active") == "on",
-        )
-        db.session.add(customer)
-        db.session.commit()
-
-        flash("Клиентский профиль создан.", "success")
-        return redirect(url_for("mdm.customers_list"))
-
-    return render_template("data_mdm/customers/create.html")
+    return _redirect_to_schema(
+        "customers",
+        "Добавление новых клиентских карточек в МДМ больше не выполняется. Управляйте структурой полей через схему данных.",
+    )
 
 
 @mdm_bp.route("/customers/<int:customer_id>/edit", methods=["GET", "POST"])
 @login_required
 @mdm_editor_required
 def edit_customer(customer_id):
-    customer = Customer.query.get_or_404(customer_id)
-
-    if request.method == "POST":
-        name = request.form.get("name", customer.name).strip()
-        phone = _normalize_phone(request.form.get("phone", customer.phone).strip())
-        email = _normalize_email(request.form.get("email", customer.email).strip())
-
-        if not name:
-            flash("ФИО или наименование клиента обязательно.", "danger")
-            return redirect(url_for("mdm.edit_customer", customer_id=customer_id))
-        if not phone and not email:
-            flash("Укажите телефон или email клиента для уменьшения риска дубликатов.", "danger")
-            return redirect(url_for("mdm.edit_customer", customer_id=customer_id))
-        if not _validate_phone(phone) or not _validate_email(email):
-            flash("Проверьте корректность формата телефона и/или email.", "danger")
-            return redirect(url_for("mdm.edit_customer", customer_id=customer_id))
-
-        duplicate = Customer.query.filter(
-            or_(Customer.phone == phone, Customer.email == email)
-        ).filter(Customer.id != customer.id).first()
-        if duplicate:
-            _log_duplicate_attempt(
-                "Customer",
-                name,
-                {"name": name, "phone": phone, "email": email},
-                ["phone", "email"],
-                "Попытка изменения клиента на существующую запись.",
-            )
-            flash("Другой клиент уже использует этот телефон или email.", "danger")
-            return redirect(url_for("mdm.edit_customer", customer_id=customer_id))
-
-        candidates = _find_potential_duplicates(
-            Customer,
-            {"name": name},
-            {"phone": phone, "email": email},
-        )
-        if any(candidate.id != customer.id for candidate in candidates):
-            _log_duplicate_attempt(
-                "Customer",
-                name,
-                {"name": name, "phone": phone, "email": email},
-                ["name", "phone", "email"],
-                "Найдены потенциальные дубли клиента при редактировании.",
-            )
-            flash(
-                "Найдены похожие записи клиента. Проверьте данные, чтобы избежать дубликатов.",
-                "warning",
-            )
-            return redirect(url_for("mdm.edit_customer", customer_id=customer_id))
-
-        customer.name = name
-        customer.phone = phone
-        customer.email = email
-        customer.type = request.form.get("type", customer.type)
-        customer.is_active = request.form.get("is_active") == "on"
-        db.session.commit()
-
-        flash("Карточка клиента обновлена.", "success")
-        return redirect(url_for("mdm.customers_list"))
-
-    return render_template("data_mdm/customers/edit.html", customer=customer)
+    return _redirect_to_schema(
+        "customers",
+        "Редактирование клиентских карточек в МДМ больше не выполняется. Управляйте структурой полей через схему данных.",
+    )
 
 
 @mdm_bp.route("/customers/<int:customer_id>/delete", methods=["POST"])
 @login_required
 @mdm_editor_required
 def delete_customer(customer_id):
-    customer = Customer.query.get_or_404(customer_id)
-    db.session.delete(customer)
-    db.session.commit()
-    flash("Клиент удален из справочника.", "info")
-    return redirect(url_for("mdm.customers_list"))
+    return _redirect_to_schema(
+        "customers",
+        "Удаление клиентских карточек в МДМ больше не выполняется. Используйте операционные модули для управления справочными данными.",
+    )
 
 
 @mdm_bp.route("/suppliers")
@@ -823,154 +953,30 @@ def suppliers_list():
 @login_required
 @mdm_editor_required
 def create_supplier():
-    if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        phone = _normalize_phone(request.form.get("phone", "").strip())
-        email = _normalize_email(request.form.get("email", "").strip())
-        inn = _normalize_inn(request.form.get("inn", "").strip())
-
-        if not name:
-            flash("Наименование поставщика обязательно.", "danger")
-            return redirect(url_for("mdm.create_supplier"))
-        if not inn or not _validate_inn(inn):
-            flash("ИНН поставщика обязателен и должен содержать 10 или 12 цифр.", "danger")
-            return redirect(url_for("mdm.create_supplier"))
-        if not phone and not email:
-            flash("Укажите телефон или email поставщика для уменьшения риска дубликатов.", "danger")
-            return redirect(url_for("mdm.create_supplier"))
-        if not _validate_phone(phone) or not _validate_email(email):
-            flash("Проверьте корректность формата телефона и/или email.", "danger")
-            return redirect(url_for("mdm.create_supplier"))
-
-        duplicate = Supplier.query.filter(
-            or_(Supplier.inn == inn, Supplier.phone == phone, Supplier.email == email)
-        ).first()
-        if duplicate:
-            _log_duplicate_attempt(
-                "Supplier",
-                name,
-                {"name": name, "phone": phone, "email": email, "inn": inn},
-                ["inn", "phone", "email"],
-                "Попытка создания поставщика с существующими ключевыми реквизитами.",
-            )
-            flash("Поставщик с такими реквизитами уже существует.", "danger")
-            return redirect(url_for("mdm.create_supplier"))
-
-        candidates = _find_potential_duplicates(
-            Supplier,
-            {"name": name},
-            {"phone": phone, "email": email, "inn": inn},
-        )
-        if candidates:
-            _log_duplicate_attempt(
-                "Supplier",
-                name,
-                {"name": name, "phone": phone, "email": email, "inn": inn},
-                ["name", "phone", "email", "inn"],
-                "Найдены потенциальные дубли поставщика по наименованию и контактам.",
-            )
-            flash(
-                "Найдены похожие записи поставщика. Проверьте данные, чтобы избежать дубликатов.",
-                "warning",
-            )
-            return redirect(url_for("mdm.create_supplier"))
-
-        supplier = Supplier(
-            name=name,
-            phone=phone,
-            email=email,
-            inn=inn,
-            is_active=request.form.get("is_active") == "on",
-        )
-        db.session.add(supplier)
-        db.session.commit()
-
-        flash("Поставщик добавлен в единый справочник.", "success")
-        return redirect(url_for("mdm.suppliers_list"))
-
-    return render_template("data_mdm/suppliers/create.html")
+    return _redirect_to_schema(
+        "suppliers",
+        "Добавление новых карточек поставщиков в МДМ больше не выполняется. Управляйте структурой полей через схему данных.",
+    )
 
 
 @mdm_bp.route("/suppliers/<int:supplier_id>/edit", methods=["GET", "POST"])
 @login_required
 @mdm_editor_required
 def edit_supplier(supplier_id):
-    supplier = Supplier.query.get_or_404(supplier_id)
-
-    if request.method == "POST":
-        name = request.form.get("name", supplier.name).strip()
-        phone = _normalize_phone(request.form.get("phone", supplier.phone).strip())
-        email = _normalize_email(request.form.get("email", supplier.email).strip())
-        inn = _normalize_inn(request.form.get("inn", supplier.inn).strip())
-
-        if not name:
-            flash("Наименование поставщика обязательно.", "danger")
-            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
-        if not inn or not _validate_inn(inn):
-            flash("ИНН поставщика обязателен и должен содержать 10 или 12 цифр.", "danger")
-            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
-        if not phone and not email:
-            flash("Укажите телефон или email поставщика для уменьшения риска дубликатов.", "danger")
-            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
-        if not _validate_phone(phone) or not _validate_email(email):
-            flash("Проверьте корректность формата телефона и/или email.", "danger")
-            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
-
-        duplicate = Supplier.query.filter(
-            or_(Supplier.inn == inn, Supplier.phone == phone, Supplier.email == email)
-        ).filter(Supplier.id != supplier.id).first()
-        if duplicate:
-            _log_duplicate_attempt(
-                "Supplier",
-                name,
-                {"name": name, "phone": phone, "email": email, "inn": inn},
-                ["inn", "phone", "email"],
-                "Попытка изменения поставщика на существующую запись.",
-            )
-            flash("Другой поставщик уже использует такой ИНН, телефон или email.", "danger")
-            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
-
-        candidates = _find_potential_duplicates(
-            Supplier,
-            {"name": name},
-            {"phone": phone, "email": email, "inn": inn},
-        )
-        if any(candidate.id != supplier.id for candidate in candidates):
-            _log_duplicate_attempt(
-                "Supplier",
-                name,
-                {"name": name, "phone": phone, "email": email, "inn": inn},
-                ["name", "phone", "email", "inn"],
-                "Найдены потенциальные дубли поставщика при редактировании.",
-            )
-            flash(
-                "Найдены похожие записи поставщика. Проверьте данные, чтобы избежать дубликатов.",
-                "warning",
-            )
-            return redirect(url_for("mdm.edit_supplier", supplier_id=supplier_id))
-
-        supplier.name = name
-        supplier.phone = phone
-        supplier.email = email
-        supplier.inn = inn
-        supplier.is_active = request.form.get("is_active") == "on"
-        db.session.commit()
-
-        flash("Карточка поставщика обновлена.", "success")
-        return redirect(url_for("mdm.suppliers_list"))
-
-    return render_template("data_mdm/suppliers/edit.html", supplier=supplier)
+    return _redirect_to_schema(
+        "suppliers",
+        "Редактирование карточек поставщиков в МДМ больше не выполняется. Управляйте структурой полей через схему данных.",
+    )
 
 
 @mdm_bp.route("/suppliers/<int:supplier_id>/delete", methods=["POST"])
 @login_required
 @mdm_editor_required
 def delete_supplier(supplier_id):
-    supplier = Supplier.query.get_or_404(supplier_id)
-    db.session.delete(supplier)
-    db.session.commit()
-    flash("Поставщик удален из справочника.", "info")
-    return redirect(url_for("mdm.suppliers_list"))
+    return _redirect_to_schema(
+        "suppliers",
+        "Удаление карточек поставщиков в МДМ больше не выполняется. Используйте операционные модули для управления справочными данными.",
+    )
 
 
 @mdm_bp.route("/employees")
@@ -984,146 +990,30 @@ def employees_list():
 @login_required
 @mdm_editor_required
 def create_employee():
-    if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        phone = _normalize_phone(request.form.get("phone", "").strip())
-        email = _normalize_email(request.form.get("email", "").strip())
-        position = request.form.get("role", request.form.get("position", "")).strip()
-
-        if not name:
-            flash("ФИО сотрудника обязательно.", "danger")
-            return redirect(url_for("mdm.create_employee"))
-        if not phone and not email:
-            flash("Укажите телефон или email сотрудника для уменьшения риска дубликатов.", "danger")
-            return redirect(url_for("mdm.create_employee"))
-        if not _validate_phone(phone) or not _validate_email(email):
-            flash("Проверьте корректность формата телефона и/или email.", "danger")
-            return redirect(url_for("mdm.create_employee"))
-
-        duplicate = Employee.query.filter(or_(Employee.phone == phone, Employee.email == email)).first()
-        if duplicate:
-            _log_duplicate_attempt(
-                "Employee",
-                name,
-                {"name": name, "phone": phone, "email": email},
-                ["phone", "email"],
-                "Попытка создания сотрудника с существующим телефоном или email.",
-            )
-            flash("Сотрудник с таким телефоном или email уже существует.", "danger")
-            return redirect(url_for("mdm.create_employee"))
-
-        candidates = _find_potential_duplicates(
-            Employee,
-            {"name": name},
-            {"phone": phone, "email": email},
-        )
-        if candidates:
-            _log_duplicate_attempt(
-                "Employee",
-                name,
-                {"name": name, "phone": phone, "email": email},
-                ["name", "phone", "email"],
-                "Найдены потенциальные дубли сотрудника по имени и контакту.",
-            )
-            flash(
-                "Найдены похожие записи сотрудника. Проверьте данные, чтобы избежать дубликатов.",
-                "warning",
-            )
-            return redirect(url_for("mdm.create_employee"))
-
-        employee = Employee(
-            name=name,
-            position=position,
-            phone=phone,
-            email=email,
-            is_active=request.form.get("is_active") == "on",
-        )
-        db.session.add(employee)
-        db.session.commit()
-
-        flash("Сотрудник добавлен в кадровый справочник.", "success")
-        return redirect(url_for("mdm.employees_list"))
-
-    return render_template("data_mdm/employees/create.html")
+    return _redirect_to_schema(
+        "employees",
+        "Добавление новых карточек сотрудников в МДМ больше не выполняется. Управляйте структурой полей через схему данных.",
+    )
 
 
 @mdm_bp.route("/employees/<int:employee_id>/edit", methods=["GET", "POST"])
 @login_required
 @mdm_editor_required
 def edit_employee(employee_id):
-    employee = Employee.query.get_or_404(employee_id)
-
-    if request.method == "POST":
-        name = request.form.get("name", employee.name).strip()
-        position = request.form.get(
-            "role", request.form.get("position", employee.position)
-        ).strip()
-        phone = _normalize_phone(request.form.get("phone", employee.phone).strip())
-        email = _normalize_email(request.form.get("email", employee.email).strip())
-
-        if not name:
-            flash("ФИО сотрудника обязательно.", "danger")
-            return redirect(url_for("mdm.edit_employee", employee_id=employee_id))
-        if not phone and not email:
-            flash("Укажите телефон или email сотрудника для уменьшения риска дубликатов.", "danger")
-            return redirect(url_for("mdm.edit_employee", employee_id=employee_id))
-        if not _validate_phone(phone) or not _validate_email(email):
-            flash("Проверьте корректность формата телефона и/или email.", "danger")
-            return redirect(url_for("mdm.edit_employee", employee_id=employee_id))
-
-        duplicate = Employee.query.filter(or_(Employee.phone == phone, Employee.email == email)).filter(Employee.id != employee.id).first()
-        if duplicate:
-            _log_duplicate_attempt(
-                "Employee",
-                name,
-                {"name": name, "phone": phone, "email": email},
-                ["phone", "email"],
-                "Попытка изменения сотрудника на существующую запись.",
-            )
-            flash("Другой сотрудник уже использует этот телефон или email.", "danger")
-            return redirect(url_for("mdm.edit_employee", employee_id=employee_id))
-
-        candidates = _find_potential_duplicates(
-            Employee,
-            {"name": name},
-            {"phone": phone, "email": email},
-        )
-        if any(candidate.id != employee.id for candidate in candidates):
-            _log_duplicate_attempt(
-                "Employee",
-                name,
-                {"name": name, "phone": phone, "email": email},
-                ["name", "phone", "email"],
-                "Найдены потенциальные дубли сотрудника при редактировании.",
-            )
-            flash(
-                "Найдены похожие записи сотрудника. Проверьте данные, чтобы избежать дубликатов.",
-                "warning",
-            )
-            return redirect(url_for("mdm.edit_employee", employee_id=employee_id))
-
-        employee.name = name
-        employee.position = position
-        employee.phone = phone
-        employee.email = email
-        employee.is_active = request.form.get("is_active") == "on"
-        db.session.commit()
-
-        flash("Карточка сотрудника обновлена.", "success")
-        return redirect(url_for("mdm.employees_list"))
-
-    return render_template("data_mdm/employees/edit.html", employee=employee)
+    return _redirect_to_schema(
+        "employees",
+        "Редактирование карточек сотрудников в МДМ больше не выполняется. Управляйте структурой полей через схему данных.",
+    )
 
 
 @mdm_bp.route("/employees/<int:employee_id>/delete", methods=["POST"])
 @login_required
 @mdm_editor_required
 def delete_employee(employee_id):
-    employee = Employee.query.get_or_404(employee_id)
-    db.session.delete(employee)
-    db.session.commit()
-    flash("Сотрудник удален из кадрового справочника.", "info")
-    return redirect(url_for("mdm.employees_list"))
+    return _redirect_to_schema(
+        "employees",
+        "Удаление карточек сотрудников в МДМ больше не выполняется. Используйте операционные модули для управления справочными данными.",
+    )
 
 
 @mdm_bp.route("/stock")

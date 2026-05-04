@@ -107,19 +107,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="row g-2">
-                    <div class="col-md-6"><label class="form-label">ФИО*</label><input class="form-control" id="newCustomerName"></div>
-                    <div class="col-md-3"><label class="form-label">Телефон</label><input class="form-control" id="newCustomerPhone"></div>
-                    <div class="col-md-3"><label class="form-label">Email</label><input class="form-control" id="newCustomerEmail"></div>
-                    <div class="col-md-4"><label class="form-label">Дата рождения</label><input type="date" class="form-control" id="newCustomerBirthDate"></div>
-                    <div class="col-md-8"><label class="form-label">Адрес регистрации</label><input class="form-control" id="newCustomerAddress"></div>
-                    <div class="col-md-4"><label class="form-label">Паспорт серия/номер</label><input class="form-control" id="newCustomerPassport"></div>
-                    <div class="col-md-4"><label class="form-label">Кем выдан</label><input class="form-control" id="newCustomerIssuedBy"></div>
-                    <div class="col-md-4"><label class="form-label">Дата выдачи</label><input type="date" class="form-control" id="newCustomerIssueDate"></div>
-                    <div class="col-md-4"><label class="form-label">СНИЛС</label><input class="form-control" id="newCustomerSnils"></div>
-                    <div class="col-md-4"><label class="form-label">ИНН</label><input class="form-control" id="newCustomerInn"></div>
-                    <div class="col-md-12"><label class="form-label">Примечание</label><textarea class="form-control" id="newCustomerNotes" rows="2"></textarea></div>
-                </div>
+                <div class="row g-2" id="newCustomerFields"></div>
                 <div id="newCustomerError" class="text-danger small mt-2"></div>
             </div>
             <div class="modal-footer">
@@ -133,10 +121,78 @@
 
 {% block extra_js %}
 <script>
+const newCustomerSchema = {{ customer_fields | tojson }};
 let customers = [];
 let products = [];
 let orderItems = [];
 let currentOrderId = null;
+
+function renderNewCustomerForm() {
+    const container = document.getElementById('newCustomerFields');
+    container.innerHTML = '';
+    newCustomerSchema.forEach(field => {
+        const fieldId = `newCustomer_${field.name}`;
+        const requiredAttr = field.required ? 'required' : '';
+        const maxLengthAttr = field.max_length ? `maxlength="${field.max_length}"` : '';
+        let html = '';
+        if (field.type === 'text') {
+            html = `
+                <div class="col-12">
+                    <label class="form-label" for="${fieldId}">${field.label}${field.required ? ' *' : ''}</label>
+                    <textarea class="form-control" id="${fieldId}" data-field-name="${field.name}" ${requiredAttr} ${maxLengthAttr} rows="3"></textarea>
+                    ${field.help_text ? `<div class="form-text">${field.help_text}</div>` : ''}
+                </div>`;
+        } else if (field.type === 'boolean') {
+            html = `
+                <div class="col-12 form-check">
+                    <input class="form-check-input" type="checkbox" id="${fieldId}" data-field-name="${field.name}">
+                    <label class="form-check-label" for="${fieldId}">${field.label}</label>
+                    ${field.help_text ? `<div class="form-text">${field.help_text}</div>` : ''}
+                </div>`;
+        } else {
+            const inputType = field.type === 'integer' ? 'number' : field.type === 'float' ? 'number' : field.type === 'date' ? 'date' : 'text';
+            const stepAttr = field.type === 'float' ? 'step="0.01"' : '';
+            const colClass = field.type === 'text' ? 'col-12' : 'col-md-6';
+            html = `
+                <div class="${colClass}">
+                    <label class="form-label" for="${fieldId}">${field.label}${field.required ? ' *' : ''}</label>
+                    <input 
+                        class="form-control" 
+                        type="${inputType}" 
+                        id="${fieldId}" 
+                        data-field-name="${field.name}" 
+                        ${requiredAttr} ${maxLengthAttr} ${stepAttr}
+                    >
+                    ${field.help_text ? `<div class="form-text">${field.help_text}</div>` : ''}
+                </div>`;
+        }
+        container.insertAdjacentHTML('beforeend', html);
+    });
+}
+
+function collectNewCustomerPayload() {
+    const payload = {};
+    newCustomerSchema.forEach(field => {
+        const input = document.querySelector(`[data-field-name="${field.name}"]`);
+        if (!input) return;
+        let value;
+        if (field.type === 'boolean') {
+            value = input.checked;
+        } else {
+            value = input.value.trim();
+        }
+        if (field.type === 'date') {
+            payload[field.name] = value || null;
+        } else if (field.type === 'integer') {
+            payload[field.name] = value ? Number(value) : null;
+        } else if (field.type === 'float') {
+            payload[field.name] = value ? parseFloat(value) : null;
+        } else {
+            payload[field.name] = value;
+        }
+    });
+    return payload;
+}
 
 const customerInput = document.getElementById('customerInput');
 const customerIdInput = document.getElementById('customerId');
@@ -332,23 +388,10 @@ document.getElementById('confirmPaymentBtn').addEventListener('click', async () 
 });
 
 document.getElementById('saveNewCustomerBtn').addEventListener('click', async () => {
-    const payload = {
-        name: document.getElementById('newCustomerName').value.trim(),
-        phone: document.getElementById('newCustomerPhone').value.trim(),
-        email: document.getElementById('newCustomerEmail').value.trim(),
-        birth_date: document.getElementById('newCustomerBirthDate').value || null,
-        registration_address: document.getElementById('newCustomerAddress').value.trim(),
-        passport_series_number: document.getElementById('newCustomerPassport').value.trim(),
-        passport_issued_by: document.getElementById('newCustomerIssuedBy').value.trim(),
-        passport_issue_date: document.getElementById('newCustomerIssueDate').value || null,
-        snils: document.getElementById('newCustomerSnils').value.trim(),
-        customer_inn: document.getElementById('newCustomerInn').value.trim(),
-        notes: document.getElementById('newCustomerNotes').value.trim()
-    };
     const resp = await fetch('/sales/api/customers', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
+        body: JSON.stringify(collectNewCustomerPayload())
     });
     const data = await resp.json();
     if (!resp.ok) {
@@ -364,6 +407,7 @@ document.getElementById('saveNewCustomerBtn').addEventListener('click', async ()
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
+    renderNewCustomerForm();
     customers = await (await fetch('/sales/api/customers?q=')).json();
     renderCustomers();
     products = await (await fetch('/sales/api/products?q=')).json();
