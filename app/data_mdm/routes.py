@@ -352,6 +352,11 @@ def create_schema_field(entity_key):
         ("url", "URL"),
     ]
     if request.method == "POST":
+        # Verify edit permission before processing any form data
+        if not (current_user.is_admin or current_user.role_admin or current_user.can_edit_mdm):
+            flash("Изменение данных MDM разрешено только пользователям с правами редактирования.", "danger")
+            return redirect(url_for("mdm.schema_index"))
+        
         name = request.form.get("name", "").strip()
         label = request.form.get("label", "").strip()
         data_type = request.form.get("data_type", "string")
@@ -454,6 +459,11 @@ def edit_schema_field(entity_key, field_id):
         ("url", "URL"),
     ]
     if request.method == "POST":
+        # Verify edit permission before processing any form data
+        if not (current_user.is_admin or current_user.role_admin or current_user.can_edit_mdm):
+            flash("Изменение данных MDM разрешено только пользователям с правами редактирования.", "danger")
+            return redirect(url_for("mdm.schema_fields", entity_key=entity_key))
+        
         label = request.form.get("label", "").strip()
         data_type = request.form.get("data_type", "string")
         field_type = request.form.get("field_type", "string")
@@ -847,6 +857,11 @@ def edit_product_certificate(product_id):
     product = Product.query.get_or_404(product_id)
 
     if request.method == "POST":
+        # Verify edit permission before processing any form data
+        if not (current_user.is_admin or current_user.role_admin or current_user.can_edit_mdm):
+            flash("Изменение данных MDM разрешено только пользователям с правами редактирования.", "danger")
+            return redirect(url_for("mdm.products_list"))
+        
         certificate_link = request.form.get("certificate_link", "").strip()
         if certificate_link:
             product.certificate_link = certificate_link
@@ -1227,8 +1242,8 @@ def create_user():
             is_admin=role_admin,
             is_finance=role_financier,
             is_data_admin=role_admin,
-            is_data_editor=False,
-            is_data_viewer=False,
+            is_data_editor=role_admin,
+            is_data_viewer=role_admin,
         )
         user.set_password(password)
         db.session.add(user)
@@ -1303,6 +1318,8 @@ def edit_user(user_id):
         user.is_admin = role_admin
         user.is_finance = role_financier
         user.is_data_admin = role_admin
+        user.is_data_editor = role_admin
+        user.is_data_viewer = role_admin
         db.session.commit()
 
         flash("Данные пользователя обновлены.", "success")
@@ -1409,6 +1426,11 @@ def edit_company_profile():
         return redirect(url_for("mdm.index"))
 
     if request.method == "POST":
+        # Verify edit permission before processing any form data
+        if not (current_user.is_admin or current_user.role_admin or current_user.can_edit_mdm):
+            flash("Изменение данных MDM разрешено только пользователям с правами редактирования.", "danger")
+            return redirect(url_for("mdm.company_profile"))
+        
         # Вспомогательная функция для безопасной обработки формы
         def get_form_value(key, current_value=None, required=False):
             value = request.form.get(key, "").strip()
@@ -1449,4 +1471,73 @@ def edit_company_profile():
         return redirect(url_for("mdm.company_profile"))
 
     return render_template("data_mdm/company_profile_edit.html", profile=profile)
+
+
+@mdm_bp.route("/backup-settings")
+@login_required
+@admin_required
+def backup_settings():
+    from app.models import BackupSettings
+    
+    settings = BackupSettings.query.first()
+    if not settings:
+        settings = BackupSettings()
+        db.session.add(settings)
+        db.session.commit()
+    
+    return render_template("data_mdm/backup_settings.html", settings=settings)
+
+
+@mdm_bp.route("/backup-settings", methods=["POST"])
+@login_required
+@admin_required
+def update_backup_settings():
+    from app.models import BackupSettings
+    from datetime import datetime, timedelta
+    
+    settings = BackupSettings.query.first()
+    if not settings:
+        settings = BackupSettings()
+        db.session.add(settings)
+    
+    settings.is_enabled = request.form.get("is_enabled") == "on"
+    settings.frequency = request.form.get("frequency", "daily")
+    settings.backup_time = request.form.get("backup_time", "02:00")
+    settings.retention_days = int(request.form.get("retention_days", 30))
+    settings.backup_path = request.form.get("backup_path", "./backups")
+    
+    # Calculate next backup time
+    if settings.is_enabled:
+        now = datetime.utcnow()
+        if settings.frequency == "daily":
+            # Next backup at the specified time today or tomorrow
+            today_backup = now.replace(hour=int(settings.backup_time.split(":")[0]), 
+                                     minute=int(settings.backup_time.split(":")[1]), 
+                                     second=0, microsecond=0)
+            if today_backup <= now:
+                today_backup += timedelta(days=1)
+            settings.next_backup = today_backup
+        elif settings.frequency == "weekly":
+            # Next Monday at the specified time
+            days_until_monday = (7 - now.weekday()) % 7
+            if days_until_monday == 0 and now.time() >= datetime.strptime(settings.backup_time, "%H:%M").time():
+                days_until_monday = 7
+            next_monday = (now + timedelta(days=days_until_monday)).replace(hour=int(settings.backup_time.split(":")[0]), 
+                                                                           minute=int(settings.backup_time.split(":")[1]), 
+                                                                           second=0, microsecond=0)
+            settings.next_backup = next_monday
+        elif settings.frequency == "monthly":
+            # First day of next month at the specified time
+            if now.month == 12:
+                next_month = now.replace(year=now.year + 1, month=1, day=1)
+            else:
+                next_month = now.replace(month=now.month + 1, day=1)
+            next_month = next_month.replace(hour=int(settings.backup_time.split(":")[0]), 
+                                          minute=int(settings.backup_time.split(":")[1]), 
+                                          second=0, microsecond=0)
+            settings.next_backup = next_month
+    
+    db.session.commit()
+    flash("Настройки резервного копирования обновлены.", "success")
+    return redirect(url_for("mdm.backup_settings"))
 

@@ -96,6 +96,24 @@ def get_company_profile():
     )
 
 
+@finance_bp.before_request
+def enforce_finance_access():
+    if not current_user.is_authenticated:
+        return redirect(url_for("auth.login"))
+
+    if not (
+        current_user.is_admin
+        or current_user.role_admin
+        or current_user.can_view_finance
+        or current_user.can_edit_finance
+    ):
+        flash(
+            "Финансовый модуль доступен только пользователям с правами бухгалтерии или администратора.",
+            "danger",
+        )
+        return redirect(url_for("index"))
+
+
 def resolve_local_static_paths(html):
     static_root = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "static")
@@ -755,7 +773,7 @@ def finance_required(view):
     def wrapper(*args, **kwargs):
         if not current_user.is_authenticated or not (
             current_user.is_admin
-            or current_user.is_finance
+            or current_user.role_admin
             or current_user.can_view_finance
             or current_user.can_edit_finance
         ):

@@ -18,7 +18,9 @@
         <div class="surface p-4 mb-4">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <h2 class="h6 mb-0">Клиент</h2>
+                {% if current_user.can_edit_sales or current_user.is_admin or current_user.role_admin %}
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#newCustomerModal">Новый клиент</button>
+                {% endif %}
             </div>
             <input id="customerInput" class="form-control mb-2" list="customerList" placeholder="Введите ФИО клиента или часть ФИО">
             <datalist id="customerList"></datalist>

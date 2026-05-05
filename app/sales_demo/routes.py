@@ -11,11 +11,51 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from flask_login import login_required
+from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 
 from app.sales_demo import sales_bp
 from app.sales_demo.docx_utils import create_sales_doc, duplicate_contract_doc, save_doc
+
+
+from functools import wraps
+
+@sales_bp.before_request
+def enforce_sales_access():
+    if not current_user.is_authenticated:
+        return redirect(url_for("auth.login"))
+
+    if not (
+        current_user.is_admin
+        or current_user.role_admin
+        or current_user.can_view_sales
+        or current_user.can_edit_sales
+    ):
+        flash(
+            "Модуль продаж доступен только торговым представителям и администраторам.",
+            "danger",
+        )
+        return redirect(url_for("index"))
+
+
+def sales_editor_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for("auth.login"))
+        
+        if not (
+            current_user.is_admin
+            or current_user.role_admin
+            or current_user.can_edit_sales
+        ):
+            flash(
+                "Создание и редактирование заказов доступно только пользователям с правами редактирования продаж.",
+                "danger",
+            )
+            return redirect(url_for("sales_demo.index"))
+        return view(*args, **kwargs)
+    return wrapper
 from app.models import CompanyProfile, Customer, Payment, Product, SalesOrder, SalesOrderAttachment, SalesOrderItem, db
 from app.schema_utils import get_visible_fields, get_field_by_name
 
@@ -183,6 +223,7 @@ def search_products():
 
 @sales_bp.route("/api/customers", methods=["POST"])
 @login_required
+@sales_editor_required
 def create_customer():
     """
     Create a customer using fields defined in the MDM schema.
@@ -239,6 +280,7 @@ def create_customer():
 
 @sales_bp.route("/api/orders", methods=["POST"])
 @login_required
+@sales_editor_required
 def create_order():
     payload = request.get_json(silent=True) or {}
     customer_id = payload.get("customer_id")
@@ -312,6 +354,7 @@ def create_order():
 
 @sales_bp.route("/api/orders/<int:order_id>/confirm-payment", methods=["POST"])
 @login_required
+@sales_editor_required
 def confirm_payment(order_id):
     order = SalesOrder.query.get_or_404(order_id)
     if order.status == "cancelled":
@@ -344,6 +387,7 @@ def confirm_payment(order_id):
 
 @sales_bp.route("/orders/<int:order_id>/cancel", methods=["POST"])
 @login_required
+@sales_editor_required
 def cancel_order(order_id):
     order = SalesOrder.query.get_or_404(order_id)
     reason = (request.form.get("cancel_reason") or "").strip()
@@ -359,6 +403,7 @@ def cancel_order(order_id):
 
 @sales_bp.route("/orders/<int:order_id>/add-assembly", methods=["POST"])
 @login_required
+@sales_editor_required
 def add_assembly(order_id):
     order = SalesOrder.query.get_or_404(order_id)
     if order.status in {"cancelled", "completed"}:
@@ -376,6 +421,7 @@ def add_assembly(order_id):
 
 @sales_bp.route("/attachments/<int:attachment_id>/rename", methods=["POST"])
 @login_required
+@sales_editor_required
 def rename_attachment(attachment_id):
     attachment = SalesOrderAttachment.query.get_or_404(attachment_id)
     new_name = (request.form.get("new_name") or "").strip()
@@ -390,6 +436,7 @@ def rename_attachment(attachment_id):
 
 @sales_bp.route("/orders/<int:order_id>/mark-assembled", methods=["POST"])
 @login_required
+@sales_editor_required
 def mark_assembled(order_id):
     order = SalesOrder.query.get_or_404(order_id)
     order.status = "assembled"
@@ -400,6 +447,7 @@ def mark_assembled(order_id):
 
 @sales_bp.route("/orders/<int:order_id>/mark-in-transit", methods=["POST"])
 @login_required
+@sales_editor_required
 def mark_in_transit(order_id):
     order = SalesOrder.query.get_or_404(order_id)
     order.status = "in_transit"
@@ -410,6 +458,7 @@ def mark_in_transit(order_id):
 
 @sales_bp.route("/orders/<int:order_id>/confirm-delivery", methods=["POST"])
 @login_required
+@sales_editor_required
 def confirm_delivery(order_id):
     order = SalesOrder.query.get_or_404(order_id)
     if order.status != "in_transit":
@@ -427,6 +476,7 @@ def confirm_delivery(order_id):
 
 @sales_bp.route("/orders/<int:order_id>/upload-delivery-doc", methods=["POST"])
 @login_required
+@sales_editor_required
 def upload_delivery_doc(order_id):
     order = SalesOrder.query.get_or_404(order_id)
     file = request.files.get("document")
@@ -470,6 +520,7 @@ def download_attachment(attachment_id):
 
 @sales_bp.route("/documents/contract-preview", methods=["POST"])
 @login_required
+@sales_editor_required
 def contract_preview():
     customer, items, delivery_address, needs_assembly = _payload_for_preview(request.get_json(silent=True) or {})
     company = CompanyProfile.query.first()
@@ -486,6 +537,7 @@ def contract_preview():
 
 @sales_bp.route("/documents/invoice-preview", methods=["POST"])
 @login_required
+@sales_editor_required
 def invoice_preview():
     customer, items, delivery_address, needs_assembly = _payload_for_preview(request.get_json(silent=True) or {})
     company = CompanyProfile.query.first()

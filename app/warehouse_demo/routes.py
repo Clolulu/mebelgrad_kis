@@ -5,6 +5,25 @@ from flask import flash, redirect, render_template, request, url_for, jsonify, s
 from flask_login import current_user, login_required
 
 from app.warehouse_demo import warehouse_bp
+
+
+@warehouse_bp.before_request
+def enforce_warehouse_access():
+    if not current_user.is_authenticated:
+        return redirect(url_for("auth.login"))
+
+    if not (
+        current_user.is_admin
+        or current_user.role_admin
+        or current_user.can_view_warehouse
+        or current_user.can_edit_warehouse
+    ):
+        flash(
+            "Складской модуль доступен только пользователям с правами склада или администратора.",
+            "danger",
+        )
+        return redirect(url_for("index"))
+
 from app.models import (
     CompanyProfile,
     GoodsReceipt, GoodsReceiptItem, InventoryCount, InventoryCountItem,

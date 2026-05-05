@@ -67,11 +67,13 @@
                             {% endif %}
                         </td>
                         <td>
-                            <a href="{{ url_for('mdm.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">Редактировать</a>
-                            {% if user.id != current_user.id %}
-                                <form method="post" action="{{ url_for('mdm.delete_user', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Вы уверены?')">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                                </form>
+                            {% if current_user.is_admin or current_user.role_admin %}
+                                <a href="{{ url_for('mdm.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">Редактировать</a>
+                                {% if user.id != current_user.id %}
+                                    <form method="post" action="{{ url_for('mdm.delete_user', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Вы уверены?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                    </form>
+                                {% endif %}
                             {% endif %}
                         </td>
                     </tr>

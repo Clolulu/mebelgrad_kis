@@ -17,7 +17,7 @@
                 {% if current_user.is_authenticated and current_user.is_admin %}
                     <a href="{{ url_for('mdm.index') }}" class="btn btn-primary">Открыть управление данными</a>
                 {% endif %}
-                {% if current_user.is_authenticated and (current_user.is_finance or current_user.is_admin) %}
+                {% if current_user.is_authenticated and (current_user.can_view_finance or current_user.can_edit_finance or current_user.is_admin or current_user.role_admin) %}
                     <a href="{{ url_for('finance.index') }}" class="btn btn-outline-dark">Открыть финансовый центр</a>
                 {% endif %}
                 {% if not current_user.is_authenticated %}
@@ -113,7 +113,7 @@
                 <div class="col-md-6"><div class="surface p-3 h-100"><div class="fw-semibold">Обмен с учетной системой</div><div class="small text-secondary">Формирование файла обмена по проведенным продажам и поступлениям.</div></div></div>
             </div>
             <div class="d-flex gap-2 flex-wrap">
-                {% if current_user.is_authenticated and (current_user.is_finance or current_user.is_admin) %}
+                {% if current_user.is_authenticated and (current_user.can_view_finance or current_user.can_edit_finance or current_user.is_admin or current_user.role_admin) %}
                     <a href="{{ url_for('finance.index') }}" class="btn btn-primary btn-sm">Панель модуля</a>
                     <a href="{{ url_for('finance.incoming_payments') }}" class="btn btn-outline-dark btn-sm">Входящие платежи</a>
                     <a href="{{ url_for('finance.outgoing_payments') }}" class="btn btn-outline-dark btn-sm">Исходящие заявки</a>

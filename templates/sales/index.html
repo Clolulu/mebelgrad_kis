@@ -71,7 +71,9 @@
         <span class="small text-secondary">Клиентов: {{ active_customers or 0 }}, активных товаров: {{ active_products or 0 }}</span>
     </div>
     <div class="d-flex flex-wrap gap-2 mb-3">
+        {% if current_user.can_edit_sales or current_user.is_admin or current_user.role_admin %}
         <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sales_demo.crm') }}">Создать новый заказ</a>
+        {% endif %}
         <a class="btn btn-sm btn-outline-dark" href="{{ url_for('sales_demo.orders') }}?status=unpaid">Показать неоплаченные</a>
         <a class="btn btn-sm btn-outline-dark" href="{{ url_for('sales_demo.orders') }}?status=in_transit">Показать заказы в пути</a>
         <a class="btn btn-sm btn-outline-dark" href="{{ url_for('sales_demo.orders') }}?status=completed">Показать выполненные</a>

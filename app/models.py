@@ -70,76 +70,73 @@ class User(UserMixin, db.Model):
     def can_view_mdm(self):
         if self.is_admin:
             return True
-        permissions = self.role_permission
-        return bool(
-            (permissions and (permissions.can_view_mdm or permissions.can_edit_mdm))
-            or self.is_data_admin
-            or self.is_data_editor
-            or self.is_data_viewer
-        )
+        if self.role_name:
+            permissions = self.role_permission
+            return bool(permissions and (permissions.can_view_mdm or permissions.can_edit_mdm))
+        return False
 
     @property
     def can_edit_mdm(self):
         if self.is_admin:
             return True
-        permissions = self.role_permission
-        return bool(
-            (permissions and permissions.can_edit_mdm)
-            or self.is_data_admin
-            or self.is_data_editor
-        )
+        if self.role_name:
+            permissions = self.role_permission
+            return bool(permissions and permissions.can_edit_mdm)
+        return False
 
     @property
     def can_view_finance(self):
         if self.is_admin:
             return True
-        permissions = self.role_permission
-        return bool(
-            (permissions and (permissions.can_view_finance or permissions.can_edit_finance))
-            or self.is_finance
-        )
+        if self.role_name:
+            permissions = self.role_permission
+            return bool(permissions and (permissions.can_view_finance or permissions.can_edit_finance))
+        return False
 
     @property
     def can_edit_finance(self):
         if self.is_admin:
             return True
-        permissions = self.role_permission
-        return bool(
-            (permissions and permissions.can_edit_finance)
-            or self.is_finance
-        )
+        if self.role_name:
+            permissions = self.role_permission
+            return bool(permissions and permissions.can_edit_finance)
+        return False
 
     @property
     def can_view_warehouse(self):
         if self.is_admin:
             return True
-        permissions = self.role_permission
-        return bool(
-            permissions and (permissions.can_view_warehouse or permissions.can_edit_warehouse)
-        )
+        if self.role_name:
+            permissions = self.role_permission
+            return bool(permissions and (permissions.can_view_warehouse or permissions.can_edit_warehouse))
+        return False
 
     @property
     def can_edit_warehouse(self):
         if self.is_admin:
             return True
-        permissions = self.role_permission
-        return bool(permissions and permissions.can_edit_warehouse)
+        if self.role_name:
+            permissions = self.role_permission
+            return bool(permissions and permissions.can_edit_warehouse)
+        return False
 
     @property
     def can_view_sales(self):
         if self.is_admin:
             return True
-        permissions = self.role_permission
-        return bool(
-            permissions and (permissions.can_view_sales or permissions.can_edit_sales)
-        )
+        if self.role_name:
+            permissions = self.role_permission
+            return bool(permissions and (permissions.can_view_sales or permissions.can_edit_sales))
+        return False
 
     @property
     def can_edit_sales(self):
         if self.is_admin:
             return True
-        permissions = self.role_permission
-        return bool(permissions and permissions.can_edit_sales)
+        if self.role_name:
+            permissions = self.role_permission
+            return bool(permissions and permissions.can_edit_sales)
+        return False
 
 
 class RolePermission(db.Model):
@@ -937,6 +934,25 @@ class InventoryCountItem(db.Model):
 
     def __repr__(self):
         return f'<InventoryCountItem count={self.count_id} prod={self.product_id}>'
+
+
+class BackupSettings(db.Model):
+    """Настройки автоматического резервного копирования базы данных."""
+    __tablename__ = 'backup_settings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    is_enabled = db.Column(db.Boolean, default=False)
+    frequency = db.Column(db.String(20), default='daily')  # daily/weekly/monthly
+    backup_time = db.Column(db.String(5), default='02:00')  # HH:MM format
+    retention_days = db.Column(db.Integer, default=30)  # How long to keep backups
+    backup_path = db.Column(db.String(500), default='./backups')  # Directory for backups
+    last_backup = db.Column(db.DateTime)
+    next_backup = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<BackupSettings enabled={self.is_enabled} freq={self.frequency}>'
 
 
 class PickingOrder(db.Model):

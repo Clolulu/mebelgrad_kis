@@ -3,7 +3,7 @@
     {% if current_user.is_admin %}
         <span class="badge bg-danger">admin</span>
     {% endif %}
-    {% if current_user.is_finance %}
+    {% if current_user.role_financier or current_user.can_view_finance or current_user.can_edit_finance %}
         <span class="badge bg-success">finance</span>
     {% endif %}
     {% if current_user.can_edit_mdm %}
