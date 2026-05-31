@@ -3,6 +3,7 @@ from io import BytesIO
 
 from flask import flash, redirect, render_template, request, url_for, jsonify, send_file
 from flask_login import current_user, login_required
+from sqlalchemy import or_
 
 from app.warehouse_demo import warehouse_bp
 
@@ -85,7 +86,7 @@ def index():
     assembly_orders = SalesOrder.query.filter_by(status='picking').count()
     in_transit = SalesOrder.query.filter_by(status='in_transit').count()
     inventory_counts = InventoryCount.query.count()
-    low_stock = Product.query.join(Stock).filter(Stock.qty_on_hand <= 5).count()
+    low_stock = Product.query.outerjoin(Stock).filter(or_(Stock.qty_on_hand <= 5, Stock.qty_on_hand.is_(None))).count()
 
     recent_requests = PurchaseRequest.query.order_by(PurchaseRequest.created_at.desc()).limit(5).all()
     recent_receipts = GoodsReceipt.query.order_by(GoodsReceipt.created_at.desc()).limit(5).all()
@@ -398,7 +399,7 @@ def stock():
     if sku_q:
         q = q.filter(Product.sku.ilike(f'%{sku_q}%'))
     if stock_filter == 'low':
-        q = q.filter(Stock.qty_on_hand <= 5)
+        q = q.filter(or_(Stock.qty_on_hand <= 5, Stock.qty_on_hand.is_(None)))
     elif stock_filter == 'zero':
         q = q.filter((Stock.qty_on_hand == 0) | (Stock.qty_on_hand.is_(None)))
     elif stock_filter == 'ok':
@@ -406,8 +407,9 @@ def stock():
 
     products = q.filter(Product.is_active.is_(True)).order_by(Product.name).all()
     total_value = sum((p.qty_on_hand * p.retail_price) for p in products)
+    return render_template('warehouse/stock.html', products=products, total_value=total_value)
 
-@warehouse_bp.route("/", methods=["GET"])
+@warehouse_bp.route('/stock/<int:product_id>/adjust', methods=['POST'])
 @login_required
 def stock_adjust(product_id):
     product = Product.query.get_or_404(product_id)

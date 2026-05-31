@@ -63,6 +63,14 @@ def _add_run(para, text, bold=False, size=10, color=None, italic=False):
     return run
 
 
+def _format_price(value: float) -> str:
+    try:
+        text = f'{value:,.2f}'.replace(',', ' ')
+        return text.replace('.', ',')
+    except Exception:
+        return '0,00'
+
+
 def _download_image(url: str) -> str | None:
     """Download image from URL to a temp file; return path or None."""
     if not url:
@@ -404,7 +412,7 @@ def generate_purchase_request_docx(pr, company) -> BytesIO:
     doc.add_paragraph()
 
     # ── META INFO TABLE ───────────────────────────────────────────────────────
-    meta = doc.add_table(rows=5, cols=2)
+    meta = doc.add_table(rows=6, cols=2)
     meta.style = 'Table Grid'
     meta.alignment = WD_TABLE_ALIGNMENT.LEFT
     meta.columns[0].width = Cm(5)
@@ -418,11 +426,12 @@ def generate_purchase_request_docx(pr, company) -> BytesIO:
         vc = meta.cell(row_idx, 1)
         _add_run(vc.paragraphs[0], value or '—', size=9)
 
-    _meta_row(0, 'Поставщик', pr.supplier.name if pr.supplier else '—')
-    _meta_row(1, 'Приоритет', PRIORITY_LABELS.get(pr.priority, pr.priority or '—'))
-    _meta_row(2, 'Нужно к', pr.needed_by_date.strftime('%d.%m.%Y') if pr.needed_by_date else '—')
-    _meta_row(3, 'Статус', STATUS_LABELS.get(pr.status, pr.status or '—'))
-    _meta_row(4, 'Комментарий', pr.comment or '—')
+    _meta_row(0, 'Инициатор', pr.creator.username if pr.creator else '—')
+    _meta_row(1, 'Поставщик', pr.supplier.name if pr.supplier else '—')
+    _meta_row(2, 'Основание', pr.comment or '—')
+    _meta_row(3, 'Приоритет', PRIORITY_LABELS.get(pr.priority, pr.priority or '—'))
+    _meta_row(4, 'Требуемая дата поставки', pr.needed_by_date.strftime('%d.%m.%Y') if pr.needed_by_date else '—')
+    _meta_row(5, 'Статус', STATUS_LABELS.get(pr.status, pr.status or '—'))
 
     doc.add_paragraph()
 
@@ -461,8 +470,8 @@ def generate_purchase_request_docx(pr, company) -> BytesIO:
             (item.product.name if item.product else '—', WD_ALIGN_PARAGRAPH.LEFT),
             (item.product.unit if item.product else '—', WD_ALIGN_PARAGRAPH.CENTER),
             (str(qty), WD_ALIGN_PARAGRAPH.CENTER),
-            (f'{price:,.2f} ₽'.replace(',', ' '), WD_ALIGN_PARAGRAPH.RIGHT),
-            (f'{subtotal:,.2f} ₽'.replace(',', ' '), WD_ALIGN_PARAGRAPH.RIGHT),
+            (_format_price(price) + ' ₽', WD_ALIGN_PARAGRAPH.RIGHT),
+            (_format_price(subtotal) + ' ₽', WD_ALIGN_PARAGRAPH.RIGHT),
         ]
         for ci, (val, align) in enumerate(vals):
             cell = items_table.cell(ri, ci)
@@ -484,7 +493,7 @@ def generate_purchase_request_docx(pr, company) -> BytesIO:
     _set_cell_bg(total_right, 'D6E4F0')
     trp = total_right.paragraphs[0]
     trp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    _add_run(trp, f'{total:,.2f} ₽'.replace(',', ' '), bold=True, size=9)
+    _add_run(trp, _format_price(total) + ' ₽', bold=True, size=9)
 
     doc.add_paragraph()
     doc.add_paragraph()
