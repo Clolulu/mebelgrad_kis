@@ -129,7 +129,7 @@ def _sig_block(table, col_idx, title: str, name: str, sig_url: str | None, date_
 # ── picking doc generator ─────────────────────────────────────────────────────
 
 def generate_picking_docx(pk, company) -> BytesIO:
-    """Generate a picking slip .docx for the given PickingOrder."""
+    """Задание на комплектовку в формате .docx."""
     doc = Document()
     for section in doc.sections:
         section.top_margin = Cm(2)
@@ -143,41 +143,34 @@ def generate_picking_docx(pk, company) -> BytesIO:
     order = pk.sales_order
     customer = order.customer if order else None
 
-    # ── Header ────────────────────────────────────────────────────────────────
-    hdr_table = doc.add_table(rows=1, cols=2)
-    hdr_table.alignment = WD_TABLE_ALIGNMENT.LEFT
-    hdr_table.columns[0].width = Cm(3.5)
-    hdr_table.columns[1].width = Cm(13)
-
-    logo_cell = hdr_table.cell(0, 0)
-    logo_cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
-    if company and company.logo_url:
-        img_path = _download_image(company.logo_url)
-        if img_path:
-            try:
-                logo_cell.paragraphs[0].add_run().add_picture(img_path, width=Cm(3))
-            except Exception:
-                pass
-
-    req_cell = hdr_table.cell(0, 1)
-    req_cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
-    rp = req_cell.paragraphs[0]
+    # ── Центрированная шапка компании ────────────────────────────────────────
     if company:
         name_line = f'{company.legal_form} «{company.company_name}»' if company.legal_form and company.company_name else (company.company_name or '')
-        _add_run(rp, name_line + '\n', bold=True, size=11)
-        reqs = []
-        if company.inn: reqs.append(f'ИНН {company.inn}')
-        if company.kpp: reqs.append(f'КПП {company.kpp}')
-        if reqs:
-            _add_run(rp, '  '.join(reqs) + '\n', size=9, color='444444')
+        p_name = doc.add_paragraph()
+        p_name.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _add_run(p_name, name_line, bold=True, size=12)
+
+        addr_parts = []
         if company.legal_address:
-            _add_run(rp, f'Адрес: {company.legal_address}\n', size=9, color='444444')
-    else:
-        _add_run(rp, 'Организация не указана', size=10, color='888888')
+            addr_parts.append(company.legal_address)
+        if company.phone:
+            addr_parts.append(f'тел. {company.phone}')
+        if addr_parts:
+            p_addr = doc.add_paragraph()
+            p_addr.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _add_run(p_addr, ', '.join(addr_parts), size=9, color='444444')
 
+        inn_parts = []
+        if company.inn: inn_parts.append(f'ИНН {company.inn}')
+        if company.kpp: inn_parts.append(f'КПП {company.kpp}')
+        if company.ogrn: inn_parts.append(f'ОГРН {company.ogrn}')
+        if inn_parts:
+            p_inn = doc.add_paragraph()
+            p_inn.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _add_run(p_inn, ', '.join(inn_parts), size=9, color='444444')
+
+    # ── Заголовок ─────────────────────────────────────────────────────────────
     doc.add_paragraph()
-
-    # ── Title ─────────────────────────────────────────────────────────────────
     created_str = pk.created_at.strftime('%d.%m.%Y') if pk.created_at else datetime.utcnow().strftime('%d.%m.%Y')
     tp = doc.add_paragraph()
     tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -187,36 +180,40 @@ def generate_picking_docx(pk, company) -> BytesIO:
     _add_run(sp, f'№ {pk.picking_number}  от  {created_str}', size=12)
     doc.add_paragraph()
 
-    # ── Order / customer info ─────────────────────────────────────────────────
-    info = doc.add_table(rows=6, cols=2)
+    # ── Мета-таблица ──────────────────────────────────────────────────────────
+    meta_rows = [
+        ('Номер заказа', order.order_number if order else '—'),
+        ('Дата заказа', order.order_date.strftime('%d.%m.%Y') if order and order.order_date else '—'),
+        ('Клиент', customer.name if customer else '—'),
+        ('Телефон клиента', customer.phone if customer else '—'),
+        ('Адрес доставки', order.delivery_address if order and order.delivery_address else '—'),
+        ('Комплектовщик', pk.picker.username if pk.picker else '—'),
+        ('Статус', PICKING_DOC_STATUS.get(pk.status, pk.status)),
+    ]
+    info = doc.add_table(rows=len(meta_rows), cols=2)
     info.style = 'Table Grid'
     info.columns[0].width = Cm(5)
     info.columns[1].width = Cm(11.5)
-
-    def _ir(row_idx, label, value):
-        lc = info.cell(row_idx, 0)
+    for ri, (label, value) in enumerate(meta_rows):
+        lc = info.cell(ri, 0)
         _set_cell_bg(lc, 'EBF3FA')
         _add_run(lc.paragraphs[0], label, bold=True, size=9)
-        _add_run(info.cell(row_idx, 1).paragraphs[0], value or '—', size=9)
-
-    _ir(0, 'Номер заказа', order.order_number if order else '—')
-    _ir(1, 'Дата заказа', order.order_date.strftime('%d.%m.%Y') if order and order.order_date else '—')
-    _ir(2, 'Клиент', customer.name if customer else '—')
-    _ir(3, 'Телефон клиента', customer.phone if customer else '—')
-    _ir(4, 'Адрес доставки', order.delivery_address if order and order.delivery_address else '—')
-    _ir(5, 'Комплектовщик', pk.picker.username if pk.picker else '—')
+        _add_run(info.cell(ri, 1).paragraphs[0], value or '—', size=9)
 
     doc.add_paragraph()
 
-    # ── Items table ───────────────────────────────────────────────────────────
-    items_title = doc.add_paragraph()
-    _add_run(items_title, 'Состав заказа:', bold=True, size=10)
+    # ── Таблица позиций ───────────────────────────────────────────────────────
+    p_lbl = doc.add_paragraph()
+    _add_run(p_lbl, 'Табличная часть заявки:', bold=True, size=10)
 
     items = order.items if order else []
-    col_widths2 = [Cm(0.8), Cm(2.2), Cm(6.0), Cm(1.5), Cm(1.5), Cm(2.0), Cm(2.5)]
-    headers2 = ['№', 'Артикул', 'Наименование товара', 'Ед.', 'Кол-во', 'На складе', '✓ Выдано']
-    tbl = doc.add_table(rows=1 + len(items), cols=7)
+    headers2 = ['№', 'Артикул', 'Наименование товара', 'Ед. изм.', 'Кол-во', 'На складе', '✓ Выдано']
+    col_w2 = [Cm(0.8), Cm(2.0), Cm(5.7), Cm(1.5), Cm(1.5), Cm(2.0), Cm(3.0)]
+    tbl = doc.add_table(rows=1 + len(items) + 1, cols=7)
     tbl.style = 'Table Grid'
+    for i, w in enumerate(col_w2):
+        for row in tbl.rows:
+            row.cells[i].width = w
 
     for ci, hdr in enumerate(headers2):
         cell = tbl.cell(0, ci)
@@ -225,79 +222,77 @@ def generate_picking_docx(pk, company) -> BytesIO:
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         _add_run(p, hdr, bold=True, size=9)
 
+    total_qty = 0
     for ri, item in enumerate(items, start=1):
         bg = ALT_ROW_COLOR if ri % 2 == 0 else 'FFFFFF'
         stock_qty = item.product.qty_on_hand if item.product else 0
-        ok = stock_qty >= (item.quantity or 0)
+        qty = item.quantity or 0
+        total_qty += qty
+        ok = stock_qty >= qty
         vals2 = [
             (str(ri), WD_ALIGN_PARAGRAPH.CENTER),
             (item.product.sku if item.product else '—', WD_ALIGN_PARAGRAPH.CENTER),
             (item.product.name if item.product else '—', WD_ALIGN_PARAGRAPH.LEFT),
             (item.product.unit if item.product else '—', WD_ALIGN_PARAGRAPH.CENTER),
-            (str(item.quantity or 0), WD_ALIGN_PARAGRAPH.CENTER),
+            (str(qty), WD_ALIGN_PARAGRAPH.CENTER),
             (str(stock_qty), WD_ALIGN_PARAGRAPH.CENTER),
             ('', WD_ALIGN_PARAGRAPH.CENTER),
         ]
         for ci, (val, align) in enumerate(vals2):
-            cell2 = tbl.cell(ri, ci)
-            _set_cell_bg(cell2, bg)
-            p2 = cell2.paragraphs[0]
+            c2 = tbl.cell(ri, ci)
+            _set_cell_bg(c2, bg)
+            p2 = c2.paragraphs[0]
             p2.alignment = align
             run = _add_run(p2, val, size=9)
             if ci == 5:
                 run.font.color.rgb = RGBColor(0x19, 0x87, 0x54) if ok else RGBColor(0xDC, 0x35, 0x45)
 
-    doc.add_paragraph()
-    doc.add_paragraph()
+    total_row_idx = len(items) + 1
+    tot_left = tbl.cell(total_row_idx, 0)
+    tot_left.merge(tbl.cell(total_row_idx, 4))
+    _set_cell_bg(tot_left, TABLE_HEADER_COLOR)
+    tp2 = tot_left.paragraphs[0]
+    tp2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    _add_run(tp2, 'Итого:', bold=True, size=9)
+    for ci in range(5, 7):
+        _set_cell_bg(tbl.cell(total_row_idx, ci), TABLE_HEADER_COLOR)
+    _add_run(tbl.cell(total_row_idx, 4).paragraphs[0], str(total_qty), bold=True, size=9)
 
-    # ── Timeline log ──────────────────────────────────────────────────────────
-    log_p = doc.add_paragraph()
-    _add_run(log_p, 'Журнал выполнения:', bold=True, size=10)
-    log_tbl = doc.add_table(rows=4, cols=3)
-    log_tbl.style = 'Table Grid'
-    log_tbl.columns[0].width = Cm(5)
-    log_tbl.columns[1].width = Cm(5)
-    log_tbl.columns[2].width = Cm(6.5)
-
-    def _lr(row_idx, label, value):
-        lc = log_tbl.cell(row_idx, 0)
+    # ── Журнал хронологии ─────────────────────────────────────────────────────
+    doc.add_paragraph()
+    log_rows = [
+        ('Задание создано', pk.created_at.strftime('%d.%m.%Y %H:%M') if pk.created_at else '—'),
+        ('Комплектовка начата', pk.started_at.strftime('%d.%m.%Y %H:%M') if pk.started_at else '—'),
+        ('Собрано', pk.assembled_at.strftime('%d.%m.%Y %H:%M') if pk.assembled_at else '—'),
+        ('Отгружено', pk.shipped_at.strftime('%d.%m.%Y %H:%M') if pk.shipped_at else '—'),
+    ]
+    comment_tbl = doc.add_table(rows=len(log_rows), cols=2)
+    comment_tbl.style = 'Table Grid'
+    comment_tbl.columns[0].width = Cm(5)
+    comment_tbl.columns[1].width = Cm(11.5)
+    for ri, (label, val) in enumerate(log_rows):
+        lc = comment_tbl.cell(ri, 0)
         _set_cell_bg(lc, 'EBF3FA')
         _add_run(lc.paragraphs[0], label, bold=True, size=9)
-        _add_run(log_tbl.cell(row_idx, 1).paragraphs[0], value or '—', size=9)
-        _add_run(log_tbl.cell(row_idx, 2).paragraphs[0], '', size=9)
-
-    _lr(0, 'Задание создано', pk.created_at.strftime('%d.%m.%Y %H:%M') if pk.created_at else '—')
-    _lr(1, 'Комплектовка начата', pk.started_at.strftime('%d.%m.%Y %H:%M') if pk.started_at else '—')
-    _lr(2, 'Собрано', pk.assembled_at.strftime('%d.%m.%Y %H:%M') if pk.assembled_at else '—')
-    _lr(3, 'Отгружено', pk.shipped_at.strftime('%d.%m.%Y %H:%M') if pk.shipped_at else '—')
+        _add_run(comment_tbl.cell(ri, 1).paragraphs[0], val, size=9)
 
     doc.add_paragraph()
     doc.add_paragraph()
 
-    # ── Signatures ────────────────────────────────────────────────────────────
-    sig_p = doc.add_paragraph()
-    _add_run(sig_p, 'Подписи:', bold=True, size=10)
+    # ── Подписи (3 колонки) ───────────────────────────────────────────────────
+    picker_name = pk.picker.username if pk.picker else '________________________'
     sig_tbl = doc.add_table(rows=1, cols=3)
+    sig_tbl.style = 'Table Grid'
     sig_tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
     for col in sig_tbl.columns:
         col.width = Cm(5.5)
 
-    picker_name = pk.picker.username if pk.picker else '________________________'
-    _sig_block(sig_tbl, 0, 'Комплектовал:', picker_name, None,
+    _sig_block(sig_tbl, 0, 'Комплектовал', picker_name, None,
                pk.assembled_at.strftime('%d.%m.%Y') if pk.assembled_at else '«__» ________ 20__ г.')
-    _sig_block(sig_tbl, 1, 'Проверил:', '________________________', None, '«__» ________ 20__ г.')
-    _sig_block(sig_tbl, 2, 'Отгрузил:', '________________________', None,
+    _sig_block(sig_tbl, 1, 'Проверил', '________________________', None, '«__» ________ 20__ г.')
+    _sig_block(sig_tbl, 2, 'Отгрузил', '________________________',
+               company.seal_url if company else None,
                pk.shipped_at.strftime('%d.%m.%Y') if pk.shipped_at else '«__» ________ 20__ г.')
-
-    if company and company.seal_url:
-        img_path = _download_image(company.seal_url)
-        if img_path:
-            doc.add_paragraph()
-            seal_p = doc.add_paragraph()
-            try:
-                seal_p.add_run().add_picture(img_path, width=Cm(3.5))
-            except Exception:
-                pass
 
     buf = BytesIO()
     doc.save(buf)
@@ -319,6 +314,13 @@ STATUS_LABELS = {
 TABLE_HEADER_COLOR = 'D6E4F0'
 ALT_ROW_COLOR = 'F7FAFD'
 
+PICKING_DOC_STATUS = {
+    'new': 'Новое',
+    'in_progress': 'В работе',
+    'assembled': 'Собрано',
+    'shipped': 'Отгружено',
+}
+
 
 def generate_purchase_request_docx(pr, company) -> BytesIO:
     """
@@ -328,71 +330,50 @@ def generate_purchase_request_docx(pr, company) -> BytesIO:
     """
     doc = Document()
 
-    # ── page margins ─────────────────────────────────────────────────────────
     for section in doc.sections:
         section.top_margin = Cm(2)
         section.bottom_margin = Cm(2)
         section.left_margin = Cm(2.5)
         section.right_margin = Cm(1.5)
 
-    # ── default paragraph style ──────────────────────────────────────────────
     style = doc.styles['Normal']
     style.font.name = 'Times New Roman'
     style.font.size = Pt(10)
 
-    # ── HEADER: logo + company requisites ───────────────────────────────────
-    hdr_table = doc.add_table(rows=1, cols=2)
-    hdr_table.alignment = WD_TABLE_ALIGNMENT.LEFT
-    hdr_table.columns[0].width = Cm(3.5)
-    hdr_table.columns[1].width = Cm(13)
-
-    logo_cell = hdr_table.cell(0, 0)
-    logo_cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
-    if company and company.logo_url:
-        img_path = _download_image(company.logo_url)
-        if img_path:
-            try:
-                logo_cell.paragraphs[0].add_run().add_picture(img_path, width=Cm(3))
-            except Exception:
-                pass
-
-    req_cell = hdr_table.cell(0, 1)
-    req_cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
-    rp = req_cell.paragraphs[0]
-
+    # ── HEADER: центрированные реквизиты компании ────────────────────────────
     if company:
         name_line = f'{company.legal_form} «{company.company_name}»' if company.legal_form and company.company_name else (company.company_name or '')
-        _add_run(rp, name_line + '\n', bold=True, size=11)
+        p_name = doc.add_paragraph()
+        p_name.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _add_run(p_name, name_line, bold=True, size=12)
+
         reqs = []
-        if company.inn:
-            reqs.append(f'ИНН {company.inn}')
-        if company.kpp:
-            reqs.append(f'КПП {company.kpp}')
-        if company.ogrn:
-            reqs.append(f'ОГРН {company.ogrn}')
-        if reqs:
-            _add_run(rp, '  '.join(reqs) + '\n', size=9, color='444444')
         if company.legal_address:
-            _add_run(rp, f'Адрес: {company.legal_address}\n', size=9, color='444444')
+            reqs.append(company.legal_address)
         contacts = []
         if company.phone:
-            contacts.append(f'Тел.: {company.phone}')
-        if company.email:
-            contacts.append(f'E-mail: {company.email}')
+            contacts.append(f'тел. {company.phone}')
         if contacts:
-            _add_run(rp, '  '.join(contacts) + '\n', size=9, color='444444')
-        if company.bank_name:
-            _add_run(rp, f'Банк: {company.bank_name}', size=9, color='444444')
-            if company.bank_bik:
-                _add_run(rp, f'  БИК {company.bank_bik}', size=9, color='444444')
-            if company.settlement_account:
-                _add_run(rp, f'  р/с {company.settlement_account}', size=9, color='444444')
-    else:
-        _add_run(rp, 'Организация не указана', size=10, color='888888')
+            reqs.extend(contacts)
+        if reqs:
+            p_addr = doc.add_paragraph()
+            p_addr.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _add_run(p_addr, ', '.join(reqs), size=9, color='444444')
 
-    doc.add_paragraph()  # spacer
+        inn_parts = []
+        if company.inn:
+            inn_parts.append(f'ИНН {company.inn}')
+        if company.kpp:
+            inn_parts.append(f'КПП {company.kpp}')
+        if company.ogrn:
+            inn_parts.append(f'ОГРН {company.ogrn}')
+        if inn_parts:
+            p_inn = doc.add_paragraph()
+            p_inn.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _add_run(p_inn, ', '.join(inn_parts), size=9, color='444444')
 
     # ── DOCUMENT TITLE ───────────────────────────────────────────────────────
+    doc.add_paragraph()
     date_str = pr.request_date.strftime('%d.%m.%Y') if pr.request_date else datetime.utcnow().strftime('%d.%m.%Y')
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -404,42 +385,50 @@ def generate_purchase_request_docx(pr, company) -> BytesIO:
     doc.add_paragraph()
 
     # ── META INFO TABLE ───────────────────────────────────────────────────────
-    meta = doc.add_table(rows=5, cols=2)
+    initiator_name = pr.creator.username if pr.creator else '—'
+    notes = pr.comment or '—'
+
+    meta_rows = [
+        ('Инициатор', initiator_name),
+        ('Поставщик', pr.supplier.name if pr.supplier else '—'),
+        ('Основание', notes),
+        ('Приоритет', PRIORITY_LABELS.get(pr.priority, pr.priority or '—')),
+        ('Требуемая дата поставки', pr.needed_by_date.strftime('%d.%m.%Y') if pr.needed_by_date else '—'),
+        ('Статус', STATUS_LABELS.get(pr.status, pr.status or '—')),
+    ]
+
+    meta = doc.add_table(rows=len(meta_rows), cols=4)
     meta.style = 'Table Grid'
     meta.alignment = WD_TABLE_ALIGNMENT.LEFT
-    meta.columns[0].width = Cm(5)
-    meta.columns[1].width = Cm(11.5)
+    meta.columns[0].width = Cm(4.5)
+    meta.columns[1].width = Cm(7.5)
+    meta.columns[2].width = Cm(0.1)
+    meta.columns[3].width = Cm(4.4)
 
-    def _meta_row(row_idx, label, value):
-        lc = meta.cell(row_idx, 0)
+    for ri, (label, value) in enumerate(meta_rows):
+        lc = meta.cell(ri, 0)
         _set_cell_bg(lc, 'EBF3FA')
-        p = lc.paragraphs[0]
-        _add_run(p, label, bold=True, size=9)
-        vc = meta.cell(row_idx, 1)
-        _add_run(vc.paragraphs[0], value or '—', size=9)
-
-    _meta_row(0, 'Поставщик', pr.supplier.name if pr.supplier else '—')
-    _meta_row(1, 'Приоритет', PRIORITY_LABELS.get(pr.priority, pr.priority or '—'))
-    _meta_row(2, 'Нужно к', pr.needed_by_date.strftime('%d.%m.%Y') if pr.needed_by_date else '—')
-    _meta_row(3, 'Статус', STATUS_LABELS.get(pr.status, pr.status or '—'))
-    _meta_row(4, 'Комментарий', pr.comment or '—')
+        _add_run(lc.paragraphs[0], label, bold=True, size=9)
+        vc = meta.cell(ri, 1)
+        _add_run(vc.paragraphs[0], value, size=9)
+        meta.cell(ri, 1).merge(meta.cell(ri, 3))
 
     doc.add_paragraph()
 
     # ── ITEMS TABLE ──────────────────────────────────────────────────────────
-    items_title = doc.add_paragraph()
-    _add_run(items_title, 'Позиции заявки:', bold=True, size=10)
+    p_items_lbl = doc.add_paragraph()
+    _add_run(p_items_lbl, 'Табличная часть заявки:', bold=True, size=10)
 
-    col_widths = [Cm(0.8), Cm(2.4), Cm(5.8), Cm(1.5), Cm(1.5), Cm(2.2), Cm(2.3)]
-    headers = ['№', 'Артикул', 'Наименование товара', 'Ед.', 'Кол-во', 'Цена (оценка)', 'Сумма']
-    items_table = doc.add_table(rows=1 + len(pr.items) + 1, cols=7)
+    col_widths = [Cm(0.8), Cm(2.0), Cm(5.5), Cm(1.5), Cm(1.5), Cm(2.7), Cm(2.5)]
+    headers = ['№', 'Артикул', 'Наименование', 'Ед. изм.', 'Кол-во', 'Ориентировочная цена', 'Сумма']
+    n_items = len(pr.items)
+    items_table = doc.add_table(rows=1 + n_items + 1, cols=7)
     items_table.style = 'Table Grid'
 
     for i, w in enumerate(col_widths):
         for row in items_table.rows:
             row.cells[i].width = w
 
-    # header row
     for ci, hdr in enumerate(headers):
         cell = items_table.cell(0, ci)
         _set_cell_bg(cell, TABLE_HEADER_COLOR)
@@ -447,7 +436,6 @@ def generate_purchase_request_docx(pr, company) -> BytesIO:
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         _add_run(p, hdr, bold=True, size=9)
 
-    # data rows
     total = 0.0
     for ri, item in enumerate(pr.items, start=1):
         qty = item.quantity or 0
@@ -461,8 +449,8 @@ def generate_purchase_request_docx(pr, company) -> BytesIO:
             (item.product.name if item.product else '—', WD_ALIGN_PARAGRAPH.LEFT),
             (item.product.unit if item.product else '—', WD_ALIGN_PARAGRAPH.CENTER),
             (str(qty), WD_ALIGN_PARAGRAPH.CENTER),
-            (f'{price:,.2f} ₽'.replace(',', ' '), WD_ALIGN_PARAGRAPH.RIGHT),
-            (f'{subtotal:,.2f} ₽'.replace(',', ' '), WD_ALIGN_PARAGRAPH.RIGHT),
+            (f'{price:,.2f}'.replace(',', ' '), WD_ALIGN_PARAGRAPH.RIGHT),
+            (f'{subtotal:,.2f}'.replace(',', ' '), WD_ALIGN_PARAGRAPH.RIGHT),
         ]
         for ci, (val, align) in enumerate(vals):
             cell = items_table.cell(ri, ci)
@@ -471,59 +459,48 @@ def generate_purchase_request_docx(pr, company) -> BytesIO:
             p.alignment = align
             _add_run(p, val, size=9)
 
-    # total row
-    total_row_idx = len(pr.items) + 1
+    total_row_idx = n_items + 1
     total_left = items_table.cell(total_row_idx, 0)
     total_left.merge(items_table.cell(total_row_idx, 5))
-    _set_cell_bg(total_left, 'D6E4F0')
+    _set_cell_bg(total_left, TABLE_HEADER_COLOR)
     tp = total_left.paragraphs[0]
     tp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    _add_run(tp, 'ИТОГО (оценка):', bold=True, size=9)
-
+    _add_run(tp, 'Итого:', bold=True, size=9)
     total_right = items_table.cell(total_row_idx, 6)
-    _set_cell_bg(total_right, 'D6E4F0')
+    _set_cell_bg(total_right, TABLE_HEADER_COLOR)
     trp = total_right.paragraphs[0]
     trp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    _add_run(trp, f'{total:,.2f} ₽'.replace(',', ' '), bold=True, size=9)
+    _add_run(trp, f'{total:,.2f}'.replace(',', ' '), bold=True, size=9)
+
+    # ── COMMENT BELOW TABLE ──────────────────────────────────────────────────
+    doc.add_paragraph()
+    comment_tbl = doc.add_table(rows=1, cols=1)
+    comment_tbl.style = 'Table Grid'
+    comment_tbl.columns[0].width = Cm(16.5)
+    cc = comment_tbl.cell(0, 0)
+    _add_run(cc.paragraphs[0], f'Комментарий: {pr.comment or "—"}', size=9)
 
     doc.add_paragraph()
     doc.add_paragraph()
 
-    # ── SIGNATURE BLOCKS ──────────────────────────────────────────────────────
-    sig_title = doc.add_paragraph()
-    _add_run(sig_title, 'Подписи:', bold=True, size=10)
-
-    sig_table = doc.add_table(rows=1, cols=3)
-    sig_table.alignment = WD_TABLE_ALIGNMENT.LEFT
-    for col in sig_table.columns:
-        col.width = Cm(5.5)
-
+    # ── SIGNATURE BLOCKS (2 колонки: Составил / Согласовал) ──────────────────
     today = datetime.utcnow().strftime('%d.%m.%Y')
     approved_date = pr.approved_at.strftime('%d.%m.%Y') if pr.approved_at else '«__» ________ 20__ г.'
-
-    # Заказал (creator)
     creator_name = pr.creator.username if pr.creator else '________________________'
-    creator_sig = company.ceo_signature_url if (company and pr.creator and pr.creator.is_admin) else None
-    _sig_block(sig_table, 0, 'Заказал:', creator_name, creator_sig,
-               pr.created_at.strftime('%d.%m.%Y') if pr.created_at else today)
-
-    # Согласовал (approver)
     approver_name = pr.approver.username if pr.approver else '________________________'
-    _sig_block(sig_table, 1, 'Согласовал:', approver_name, None, approved_date)
 
-    # Принял (receiver - blank)
-    _sig_block(sig_table, 2, 'Принял:', '________________________', None, '«__» ________ 20__ г.')
+    sig_table = doc.add_table(rows=1, cols=2)
+    sig_table.style = 'Table Grid'
+    sig_table.alignment = WD_TABLE_ALIGNMENT.LEFT
+    sig_table.columns[0].width = Cm(8)
+    sig_table.columns[1].width = Cm(8.5)
 
-    # ── SEAL ─────────────────────────────────────────────────────────────────
-    if company and company.seal_url:
-        img_path = _download_image(company.seal_url)
-        if img_path:
-            doc.add_paragraph()
-            seal_p = doc.add_paragraph()
-            try:
-                seal_p.add_run().add_picture(img_path, width=Cm(3.5))
-            except Exception:
-                pass
+    _sig_block(sig_table, 0, 'Составил', creator_name,
+               company.ceo_signature_url if (company and pr.creator and getattr(pr.creator, 'is_admin', False)) else None,
+               pr.created_at.strftime('%d.%m.%Y') if pr.created_at else today)
+    _sig_block(sig_table, 1, 'Согласовал', approver_name,
+               company.seal_url if company else None,
+               approved_date)
 
     # ── FOOTER ───────────────────────────────────────────────────────────────
     if company and company.print_footer:
